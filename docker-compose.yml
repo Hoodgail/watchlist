@@ -52,7 +52,7 @@ services:
       - internal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.watchlist-api.rule=Host(`watchlist.api.hoodgail.me`)"
+      - "traefik.http.routers.watchlist-api.rule=Host(`watchlist-api.hoodgail.me`)"
       - "traefik.http.routers.watchlist-api.entrypoints=web"
       - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
       # Health check
@@ -78,7 +78,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=${VITE_API_URL:-https://watchlist.api.hoodgail.me/api}
+        - VITE_API_URL=${VITE_API_URL:-https://watchlist-api.hoodgail.me/api}
         - VITE_TMDB_API_KEY=${VITE_TMDB_API_KEY}
     container_name: watchlist-frontend
     restart: unless-stopped
