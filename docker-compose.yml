@@ -10,15 +10,15 @@ services:
       - NODE_ENV=production
     networks:
       - dokploy-network
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.mangadex.rule=Host(`mangadex.hoodgail.me`)"
-    #   - "traefik.http.routers.mangadex.entrypoints=websecure"
-    #   - "traefik.http.routers.mangadex.tls.certresolver=letsencrypt"
-    #   - "traefik.http.services.mangadex.loadbalancer.server.port=3202"
-    #   # Health check
-    #   - "traefik.http.services.mangadex.loadbalancer.healthcheck.path=/health"
-    #   - "traefik.http.services.mangadex.loadbalancer.healthcheck.interval=30s"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mangadex.rule=Host(`mangadex.hoodgail.me`)"
+      - "traefik.http.routers.mangadex.entrypoints=websecure"
+      - "traefik.http.routers.mangadex.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mangadex.loadbalancer.server.port=3202"
+      # Health check
+      - "traefik.http.services.mangadex.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.mangadex.loadbalancer.healthcheck.interval=30s"
     healthcheck:
       test:
         [
@@ -51,15 +51,15 @@ services:
     networks:
       - dokploy-network
       - internal
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.watchlist-api.rule=Host(`watchlist.api.hoodgail.me`)"
-    #   - "traefik.http.routers.watchlist-api.entrypoints=websecure"
-    #   - "traefik.http.routers.watchlist-api.tls.certresolver=letsencrypt"
-    #   - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
-    #   # Health check
-    #   - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.path=/api/health"
-    #   - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.interval=30s"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watchlist-api.rule=Host(`watchlist.api.hoodgail.me`)"
+      - "traefik.http.routers.watchlist-api.entrypoints=websecure"
+      - "traefik.http.routers.watchlist-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
+      # Health check
+      - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.path=/api/health"
+      - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.interval=30s"
     healthcheck:
       test:
         [
@@ -89,12 +89,12 @@ services:
         condition: service_healthy
     networks:
       - dokploy-network
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
-    #   - "traefik.http.routers.watchlist.entrypoints=websecure"
-    #   - "traefik.http.routers.watchlist.tls.certresolver=letsencrypt"
-    #   - "traefik.http.services.watchlist.loadbalancer.server.port=80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
+      - "traefik.http.routers.watchlist.entrypoints=websecure"
+      - "traefik.http.routers.watchlist.tls.certresolver=letsencrypt"
+      - "traefik.http.services.watchlist.loadbalancer.server.port=80"
     healthcheck:
       test:
         [
