@@ -1,0 +1,164 @@
+import React, { useState } from 'react';
+import { MediaItem, SearchResult } from '../types';
+import { searchMedia, searchResultToMediaItem, SearchCategory } from '../services/mediaSearch';
+
+interface SearchMediaProps {
+  onAdd: (item: Omit<MediaItem, 'id'>) => void;
+}
+
+const CATEGORIES: { value: SearchCategory; label: string }[] = [
+  { value: 'all', label: 'ALL' },
+  { value: 'tv', label: 'TV' },
+  { value: 'movie', label: 'FILM' },
+  { value: 'anime', label: 'ANIME' },
+  { value: 'manga', label: 'MANGA' },
+];
+
+export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<SearchCategory>('all');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setLoading(true);
+    setHasSearched(true);
+    setResults([]);
+
+    try {
+      const items = await searchMedia(query, category);
+      setResults(items);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdd = (result: SearchResult) => {
+    const mediaItem = searchResultToMediaItem(result);
+    onAdd(mediaItem);
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
+          ADD CONTENT
+        </h2>
+
+        {/* Category Filter */}
+        <div className="flex gap-2 flex-wrap">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.value}
+              onClick={() => setCategory(cat.value)}
+              className={`px-3 py-1 text-xs uppercase tracking-wider border transition-colors ${
+                category === cat.value
+                  ? 'bg-white text-black border-white'
+                  : 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSearch} className="flex gap-0">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="TYPE TITLE (e.g. 'AKIRA')"
+            className="flex-grow bg-black border border-neutral-700 p-4 text-white placeholder-neutral-700 uppercase focus:border-white outline-none font-mono rounded-none"
+            autoFocus
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-white text-black font-bold uppercase px-6 py-4 hover:bg-neutral-300 disabled:opacity-50 rounded-none border-l-0"
+          >
+            {loading ? '...' : 'FIND'}
+          </button>
+        </form>
+      </div>
+
+      {hasSearched && (
+        <div className="space-y-4 animate-fade-in">
+          <h3 className="text-xs text-neutral-600 uppercase tracking-widest">
+            {loading ? 'SEARCHING...' : `RESULTS FOR "${query}"`}
+          </h3>
+
+          {!loading && results.length === 0 && (
+            <div className="p-4 border border-red-900/50 text-red-700 uppercase text-sm">
+              No results found. Try a different query.
+            </div>
+          )}
+
+          <div className="grid gap-4">
+            {results.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-4 p-4 border border-neutral-800 hover:border-white transition-colors group bg-black"
+              >
+                {/* Image */}
+                {item.imageUrl && (
+                  <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Info */}
+                <div className="flex-grow min-w-0">
+                  <h4 className="font-bold text-lg uppercase tracking-tight truncate">
+                    {item.title}
+                  </h4>
+                  <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase">
+                    <span className="bg-neutral-900 px-1 border border-neutral-800">
+                      {item.type}
+                    </span>
+                    <span>
+                      {item.total
+                        ? `${item.total} ${item.type === 'MANGA' ? 'CH' : 'EP'}`
+                        : 'ONGOING'}
+                    </span>
+                    {item.year && <span className="text-neutral-600">{item.year}</span>}
+                  </div>
+                </div>
+
+                {/* Add Button */}
+                <button
+                  onClick={() => handleAdd(item)}
+                  className="flex-shrink-0 text-sm border border-neutral-700 text-neutral-400 px-4 py-2 hover:bg-white hover:text-black hover:border-white transition-all uppercase rounded-none"
+                >
+                  + Add
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Visual filler for empty state */}
+      {!hasSearched && (
+        <div className="text-neutral-800 text-center py-20 select-none">
+          <div className="text-6xl mb-4 opacity-20">Type</div>
+          <div className="text-6xl mb-4 opacity-10">To</div>
+          <div className="text-6xl opacity-5">Search</div>
+        </div>
+      )}
+    </div>
+  );
+};

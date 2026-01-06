@@ -1,0 +1,68 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: watchlist-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3201
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
+    networks:
+      - traefik
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watchlist-api.rule=Host(`watchlist.api.hoodgail.me`)"
+      - "traefik.http.routers.watchlist-api.entrypoints=websecure"
+      - "traefik.http.routers.watchlist-api.tls=true"
+      - "traefik.http.routers.watchlist-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
+      # Health check
+      - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.path=/api/health"
+      - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.interval=30s"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3201/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-https://watchlist.api.hoodgail.me/api}
+        - VITE_TMDB_API_KEY=${VITE_TMDB_API_KEY}
+    container_name: watchlist-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
+      - "traefik.http.routers.watchlist.entrypoints=websecure"
+      - "traefik.http.routers.watchlist.tls=true"
+      - "traefik.http.routers.watchlist.tls.certresolver=letsencrypt"
+      - "traefik.http.services.watchlist.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  traefik:
+    external: true
+  internal:
+    driver: bridge

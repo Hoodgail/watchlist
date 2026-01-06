@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MediaType {
+  TV
+  MOVIE
+  ANIME
+  MANGA
+}
+
+enum MediaStatus {
+  WATCHING
+  READING
+  COMPLETED
+  PLAN_TO_WATCH
+  DROPPED
+  PAUSED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique @db.VarChar(32)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  displayName  String?  @map("display_name") @db.VarChar(64)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  mediaItems          MediaItem[]
+  following           Friendship[]      @relation("UserFollowing")
+  followers           Friendship[]      @relation("UserFollowers")
+  sentFriendRequests  FriendRequest[]   @relation("SentRequests")
+  receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
+  refreshTokens       RefreshToken[]
+
+  @@map("users")
+}
+
+model MediaItem {
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  title     String      @db.VarChar(255)
+  type      MediaType
+  status    MediaStatus
+  current   Int         @default(0)
+  total     Int?
+  notes     String?     @db.Text
+  rating    Int?        @db.SmallInt // Personal rating 0-10
+  imageUrl  String?     @map("image_url") @db.VarChar(500)
+  refId     String?     @map("ref_id") @db.VarChar(100) // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, type])
+  @@map("media_items")
+}
+
+model Friendship {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("friendships")
+}
+
+model FriendRequest {
+  id         String              @id @default(uuid())
+  fromUserId String              @map("from_user_id")
+  toUserId   String              @map("to_user_id")
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  fromUser User @relation("SentRequests", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("ReceivedRequests", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@map("friend_requests")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
