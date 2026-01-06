@@ -9,7 +9,7 @@ services:
       - PORT=3202
       - NODE_ENV=production
     networks:
-      - traefik
+      - dokploy-network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mangadex.rule=Host(`mangadex.hoodgail.me`)"
@@ -21,7 +21,15 @@ services:
       - "traefik.http.services.mangadex.loadbalancer.healthcheck.path=/health"
       - "traefik.http.services.mangadex.loadbalancer.healthcheck.interval=30s"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3202/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3202/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -42,7 +50,7 @@ services:
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
     networks:
-      - traefik
+      - dokploy-network
       - internal
     labels:
       - "traefik.enable=true"
@@ -55,7 +63,15 @@ services:
       - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.path=/api/health"
       - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.interval=30s"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3201/api/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3201/api/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -74,7 +90,7 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - traefik
+      - dokploy-network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
@@ -83,14 +99,22 @@ services:
       - "traefik.http.routers.watchlist.tls.certresolver=letsencrypt"
       - "traefik.http.services.watchlist.loadbalancer.server.port=80"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
 
 networks:
-  traefik:
+  dokploy-network:
     external: true
   internal:
     driver: bridge
