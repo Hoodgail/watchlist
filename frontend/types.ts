@@ -4,6 +4,17 @@ export type MediaStatus = 'WATCHING' | 'READING' | 'COMPLETED' | 'PLAN_TO_WATCH'
 
 export type SortBy = 'status' | 'title' | 'rating' | 'updatedAt' | 'createdAt';
 
+export type FriendActivityFilter = '' | 'friends_watching' | 'friends_done' | 'friends_dropped';
+
+export interface FriendStatus {
+  id: string;
+  username: string;
+  displayName: string | null;
+  status: MediaStatus;
+  current: number;
+  rating: number | null;
+}
+
 export interface MediaItem {
   id: string;
   title: string;
@@ -14,7 +25,8 @@ export interface MediaItem {
   notes?: string;
   rating?: number | null; // Personal rating 0-10
   imageUrl?: string; // For TMDB/MangaHook images
-  refId?: string; // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  refId: string; // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  friendsStatuses?: FriendStatus[]; // Friends who have this item
 }
 
 // User type for friends list display

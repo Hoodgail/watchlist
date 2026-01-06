@@ -1,7 +1,17 @@
 import { prisma } from '../config/database.js';
-import { NotFoundError, ForbiddenError } from '../utils/errors.js';
+import { NotFoundError, ForbiddenError, ConflictError } from '../utils/errors.js';
 import type { CreateMediaItemInput, UpdateMediaItemInput } from '../utils/schemas.js';
 import type { MediaType, MediaStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+
+export interface FriendStatus {
+  id: string;
+  username: string;
+  displayName: string | null;
+  status: MediaStatus;
+  current: number;
+  rating: number | null;
+}
 
 export interface MediaItemResponse {
   id: string;
@@ -13,9 +23,10 @@ export interface MediaItemResponse {
   notes: string | null;
   rating: number | null;
   imageUrl: string | null;
-  refId: string | null;
+  refId: string;
   createdAt: Date;
   updatedAt: Date;
+  friendsStatuses?: FriendStatus[];
 }
 
 const mediaItemSelect = {
@@ -96,28 +107,116 @@ export async function getUserList(
     });
   }
 
-  return items;
+  // Get friends (users the current user is following)
+  const friendships = await prisma.friendship.findMany({
+    where: { followerId: userId },
+    select: { followingId: true },
+  });
+  
+  const friendIds = friendships.map(f => f.followingId);
+  
+  if (friendIds.length === 0) {
+    return items;
+  }
+
+  // Get refIds from user's items to find matching items in friends' lists
+  const refIds = items.filter(item => item.refId).map(item => item.refId as string);
+
+  // Fetch friends' media items that match by refId OR title
+  const friendsItems = await prisma.mediaItem.findMany({
+    where: {
+      userId: { in: friendIds },
+      OR: [
+        ...(refIds.length > 0 ? [{ refId: { in: refIds } }] : []),
+        { title: { in: items.map(i => i.title), mode: 'insensitive' as const } },
+      ],
+    },
+    select: {
+      title: true,
+      refId: true,
+      status: true,
+      current: true,
+      rating: true,
+      user: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+        },
+      },
+    },
+  });
+
+  // Create a map for quick lookup
+  const friendsMapByRefId = new Map<string, FriendStatus[]>();
+  const friendsMapByTitle = new Map<string, FriendStatus[]>();
+  
+  for (const friendItem of friendsItems) {
+    const friendStatus: FriendStatus = {
+      id: friendItem.user.id,
+      username: friendItem.user.username,
+      displayName: friendItem.user.displayName,
+      status: friendItem.status,
+      current: friendItem.current,
+      rating: friendItem.rating,
+    };
+
+    // Key by refId if available
+    if (friendItem.refId) {
+      const existing = friendsMapByRefId.get(friendItem.refId) || [];
+      existing.push(friendStatus);
+      friendsMapByRefId.set(friendItem.refId, existing);
+    }
+    
+    // Also key by lowercase title
+    const titleKey = friendItem.title.toLowerCase();
+    const existingByTitle = friendsMapByTitle.get(titleKey) || [];
+    existingByTitle.push(friendStatus);
+    friendsMapByTitle.set(titleKey, existingByTitle);
+  }
+
+  // Attach friends' statuses to each item
+  const itemsWithFriends: MediaItemResponse[] = items.map(item => {
+    // First try to match by refId
+    let friendsStatuses = item.refId ? friendsMapByRefId.get(item.refId) : undefined;
+    
+    // Fall back to title match if no refId match
+    if (!friendsStatuses || friendsStatuses.length === 0) {
+      friendsStatuses = friendsMapByTitle.get(item.title.toLowerCase());
+    }
+    
+    return { ...item, friendsStatuses: friendsStatuses || [] };
+  });
+
+  return itemsWithFriends;
 }
 
 export async function createMediaItem(
   userId: string,
   input: CreateMediaItemInput
 ): Promise<MediaItemResponse> {
-  return prisma.mediaItem.create({
-    data: {
-      userId,
-      title: input.title,
-      type: input.type,
-      status: input.status,
-      current: input.current ?? 0,
-      total: input.total ?? null,
-      notes: input.notes,
-      rating: input.rating ?? null,
-      imageUrl: input.imageUrl,
-      refId: input.refId,
-    },
-    select: mediaItemSelect,
-  });
+  try {
+    return await prisma.mediaItem.create({
+      data: {
+        userId,
+        title: input.title,
+        type: input.type,
+        status: input.status,
+        current: input.current ?? 0,
+        total: input.total ?? null,
+        notes: input.notes,
+        rating: input.rating ?? null,
+        imageUrl: input.imageUrl,
+        refId: input.refId,
+      },
+      select: mediaItemSelect,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictError('This item is already in your list');
+    }
+    throw error;
+  }
 }
 
 export async function updateMediaItem(

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MediaItem, MediaStatus, SortBy } from '../types';
+import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus } from '../types';
 import { STATUS_OPTIONS } from '../constants';
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
@@ -15,15 +15,27 @@ const FILTER_STATUS_OPTIONS = [
   ...STATUS_OPTIONS,
 ];
 
+const FRIEND_ACTIVITY_OPTIONS: { value: FriendActivityFilter; label: string }[] = [
+  { value: '', label: 'ALL' },
+  { value: 'friends_watching', label: 'FRIENDS WATCHING/READING' },
+  { value: 'friends_done', label: 'FRIENDS COMPLETED' },
+  { value: 'friends_dropped', label: 'FRIENDS DROPPED' },
+];
+
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
+
 interface MediaListProps {
   title: string;
   items: MediaItem[];
   onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
   onDelete?: (id: string) => void;
+  onAddToMyList?: (item: MediaItem) => void;
   readonly?: boolean;
   filterStatus?: MediaStatus | '';
+  friendActivityFilter?: FriendActivityFilter;
   sortBy?: SortBy;
   onFilterChange?: (status: MediaStatus | '') => void;
+  onFriendActivityFilterChange?: (filter: FriendActivityFilter) => void;
   onSortChange?: (sortBy: SortBy) => void;
 }
 
@@ -31,17 +43,39 @@ export const MediaList: React.FC<MediaListProps> = ({
   title, 
   items, 
   onUpdate, 
-  onDelete, 
+  onDelete,
+  onAddToMyList,
   readonly,
   filterStatus = '',
+  friendActivityFilter = '',
   sortBy = 'status',
   onFilterChange,
+  onFriendActivityFilterChange,
   onSortChange,
 }) => {
-  // Filter items client-side if no backend filter is applied
-  const filteredItems = filterStatus 
+  // Filter items client-side
+  let filteredItems = filterStatus 
     ? items.filter(item => item.status === filterStatus)
     : items;
+
+  // Apply friend activity filter
+  if (friendActivityFilter) {
+    filteredItems = filteredItems.filter(item => {
+      const friendsStatuses = item.friendsStatuses || [];
+      if (friendsStatuses.length === 0) return false;
+      
+      switch (friendActivityFilter) {
+        case 'friends_watching':
+          return friendsStatuses.some(f => f.status === 'WATCHING' || f.status === 'READING');
+        case 'friends_done':
+          return friendsStatuses.some(f => f.status === 'COMPLETED');
+        case 'friends_dropped':
+          return friendsStatuses.some(f => f.status === 'DROPPED');
+        default:
+          return true;
+      }
+    });
+  }
 
   if (items.length === 0) {
     return (
@@ -59,18 +93,36 @@ export const MediaList: React.FC<MediaListProps> = ({
         <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">{title}</h2>
         
         {/* Filter and Sort Controls */}
-        {!readonly && (onFilterChange || onSortChange) && (
-          <div className="flex items-center gap-4 text-xs">
+        {!readonly && (onFilterChange || onSortChange || onFriendActivityFilterChange) && (
+          <div className="flex flex-wrap items-center gap-4 text-xs">
             {/* Filter by Status */}
             {onFilterChange && (
               <div className="flex items-center gap-2">
-                <span className="text-neutral-600 uppercase">FILTER:</span>
+                <span className="text-neutral-600 uppercase">STATUS:</span>
                 <select
                   value={filterStatus}
                   onChange={(e) => onFilterChange(e.target.value as MediaStatus | '')}
                   className="bg-black border border-neutral-800 text-neutral-400 px-2 py-1 uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
                 >
                   {FILTER_STATUS_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value} className="bg-black">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Filter by Friend Activity */}
+            {onFriendActivityFilterChange && (
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-600 uppercase">FRIENDS:</span>
+                <select
+                  value={friendActivityFilter}
+                  onChange={(e) => onFriendActivityFilterChange(e.target.value as FriendActivityFilter)}
+                  className="bg-black border border-neutral-800 text-neutral-400 px-2 py-1 uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
+                >
+                  {FRIEND_ACTIVITY_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value} className="bg-black">
                       {opt.label}
                     </option>
@@ -101,7 +153,7 @@ export const MediaList: React.FC<MediaListProps> = ({
       </div>
 
       {/* Items count */}
-      {filterStatus && (
+      {(filterStatus || friendActivityFilter) && (
         <div className="text-xs text-neutral-600 uppercase">
           Showing {filteredItems.length} of {items.length} items
         </div>
@@ -120,6 +172,7 @@ export const MediaList: React.FC<MediaListProps> = ({
               item={item} 
               onUpdate={onUpdate} 
               onDelete={onDelete}
+              onAddToMyList={onAddToMyList}
               readonly={readonly}
             />
           ))
@@ -144,17 +197,49 @@ const RATING_OPTIONS = [
   { value: 10, label: '10' },
 ];
 
+// Helper to get full image URL
+const getImageUrl = (imageUrl?: string): string | null => {
+  if (!imageUrl) return null;
+  // If it's already a full URL, return as is
+  if (imageUrl.startsWith('http')) return imageUrl;
+  // If it's a TMDB path (starts with /), prepend the base URL
+  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
+  return imageUrl;
+};
+
+// Helper to get short status label for friend badges
+const getShortStatus = (status: MediaStatus): string => {
+  switch (status) {
+    case 'WATCHING':
+    case 'READING':
+      return 'ACTIVE';
+    case 'COMPLETED':
+      return 'DONE';
+    case 'DROPPED':
+      return 'DROP';
+    case 'PAUSED':
+      return 'PAUSE';
+    case 'PLAN_TO_WATCH':
+      return 'PLAN';
+    default:
+      return status;
+  }
+};
+
 const MediaItemCard: React.FC<{ 
   item: MediaItem; 
   onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
   onDelete?: (id: string) => void;
+  onAddToMyList?: (item: MediaItem) => void;
   readonly?: boolean;
-}> = ({ item, onUpdate, onDelete, readonly }) => {
+}> = ({ item, onUpdate, onDelete, onAddToMyList, readonly }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [notesValue, setNotesValue] = useState(item.notes || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [imageError, setImageError] = useState(false);
   
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
+  const imageUrl = getImageUrl(item.imageUrl);
   
   // Minimalist Status Badge Color Logic (Grayscale variations)
   const getStatusStyle = (status: MediaStatus) => {
@@ -180,7 +265,15 @@ const MediaItemCard: React.FC<{
     onUpdate && onUpdate(item.id, { rating: value });
   };
 
-  const hasDetails = item.notes || item.rating != null;
+  const hasDetails = item.notes || item.rating != null || (item.friendsStatuses && item.friendsStatuses.length > 0);
+
+  // Group friends by status for display
+  const friendsByStatus = (item.friendsStatuses || []).reduce((acc, friend) => {
+    const key = friend.status;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(friend);
+    return acc;
+  }, {} as Record<MediaStatus, FriendStatus[]>);
 
   return (
     <div className="group relative border border-neutral-800 bg-black transition-all hover:border-neutral-600">
@@ -197,100 +290,138 @@ const MediaItemCard: React.FC<{
 
       {/* Main Content */}
       <div className="p-4">
-        <div className="flex flex-col sm:flex-row justify-between gap-4">
+        <div className="flex gap-4">
+          {/* Poster Image */}
+          {imageUrl && !imageError && (
+            <div className="flex-shrink-0 w-16 sm:w-20">
+              <img
+                src={imageUrl}
+                alt={item.title}
+                onError={() => setImageError(true)}
+                className="w-full aspect-[2/3] object-cover border border-neutral-800"
+              />
+            </div>
+          )}
           
-          {/* Main Info */}
-          <div className="flex-grow">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
-                  {item.title}
-                </h3>
-                {/* Rating Badge */}
-                {item.rating != null && (
-                  <span className="text-xs bg-neutral-900 border border-neutral-700 px-1.5 py-0.5 text-neutral-300 font-mono">
-                    {item.rating}/10
+          <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4">
+            {/* Main Info */}
+            <div className="flex-grow">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
+                    {item.title}
+                  </h3>
+                  {/* Rating Badge */}
+                  {item.rating != null && (
+                    <span className="text-xs bg-neutral-900 border border-neutral-700 px-1.5 py-0.5 text-neutral-300 font-mono">
+                      {item.rating}/10
+                    </span>
+                  )}
+                </div>
+                {/* Mobile Delete Button */}
+                {!readonly && onDelete && (
+                  <button 
+                    onClick={() => onDelete(item.id)}
+                    className="sm:hidden text-neutral-700 hover:text-red-500 px-2"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex flex-wrap gap-2 text-xs uppercase mt-1">
+                <span className="bg-neutral-900 text-neutral-400 px-1.5 py-0.5 border border-neutral-800">
+                  {item.type}
+                </span>
+                {item.total ? (
+                  <span className="text-neutral-500 py-0.5">
+                    {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
+                  </span>
+                ) : (
+                  <span className="text-neutral-500 py-0.5">ONGOING</span>
+                )}
+                {/* Notes indicator */}
+                {item.notes && (
+                  <span className="text-neutral-600 py-0.5" title="Has notes">
+                    [NOTE]
                   </span>
                 )}
               </div>
-              {/* Mobile Delete Button */}
-              {!readonly && onDelete && (
-                <button 
-                  onClick={() => onDelete(item.id)}
-                  className="sm:hidden text-neutral-700 hover:text-red-500 px-2"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-            
-            <div className="flex flex-wrap gap-2 text-xs uppercase mt-1">
-              <span className="bg-neutral-900 text-neutral-400 px-1.5 py-0.5 border border-neutral-800">
-                {item.type}
-              </span>
-              {item.total ? (
-                <span className="text-neutral-500 py-0.5">
-                  {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
-                </span>
-              ) : (
-                <span className="text-neutral-500 py-0.5">ONGOING</span>
-              )}
-              {/* Notes indicator */}
-              {item.notes && (
-                <span className="text-neutral-600 py-0.5" title="Has notes">
-                  [NOTE]
-                </span>
-              )}
-            </div>
-          </div>
 
-          {/* Controls */}
-          <div className="flex flex-col sm:items-end gap-3 min-w-[140px]">
-            {/* Status Select */}
-            {readonly ? (
-              <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
-                {item.status}
-              </div>
-            ) : (
-              <select
-                value={item.status}
-                onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
-                className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
-              >
-                {STATUS_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value} className="bg-black text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Progress Input */}
-            <div className="flex items-center gap-2 justify-between sm:justify-end w-full">
-              <span className="text-xs text-neutral-600 font-mono">PROG:</span>
-              {readonly ? (
-                <span className="font-mono text-white text-lg">
-                  {item.current}
-                  {item.total && <span className="text-neutral-600">/{item.total}</span>}
-                </span>
-              ) : (
-                <div className="flex items-center">
-                  <button 
-                    onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
-                    className="w-6 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400"
-                  >-</button>
-                  <input
-                    type="number"
-                    value={item.current}
-                    onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
-                    className="w-12 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
-                  />
-                  <button 
-                    onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
-                    className="w-6 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400"
-                  >+</button>
+              {/* Friends status summary - compact inline display */}
+              {item.friendsStatuses && item.friendsStatuses.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {Object.entries(friendsByStatus).map(([status, friends]) => (
+                    <span
+                      key={status}
+                      className="text-[10px] px-1.5 py-0.5 bg-neutral-900 border border-neutral-700 text-neutral-400 uppercase"
+                      title={friends.map(f => f.displayName || f.username).join(', ')}
+                    >
+                      {friends.length} {getShortStatus(status as MediaStatus)}
+                    </span>
+                  ))}
                 </div>
               )}
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-col sm:items-end gap-3 min-w-[140px]">
+              {/* Add to My List button (for friend's list view) */}
+              {readonly && onAddToMyList && (
+                <button
+                  onClick={() => onAddToMyList(item)}
+                  className="text-xs px-3 py-1.5 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white uppercase tracking-wider transition-colors"
+                >
+                  + ADD TO MY LIST
+                </button>
+              )}
+              
+              {/* Status Select */}
+              {readonly ? (
+                <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
+                  {item.status}
+                </div>
+              ) : (
+                <select
+                  value={item.status}
+                  onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
+                  className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
+                >
+                  {STATUS_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value} className="bg-black text-white">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Progress Input */}
+              <div className="flex items-center gap-2 justify-between sm:justify-end w-full">
+                <span className="text-xs text-neutral-600 font-mono">PROG:</span>
+                {readonly ? (
+                  <span className="font-mono text-white text-lg">
+                    {item.current}
+                    {item.total && <span className="text-neutral-600">/{item.total}</span>}
+                  </span>
+                ) : (
+                  <div className="flex items-center">
+                    <button 
+                      onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
+                      className="w-6 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400"
+                    >-</button>
+                    <input
+                      type="number"
+                      value={item.current}
+                      onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
+                      className="w-12 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
+                    />
+                    <button 
+                      onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
+                      className="w-6 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400"
+                    >+</button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -362,6 +493,35 @@ const MediaItemCard: React.FC<{
               </div>
             )}
           </div>
+
+          {/* Friends who have this item - detailed view */}
+          {item.friendsStatuses && item.friendsStatuses.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-xs text-neutral-600 uppercase tracking-wider">FRIENDS:</span>
+              <div className="flex flex-wrap gap-2">
+                {item.friendsStatuses.map((friend) => (
+                  <div
+                    key={friend.id}
+                    className="text-xs px-2 py-1 bg-neutral-900 border border-neutral-800 flex items-center gap-2"
+                  >
+                    <span className="text-neutral-300">{friend.displayName || friend.username}</span>
+                    <span className={`uppercase ${
+                      friend.status === 'WATCHING' || friend.status === 'READING' 
+                        ? 'text-white' 
+                        : friend.status === 'COMPLETED' 
+                          ? 'text-neutral-500' 
+                          : 'text-neutral-600'
+                    }`}>
+                      {friend.status}
+                    </span>
+                    {friend.rating != null && (
+                      <span className="text-neutral-500 font-mono">{friend.rating}/10</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       

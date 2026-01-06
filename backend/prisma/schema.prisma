@@ -60,13 +60,14 @@ model MediaItem {
   notes     String?     @db.Text
   rating    Int?        @db.SmallInt // Personal rating 0-10
   imageUrl  String?     @map("image_url") @db.VarChar(500)
-  refId     String?     @map("ref_id") @db.VarChar(100) // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  refId     String      @map("ref_id") @db.VarChar(100) // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, refId])
   @@index([userId])
   @@index([userId, type])
   @@map("media_items")

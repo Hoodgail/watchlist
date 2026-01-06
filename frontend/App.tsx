@@ -6,7 +6,7 @@ import { FriendList } from './components/FriendList';
 import { AuthForm } from './components/AuthForm';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
-import { View, User, MediaItem, MediaStatus, SortBy } from './types';
+import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter } from './types';
 import * as api from './services/api';
 
 const App: React.FC = () => {
@@ -23,8 +23,10 @@ const App: React.FC = () => {
   // Filter and sort state
   const [watchlistFilter, setWatchlistFilter] = useState<MediaStatus | ''>('');
   const [watchlistSort, setWatchlistSort] = useState<SortBy>('status');
+  const [watchlistFriendFilter, setWatchlistFriendFilter] = useState<FriendActivityFilter>('');
   const [readlistFilter, setReadlistFilter] = useState<MediaStatus | ''>('');
   const [readlistSort, setReadlistSort] = useState<SortBy>('status');
+  const [readlistFriendFilter, setReadlistFriendFilter] = useState<FriendActivityFilter>('');
 
   // Followed friends
   const [friends, setFriends] = useState<User[]>([]);
@@ -71,9 +73,33 @@ const App: React.FC = () => {
       setMyList((prev) => [...prev, created]);
       setCurrentView(newItem.type === 'MANGA' ? 'READLIST' : 'WATCHLIST');
       showToast(`Added "${newItem.title}" to your list`, 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add item:', error);
-      showToast('Failed to add item to your list', 'error');
+      const message = error?.response?.data?.error || 'Failed to add item to your list';
+      showToast(message, 'error');
+    }
+  };
+
+  const handleAddFromFriendList = async (item: MediaItem) => {
+    // Add as PLAN_TO_WATCH status
+    const newItem: Omit<MediaItem, 'id'> = {
+      title: item.title,
+      type: item.type,
+      status: 'PLAN_TO_WATCH',
+      current: 0,
+      total: item.total,
+      imageUrl: item.imageUrl,
+      refId: item.refId,
+    };
+    
+    try {
+      const created = await api.addToList(newItem);
+      setMyList((prev) => [...prev, created]);
+      showToast(`Added "${item.title}" to your list`, 'success');
+    } catch (error: any) {
+      console.error('Failed to add item:', error);
+      const message = error?.response?.data?.error || 'Failed to add item to your list';
+      showToast(message, 'error');
     }
   };
 
@@ -205,8 +231,10 @@ const App: React.FC = () => {
             onDelete={handleDeleteMedia}
             readonly={false}
             filterStatus={watchlistFilter}
+            friendActivityFilter={watchlistFriendFilter}
             sortBy={watchlistSort}
             onFilterChange={setWatchlistFilter}
+            onFriendActivityFilterChange={setWatchlistFriendFilter}
             onSortChange={(sort) => {
               setWatchlistSort(sort);
               loadMyList(sort);
@@ -222,8 +250,10 @@ const App: React.FC = () => {
             onDelete={handleDeleteMedia}
             readonly={false}
             filterStatus={readlistFilter}
+            friendActivityFilter={readlistFriendFilter}
             sortBy={readlistSort}
             onFilterChange={setReadlistFilter}
+            onFriendActivityFilterChange={setReadlistFriendFilter}
             onSortChange={(sort) => {
               setReadlistSort(sort);
               loadMyList(sort);
@@ -261,11 +291,13 @@ const App: React.FC = () => {
             <MediaList
               title="WATCHLIST"
               items={selectedFriend.list.filter((i) => i.type !== 'MANGA')}
+              onAddToMyList={handleAddFromFriendList}
               readonly={true}
             />
             <MediaList
               title="READLIST"
               items={selectedFriend.list.filter((i) => i.type === 'MANGA')}
+              onAddToMyList={handleAddFromFriendList}
               readonly={true}
             />
           </div>
