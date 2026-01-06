@@ -13,8 +13,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mangadex.rule=Host(`mangadex.hoodgail.me`)"
-      - "traefik.http.routers.mangadex.entrypoints=websecure"
-      - "traefik.http.routers.mangadex.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mangadex.entrypoints=web"
       - "traefik.http.services.mangadex.loadbalancer.server.port=3202"
       # Health check
       - "traefik.http.services.mangadex.loadbalancer.healthcheck.path=/health"
@@ -54,8 +53,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist-api.rule=Host(`watchlist.api.hoodgail.me`)"
-      - "traefik.http.routers.watchlist-api.entrypoints=websecure"
-      - "traefik.http.routers.watchlist-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.watchlist-api.entrypoints=web"
       - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
       # Health check
       - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.path=/api/health"
@@ -92,8 +90,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
-      - "traefik.http.routers.watchlist.entrypoints=websecure"
-      - "traefik.http.routers.watchlist.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.watchlist.entrypoints=web"
       - "traefik.http.services.watchlist.loadbalancer.server.port=80"
     healthcheck:
       test:
