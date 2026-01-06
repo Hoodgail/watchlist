@@ -14,7 +14,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.mangadex.rule=Host(`mangadex.hoodgail.me`)"
       - "traefik.http.routers.mangadex.entrypoints=websecure"
-      - "traefik.http.routers.mangadex.tls=true"
       - "traefik.http.routers.mangadex.tls.certresolver=letsencrypt"
       - "traefik.http.services.mangadex.loadbalancer.server.port=3202"
       # Health check
@@ -56,7 +55,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist-api.rule=Host(`watchlist.api.hoodgail.me`)"
       - "traefik.http.routers.watchlist-api.entrypoints=websecure"
-      - "traefik.http.routers.watchlist-api.tls=true"
       - "traefik.http.routers.watchlist-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
       # Health check
@@ -95,7 +93,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
       - "traefik.http.routers.watchlist.entrypoints=websecure"
-      - "traefik.http.routers.watchlist.tls=true"
       - "traefik.http.routers.watchlist.tls.certresolver=letsencrypt"
       - "traefik.http.services.watchlist.loadbalancer.server.port=80"
     healthcheck:
