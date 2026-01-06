@@ -4,7 +4,7 @@ const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
-const MANGAHOOK_BASE_URL = 'https://mangahook-api.vercel.app/api';
+const MANGAHOOK_BASE_URL = import.meta.env.VITE_MANGAHOOK_API_URL || 'https://mangadex.hoodgail.me/api';
 
 // ============ TMDB API (TV, Movie, Anime) ============
 
