@@ -78,6 +78,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const navItems: { id: View; label: string }[] = [
     { id: 'WATCHLIST', label: 'WATCH' },
     { id: 'READLIST', label: 'READ' },
+    { id: 'TRENDING', label: 'HOT' },
     { id: 'SEARCH', label: 'ADD' },
     { id: 'FRIENDS', label: 'SOCIAL' },
   ];
@@ -193,7 +194,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
         {/* Only show nav when logged in */}
         {user && !isAuthView && (
-          <nav className="grid grid-cols-4 divide-x divide-neutral-800">
+          <nav className="grid grid-cols-5 divide-x divide-neutral-800">
             {navItems.map((item) => (
               <button
                 key={item.id}

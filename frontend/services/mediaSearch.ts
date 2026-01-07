@@ -406,3 +406,124 @@ export function searchResultToMediaItem(result: SearchResult): Omit<MediaItem, '
     refId: result.id,
   };
 }
+
+// ============ Trending API ============
+
+export type TrendingTimeWindow = 'day' | 'week';
+
+interface TrendingResult extends SearchResult {
+  popularity: number;
+}
+
+export interface TrendingCategory {
+  title: string;
+  items: SearchResult[];
+}
+
+async function fetchTMDBTrending(
+  mediaType: 'movie' | 'tv' | 'all',
+  timeWindow: TrendingTimeWindow = 'week'
+): Promise<TMDBSearchResult[]> {
+  if (!TMDB_API_KEY) {
+    console.warn('TMDB API key not found');
+    return [];
+  }
+
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}`
+    );
+
+    if (!response.ok) {
+      throw new Error('TMDB trending fetch failed');
+    }
+
+    const data: TMDBSearchResponse = await response.json();
+    return data.results;
+  } catch (error) {
+    console.error('TMDB trending error:', error);
+    return [];
+  }
+}
+
+export async function getTrendingMovies(timeWindow: TrendingTimeWindow = 'week'): Promise<SearchResult[]> {
+  const results = await fetchTMDBTrending('movie', timeWindow);
+
+  return results.slice(0, 20).map((item) => ({
+    id: `tmdb:${item.id}`,
+    title: item.title || 'Unknown Title',
+    type: 'MOVIE' as MediaType,
+    total: 1,
+    imageUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : undefined,
+    year: item.release_date ? parseInt(item.release_date.split('-')[0]) : undefined,
+    overview: item.overview,
+  }));
+}
+
+export async function getTrendingTV(timeWindow: TrendingTimeWindow = 'week'): Promise<SearchResult[]> {
+  const results = await fetchTMDBTrending('tv', timeWindow);
+
+  return results.slice(0, 20).map((item) => {
+    const anime = isAnime(item);
+    return {
+      id: `tmdb:${item.id}`,
+      title: item.name || 'Unknown Title',
+      type: (anime ? 'ANIME' : 'TV') as MediaType,
+      total: null,
+      imageUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : undefined,
+      year: item.first_air_date ? parseInt(item.first_air_date.split('-')[0]) : undefined,
+      overview: item.overview,
+    };
+  });
+}
+
+export async function getTrendingAll(timeWindow: TrendingTimeWindow = 'week'): Promise<SearchResult[]> {
+  const results = await fetchTMDBTrending('all', timeWindow);
+
+  return results
+    .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
+    .slice(0, 20)
+    .map((item) => {
+      if (item.media_type === 'movie') {
+        return {
+          id: `tmdb:${item.id}`,
+          title: item.title || 'Unknown Title',
+          type: 'MOVIE' as MediaType,
+          total: 1,
+          imageUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : undefined,
+          year: item.release_date ? parseInt(item.release_date.split('-')[0]) : undefined,
+          overview: item.overview,
+        };
+      } else {
+        const anime = isAnime(item);
+        return {
+          id: `tmdb:${item.id}`,
+          title: item.name || 'Unknown Title',
+          type: (anime ? 'ANIME' : 'TV') as MediaType,
+          total: null,
+          imageUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : undefined,
+          year: item.first_air_date ? parseInt(item.first_air_date.split('-')[0]) : undefined,
+          overview: item.overview,
+        };
+      }
+    });
+}
+
+export async function getAllTrendingCategories(): Promise<TrendingCategory[]> {
+  const [trendingAll, trendingMovies, trendingTV] = await Promise.all([
+    getTrendingAll('day'),
+    getTrendingMovies('week'),
+    getTrendingTV('week'),
+  ]);
+
+  // Filter anime from TV results
+  const trendingAnime = trendingTV.filter(item => item.type === 'ANIME');
+  const trendingTVOnly = trendingTV.filter(item => item.type === 'TV');
+
+  return [
+    { title: 'Trending Today', items: trendingAll },
+    { title: 'Popular Movies', items: trendingMovies },
+    { title: 'Popular TV Shows', items: trendingTVOnly },
+    { title: 'Popular Anime', items: trendingAnime },
+  ].filter(cat => cat.items.length > 0);
+}

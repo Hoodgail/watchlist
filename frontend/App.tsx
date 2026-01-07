@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { MediaList } from './components/MediaList';
 import { SearchMedia } from './components/SearchMedia';
+import { TrendingPage } from './components/TrendingPage';
 import { FriendList } from './components/FriendList';
 import { AuthForm } from './components/AuthForm';
 import { SuggestionList } from './components/SuggestionList';
@@ -321,6 +322,8 @@ const App: React.FC = () => {
         );
       case 'SEARCH':
         return <SearchMedia onAdd={handleAddMedia} />;
+      case 'TRENDING':
+        return <TrendingPage onAdd={handleAddMedia} />;
       case 'FRIENDS':
         return (
           <FriendList
