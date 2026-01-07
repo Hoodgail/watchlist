@@ -94,7 +94,7 @@ export interface SearchResult {
   overview?: string;
 }
 
-export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER';
+export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS';
 
 // Suggestion types
 export type SuggestionStatus = 'PENDING' | 'ACCEPTED' | 'DISMISSED';

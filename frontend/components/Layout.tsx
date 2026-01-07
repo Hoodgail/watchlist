@@ -8,6 +8,7 @@ interface LayoutProps {
   user: AuthUser | null;
   onLogout?: () => void;
   pendingSuggestionsCount?: number;
+  isOnline?: boolean;
 }
 
 // Avatar component with fallback to initials
@@ -71,6 +72,7 @@ export const Layout: React.FC<LayoutProps> = ({
   user,
   onLogout,
   pendingSuggestionsCount = 0,
+  isOnline = true,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -114,6 +116,31 @@ export const Layout: React.FC<LayoutProps> = ({
           <div className="flex items-center gap-3">
             {user && (
               <>
+            {/* Downloads Icon */}
+                <button
+                  onClick={() => onViewChange('DOWNLOADS')}
+                  className={`relative p-1 transition-colors ${
+                    currentView === 'DOWNLOADS'
+                      ? 'text-white'
+                      : 'text-neutral-500 hover:text-white'
+                  }`}
+                  title="Downloads"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                </button>
                 {/* Suggestions Bell Icon */}
                 <button
                   onClick={() => onViewChange('SUGGESTIONS')}
@@ -186,9 +213,14 @@ export const Layout: React.FC<LayoutProps> = ({
               </>
             )}
             <div
-              className={`w-2 h-2 ${user ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}
-              title={user ? 'Online' : 'Not logged in'}
+              className={`w-2 h-2 ${user ? (isOnline ? 'bg-green-500' : 'bg-red-500') : 'bg-yellow-500'} animate-pulse`}
+              title={user ? (isOnline ? 'Online' : 'Offline') : 'Not logged in'}
             ></div>
+            {!isOnline && user && (
+              <span className="text-xs text-red-500 uppercase tracking-wider hidden sm:inline">
+                Offline
+              </span>
+            )}
           </div>
         </div>
 

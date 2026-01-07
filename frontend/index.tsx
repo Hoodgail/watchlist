@@ -5,6 +5,25 @@ import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { OfflineProvider } from './context/OfflineContext';
+
+// Register service worker for offline support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('SW registered:', registration.scope);
+        
+        // Check for updates periodically
+        setInterval(() => {
+          registration.update();
+        }, 60 * 60 * 1000); // Check every hour
+      })
+      .catch((error) => {
+        console.error('SW registration failed:', error);
+      });
+  });
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -17,9 +36,11 @@ root.render(
     <HelmetProvider>
       <BrowserRouter>
         <ToastProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
+          <OfflineProvider>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </OfflineProvider>
         </ToastProvider>
       </BrowserRouter>
     </HelmetProvider>

@@ -39,7 +39,7 @@ function StarRating({ rating }: { rating: number | null }) {
   );
 }
 
-function MediaCard({ item }: { item: PublicProfileMediaItem }) {
+function MediaCard({ item }: { item: PublicProfileMediaItem; key?: string }) {
   const imageUrl = getImageUrl(item.imageUrl);
   const config = STATUS_CONFIG[item.status] || STATUS_CONFIG.WATCHING;
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;

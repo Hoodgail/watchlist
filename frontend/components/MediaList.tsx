@@ -208,6 +208,7 @@ interface MediaListProps {
   onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
   onDelete?: (id: string) => void;
   onAddToMyList?: (item: MediaItem) => void;
+  onItemClick?: (item: MediaItem) => void;
   readonly?: boolean;
   filterStatus?: MediaStatus | '';
   friendActivityFilter?: FriendActivityFilter;
@@ -223,6 +224,7 @@ interface MediaItemCardProps {
   onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
   onDelete?: (id: string) => void;
   onAddToMyList?: (item: MediaItem) => void;
+  onItemClick?: (item: MediaItem) => void;
   readonly?: boolean;
   showSuggestButton?: boolean;
   searchQuery?: string;
@@ -490,7 +492,8 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
   item, 
   onUpdate, 
   onDelete, 
-  onAddToMyList, 
+  onAddToMyList,
+  onItemClick,
   readonly, 
   showSuggestButton, 
   searchQuery,
@@ -623,9 +626,18 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
             <div className="flex-grow">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
-                    {highlightText(item.title, searchQuery || '')}
-                  </h3>
+                  {onItemClick ? (
+                    <button
+                      onClick={() => onItemClick(item)}
+                      className={`font-bold text-lg leading-tight uppercase tracking-tight text-left hover:underline ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}
+                    >
+                      {highlightText(item.title, searchQuery || '')}
+                    </button>
+                  ) : (
+                    <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
+                      {highlightText(item.title, searchQuery || '')}
+                    </h3>
+                  )}
                   {/* Rating Badge */}
                   {item.rating != null && (
                     <span className="text-xs bg-neutral-900 border border-neutral-700 px-1.5 py-0.5 text-neutral-300 font-mono flex items-center gap-1">
@@ -890,6 +902,7 @@ const StatusGroup: React.FC<{
   onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
   onDelete?: (id: string) => void;
   onAddToMyList?: (item: MediaItem) => void;
+  onItemClick?: (item: MediaItem) => void;
   readonly?: boolean;
   showSuggestButton?: boolean;
   viewMode: ViewMode;
@@ -903,6 +916,7 @@ const StatusGroup: React.FC<{
   onUpdate,
   onDelete,
   onAddToMyList,
+  onItemClick,
   readonly,
   showSuggestButton,
   viewMode,
@@ -939,6 +953,7 @@ const StatusGroup: React.FC<{
                   onUpdate={onUpdate}
                   onDelete={onDelete}
                   onAddToMyList={onAddToMyList}
+                  onItemClick={onItemClick}
                   readonly={readonly}
                   showSuggestButton={showSuggestButton}
                   searchQuery={searchQuery}
@@ -960,6 +975,7 @@ export const MediaList: React.FC<MediaListProps> = ({
   onUpdate,
   onDelete,
   onAddToMyList,
+  onItemClick,
   readonly,
   filterStatus = '',
   friendActivityFilter = '',
@@ -1223,6 +1239,7 @@ export const MediaList: React.FC<MediaListProps> = ({
               onUpdate={onUpdate}
               onDelete={onDelete}
               onAddToMyList={onAddToMyList}
+              onItemClick={onItemClick}
               readonly={readonly}
               showSuggestButton={showSuggestButton}
               viewMode={viewMode}

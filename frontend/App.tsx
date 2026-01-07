@@ -10,10 +10,16 @@ import { SuggestionList } from './components/SuggestionList';
 import { OAuthCallback } from './components/OAuthCallback';
 import { Settings } from './components/Settings';
 import { PublicProfile } from './components/PublicProfile';
+import { MangaDetail } from './components/MangaDetail';
+import { ChapterReader } from './components/ChapterReader';
+import { DownloadManager } from './components/DownloadManager';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
+import { useOffline } from './context/OfflineContext';
 import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter } from './types';
+import { ChapterInfo } from './services/mangadexTypes';
 import * as api from './services/api';
+import * as mangadex from './services/mangadex';
 
 // Check if current path is OAuth callback
 const isOAuthCallbackPath = (path: string, search: string): boolean => {
@@ -24,6 +30,7 @@ const isOAuthCallbackPath = (path: string, search: string): boolean => {
 const MainApp: React.FC = () => {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { showToast } = useToast();
+  const { isOnline } = useOffline();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -50,6 +57,14 @@ const MainApp: React.FC = () => {
 
   // Pending suggestions count for badge
   const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0);
+
+  // Manga reader state
+  const [selectedMangaId, setSelectedMangaId] = useState<string | null>(null);
+  const [readerState, setReaderState] = useState<{
+    mangaId: string;
+    chapterId: string;
+    chapters: ChapterInfo[];
+  } | null>(null);
 
   // Load user's list when authenticated
   useEffect(() => {
@@ -233,6 +248,44 @@ const MainApp: React.FC = () => {
     showToast(error, 'error');
   };
 
+  // Manga reader handlers
+  const handleOpenManga = useCallback((mangaId: string) => {
+    setSelectedMangaId(mangaId);
+  }, []);
+
+  const handleCloseManga = useCallback(() => {
+    setSelectedMangaId(null);
+  }, []);
+
+  const handleReadChapter = useCallback(async (mangaId: string, chapterId: string) => {
+    try {
+      // Load chapters for navigation
+      const chapters = await mangadex.getAllMangaChapters(mangaId);
+      setReaderState({ mangaId, chapterId, chapters });
+    } catch (error) {
+      console.error('Failed to load chapters:', error);
+      showToast('Failed to open chapter', 'error');
+    }
+  }, [showToast]);
+
+  const handleCloseReader = useCallback(() => {
+    setReaderState(null);
+  }, []);
+
+  const handleChapterChange = useCallback((chapterId: string) => {
+    if (readerState) {
+      setReaderState({ ...readerState, chapterId });
+    }
+  }, [readerState]);
+
+  // Open manga from list item (click on manga in readlist)
+  const handleMangaItemClick = useCallback((item: MediaItem) => {
+    if (item.type === 'MANGA' && item.refId.startsWith('mangadex:')) {
+      const mangaId = item.refId.replace('mangadex:', '');
+      handleOpenManga(mangaId);
+    }
+  }, [handleOpenManga]);
+
   // Handle OAuth callback
   if (isOAuthCallback) {
     return (
@@ -303,6 +356,7 @@ const MainApp: React.FC = () => {
             items={myList.filter((i) => i.type === 'MANGA')}
             onUpdate={handleUpdateMedia}
             onDelete={handleDeleteMedia}
+            onItemClick={handleMangaItemClick}
             readonly={false}
             filterStatus={readlistFilter}
             friendActivityFilter={readlistFriendFilter}
@@ -370,10 +424,38 @@ const MainApp: React.FC = () => {
         return (
           <Settings onBack={() => setCurrentView('WATCHLIST')} />
         );
+      case 'DOWNLOADS':
+        return (
+          <DownloadManager onMangaClick={handleOpenManga} />
+        );
       default:
         return null;
     }
   };
+
+  // Render manga detail overlay
+  if (selectedMangaId) {
+    return (
+      <MangaDetail
+        mangaId={selectedMangaId}
+        onClose={handleCloseManga}
+        onReadChapter={handleReadChapter}
+      />
+    );
+  }
+
+  // Render chapter reader overlay
+  if (readerState) {
+    return (
+      <ChapterReader
+        mangaId={readerState.mangaId}
+        chapterId={readerState.chapterId}
+        chapters={readerState.chapters}
+        onClose={handleCloseReader}
+        onChapterChange={handleChapterChange}
+      />
+    );
+  }
 
   return (
     <Layout
@@ -382,6 +464,7 @@ const MainApp: React.FC = () => {
       user={user}
       onLogout={handleLogout}
       pendingSuggestionsCount={pendingSuggestionsCount}
+      isOnline={isOnline}
     >
       {renderContent()}
     </Layout>
