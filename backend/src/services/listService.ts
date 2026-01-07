@@ -207,7 +207,7 @@ export async function createMediaItem(
         notes: input.notes,
         rating: input.rating ?? null,
         imageUrl: input.imageUrl,
-        refId: input.refId,
+        refId: input.refId ?? '',
       },
       select: mediaItemSelect,
     });
