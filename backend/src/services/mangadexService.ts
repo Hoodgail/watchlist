@@ -1,5 +1,8 @@
 const MANGADEX_API_BASE = 'https://api.mangadex.org';
 
+// Frontend URL for cover proxy - covers should go through the frontend proxy to avoid CORS
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3200';
+
 // ============ Types ============
 
 interface MangaDexMangaAttributes {
@@ -151,7 +154,8 @@ function getPreferredDescription(descObj?: { [key: string]: string }): string | 
 function getCoverUrl(manga: MangaDexManga): string | undefined {
   const coverRel = manga.relationships.find(r => r.type === 'cover_art');
   if (coverRel?.attributes?.fileName) {
-    return `https://uploads.mangadex.org/covers/${manga.id}/${coverRel.attributes.fileName}.256.jpg`;
+    // Use frontend proxy for covers to avoid CORS issues
+    return `${FRONTEND_URL}/api/mangadex/covers/${manga.id}/${coverRel.attributes.fileName}.256.jpg`;
   }
   return undefined;
 }

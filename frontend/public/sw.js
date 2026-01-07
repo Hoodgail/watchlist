@@ -113,7 +113,7 @@ function isMangaDexApiRequest(url) {
 }
 
 function isMangaDexCoverRequest(url) {
-  return url.hostname === 'uploads.mangadex.org' && url.pathname.includes('/covers/');
+  return url.pathname.startsWith('/api/mangadex/covers/');
 }
 
 function isMangaDexImageRequest(url) {

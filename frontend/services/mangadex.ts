@@ -18,7 +18,7 @@ import {
 } from './mangadexTypes';
 
 const MANGADEX_API_BASE = '/api/mangadex';
-const COVERS_BASE = 'https://uploads.mangadex.org/covers';
+const COVERS_BASE = '/api/mangadex/covers';
 
 // Rate limiting: 5 requests per second
 const REQUEST_QUEUE: { resolve: () => void; timestamp: number }[] = [];

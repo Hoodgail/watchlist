@@ -301,6 +301,98 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+  
+  // Proxy manga feed (chapter list)
+  app.get('/api/mangadex/manga/:mangaId/feed', async (req: Request, res: Response) => {
+    const { mangaId } = req.params;
+    
+    try {
+      const queryString = buildQueryString(req.query as Record<string, any>);
+      const response = await fetch(`${MANGADEX_API_BASE}/manga/${mangaId}/feed?${queryString}`);
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
+        return;
+      }
+      
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('[MangaDex] Feed fetch error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Proxy statistics
+  app.get('/api/mangadex/statistics/manga/:mangaId', async (req: Request, res: Response) => {
+    const { mangaId } = req.params;
+    
+    try {
+      const response = await fetch(`${MANGADEX_API_BASE}/statistics/manga/${mangaId}`);
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
+        return;
+      }
+      
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('[MangaDex] Statistics error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Proxy chapter details
+  app.get('/api/mangadex/chapter/:chapterId', async (req: Request, res: Response) => {
+    const { chapterId } = req.params;
+    
+    try {
+      const queryString = buildQueryString(req.query as Record<string, any>);
+      const response = await fetch(`${MANGADEX_API_BASE}/chapter/${chapterId}?${queryString}`);
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
+        return;
+      }
+      
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('[MangaDex] Chapter details error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Proxy cover images with localhost referrer
+  app.get('/api/mangadex/covers/:mangaId/:fileName', async (req: Request, res: Response) => {
+    const { mangaId, fileName } = req.params;
+    
+    try {
+      const coverUrl = `https://uploads.mangadex.org/covers/${mangaId}/${fileName}`;
+      const response = await fetch(coverUrl, {
+        headers: {
+          'Referer': 'http://localhost/',
+          'User-Agent': 'Mozilla/5.0 (compatible; Watchlist/1.0)',
+        },
+      });
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch cover' });
+        return;
+      }
+      
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get('Content-Type') || 'image/jpeg';
+      
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=604800'); // Cache for 7 days
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('[MangaDex] Cover fetch error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   // ============ MangaPlus Proxy Endpoints ============
   // These bypass CORS restrictions for MangaPlus API and images

@@ -297,7 +297,7 @@ function getPreferredTitle(titleObj: { [key: string]: string }): string {
 function getMangaCoverUrl(manga: MangaDexManga): string | undefined {
   const coverRel = manga.relationships.find(r => r.type === 'cover_art');
   if (coverRel?.attributes?.fileName) {
-    return `https://uploads.mangadex.org/covers/${manga.id}/${coverRel.attributes.fileName}.256.jpg`;
+    return `/api/mangadex/covers/${manga.id}/${coverRel.attributes.fileName}.256.jpg`;
   }
   return undefined;
 }
