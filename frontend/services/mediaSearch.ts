@@ -96,7 +96,7 @@ export async function searchMovies(query: string): Promise<SearchResult[]> {
   const results = await searchTMDB(query, 'movie');
 
   return results.map((item) => ({
-    id: `tmdb_movie_${item.id}`,
+    id: `tmdb:${item.id}`,
     title: item.title || 'Unknown Title',
     type: 'MOVIE' as MediaType,
     total: 1,
@@ -116,7 +116,7 @@ export async function searchTV(query: string): Promise<SearchResult[]> {
       const anime = isAnime(item);
 
       return {
-        id: `tmdb_tv_${item.id}`,
+        id: `tmdb:${item.id}`,
         title: item.name || 'Unknown Title',
         type: (anime ? 'ANIME' : 'TV') as MediaType,
         total: details?.number_of_episodes || null,
@@ -149,7 +149,7 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
         const details = await getTVDetails(item.id);
 
         return {
-          id: `tmdb_anime_${item.id}`,
+          id: `tmdb:${item.id}`,
           title: item.name || 'Unknown Title',
           type: 'ANIME' as MediaType,
           total: details?.number_of_episodes || null,
@@ -209,7 +209,7 @@ export async function searchManga(query: string): Promise<SearchResult[]> {
         const details = await getMangaDetails(item.id);
 
         return {
-          id: `manga_${item.id}`,
+          id: `mangadex:${item.id}`,
           title: item.title,
           type: 'MANGA' as MediaType,
           total: details?.chapterList?.length || null,
