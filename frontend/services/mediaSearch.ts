@@ -4,7 +4,7 @@ const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
-const MANGADEX_API_BASE = 'https://api.mangadex.org';
+const MANGADEX_API_BASE = '/api/mangadex';
 
 // ============ TMDB API (TV, Movie, Anime) ============
 

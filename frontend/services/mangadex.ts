@@ -17,7 +17,7 @@ import {
   VolumeWithChapters,
 } from './mangadexTypes';
 
-const MANGADEX_API_BASE = 'https://api.mangadex.org';
+const MANGADEX_API_BASE = '/api/mangadex';
 const COVERS_BASE = 'https://uploads.mangadex.org/covers';
 
 // Rate limiting: 5 requests per second

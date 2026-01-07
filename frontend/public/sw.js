@@ -109,7 +109,7 @@ self.addEventListener('fetch', (event) => {
 // ============ Request Type Checkers ============
 
 function isMangaDexApiRequest(url) {
-  return url.hostname === 'api.mangadex.org';
+  return url.pathname.startsWith('/api/mangadex/');
 }
 
 function isMangaDexCoverRequest(url) {
