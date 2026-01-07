@@ -180,7 +180,7 @@ export async function searchManga(
     throw new Error(`MangaDex search failed: ${response.status}`);
   }
 
-  const data: MangaDexSearchResponse = await response.json();
+  const data = await response.json() as MangaDexSearchResponse;
 
   const results: MangaSearchResult[] = data.data.map(manga => ({
     id: manga.id,
@@ -211,7 +211,7 @@ export async function getMangaById(id: string): Promise<MangaDetails> {
     throw new Error(`MangaDex manga fetch failed: ${mangaRes.status}`);
   }
 
-  const mangaData: MangaDexMangaResponse = await mangaRes.json();
+  const mangaData = await mangaRes.json() as MangaDexMangaResponse;
   const manga = mangaData.data;
 
   let totalChapters = 0;
@@ -219,7 +219,7 @@ export async function getMangaById(id: string): Promise<MangaDetails> {
   let lastVolume: string | undefined;
 
   if (aggregateRes.ok) {
-    const aggregateData: MangaDexAggregateResponse = await aggregateRes.json();
+    const aggregateData = await aggregateRes.json() as MangaDexAggregateResponse;
     const volumes = Object.keys(aggregateData.volumes);
     
     // Count unique chapters
@@ -278,7 +278,7 @@ export async function getMangaChapters(
     throw new Error(`MangaDex chapters fetch failed: ${response.status}`);
   }
 
-  const data: MangaDexChapterListResponse = await response.json();
+  const data = await response.json() as MangaDexChapterListResponse;
 
   const chapters: ChapterInfo[] = data.data.map(ch => ({
     id: ch.id,
@@ -300,7 +300,7 @@ export async function getChapterPages(chapterId: string): Promise<ChapterPages> 
     throw new Error(`MangaDex chapter pages fetch failed: ${response.status}`);
   }
 
-  const data: MangaDexAtHomeResponse = await response.json();
+  const data = await response.json() as MangaDexAtHomeResponse;
 
   return {
     baseUrl: data.baseUrl,
