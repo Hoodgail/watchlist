@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MediaItem, SearchResult } from '../types';
 import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions } from '../services/mediaSearch';
+import { QuickAddModal } from './QuickAddModal';
 
 interface SearchMediaProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
@@ -24,6 +25,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
   const [hasSearched, setHasSearched] = useState(false);
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
   const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
+  const [quickAddItem, setQuickAddItem] = useState<SearchResult | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +63,42 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
       setAddingItems(prev => {
         const next = new Set(prev);
         next.delete(result.id);
+        return next;
+      });
+    }
+  };
+
+  // Quick add to planned
+  const handleQuickAdd = async (result: SearchResult) => {
+    if (addedItems.has(result.id) || addingItems.has(result.id)) return;
+    
+    setAddingItems(prev => new Set(prev).add(result.id));
+    
+    try {
+      const mediaItem = searchResultToMediaItem(result);
+      await onAdd({ ...mediaItem, status: 'PLAN_TO_WATCH', current: 0 });
+      setAddedItems(prev => new Set(prev).add(result.id));
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev);
+        next.delete(result.id);
+        return next;
+      });
+    }
+  };
+
+  // Handle add from modal
+  const handleModalAdd = async (mediaItem: Omit<MediaItem, 'id'>) => {
+    if (!quickAddItem) return;
+    
+    setAddingItems(prev => new Set(prev).add(quickAddItem.id));
+    try {
+      await onAdd(mediaItem);
+      setAddedItems(prev => new Set(prev).add(quickAddItem.id));
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev);
+        if (quickAddItem) next.delete(quickAddItem.id);
         return next;
       });
     }
@@ -187,19 +225,28 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
                   </div>
                 </div>
 
-                {/* Add Button */}
+                {/* Add Buttons */}
                 {addedItems.has(item.id) ? (
                   <span className="flex-shrink-0 text-sm border border-green-700 text-green-500 px-4 py-2 uppercase rounded-none">
                     Added
                   </span>
                 ) : (
-                  <button
-                    onClick={() => handleAdd(item)}
-                    disabled={addingItems.has(item.id)}
-                    className="flex-shrink-0 text-sm border border-neutral-700 text-neutral-400 px-4 py-2 hover:bg-white hover:text-black hover:border-white transition-all uppercase rounded-none disabled:opacity-50"
-                  >
-                    {addingItems.has(item.id) ? '...' : '+ Add'}
-                  </button>
+                  <div className="flex-shrink-0 flex gap-2">
+                    <button
+                      onClick={() => handleQuickAdd(item)}
+                      disabled={addingItems.has(item.id)}
+                      className="text-sm bg-white text-black px-3 py-2 hover:bg-neutral-200 transition-all uppercase rounded-none disabled:opacity-50 font-bold"
+                    >
+                      {addingItems.has(item.id) ? '...' : '+ Planned'}
+                    </button>
+                    <button
+                      onClick={() => setQuickAddItem(item)}
+                      disabled={addingItems.has(item.id)}
+                      className="text-sm border border-neutral-700 text-neutral-400 px-3 py-2 hover:border-white hover:text-white transition-all uppercase rounded-none disabled:opacity-50"
+                    >
+                      + Details
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -214,6 +261,15 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
           <div className="text-6xl mb-4 opacity-10">To</div>
           <div className="text-6xl opacity-5">Search</div>
         </div>
+      )}
+
+      {/* Quick Add Modal */}
+      {quickAddItem && (
+        <QuickAddModal
+          item={quickAddItem}
+          onAdd={handleModalAdd}
+          onClose={() => setQuickAddItem(null)}
+        />
       )}
     </div>
   );
