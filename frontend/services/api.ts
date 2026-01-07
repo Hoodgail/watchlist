@@ -287,6 +287,32 @@ export async function deleteListItem(id: string): Promise<void> {
   }
 }
 
+// Bulk status lookup for trending/discovery pages
+export interface BulkStatusItem {
+  refId: string;
+  status: MediaStatus;
+  current: number;
+  total: number | null;
+}
+
+export async function getStatusesByRefIds(refIds: string[]): Promise<Record<string, BulkStatusItem>> {
+  if (refIds.length === 0) {
+    return {};
+  }
+
+  const response = await fetchWithAuth('/list/statuses', {
+    method: 'POST',
+    body: JSON.stringify({ refIds }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch statuses');
+  }
+
+  return await response.json();
+}
+
 // ============ FRIENDS API ============
 
 // GET /api/friends returns: [{ id, username, listCount, activeCount }]

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MediaItem, SearchResult } from '../types';
+import { MediaItem, SearchResult, MediaStatus } from '../types';
 import { 
   getAllTrendingCategories, 
   TrendingCategory, 
   searchResultToMediaItem 
 } from '../services/mediaSearch';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
+import { getStatusesByRefIds, BulkStatusItem } from '../services/api';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
 
@@ -28,7 +29,8 @@ const TrendingRow: React.FC<{
   onSuggest: (item: SearchResult) => void;
   addedItems: Set<string>;
   addingItems: Set<string>;
-}> = ({ category, onAdd, onSuggest, addedItems, addingItems }) => {
+  userStatuses: Record<string, BulkStatusItem>;
+}> = ({ category, onAdd, onSuggest, addedItems, addingItems, userStatuses }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
@@ -101,12 +103,37 @@ const TrendingRow: React.FC<{
               onSuggest={() => onSuggest(item)}
               isAdded={addedItems.has(item.id)}
               isAdding={addingItems.has(item.id)}
+              userStatus={userStatuses[item.id]}
             />
           ))}
         </div>
       </div>
     </div>
   );
+};
+
+// Format status for display
+const formatStatusBadge = (status: BulkStatusItem): { text: string; color: string } => {
+  const statusMap: Record<MediaStatus, { label: string; color: string }> = {
+    WATCHING: { label: 'Watching', color: 'bg-blue-600' },
+    READING: { label: 'Reading', color: 'bg-blue-600' },
+    COMPLETED: { label: 'Completed', color: 'bg-green-600' },
+    PLAN_TO_WATCH: { label: 'Planned', color: 'bg-neutral-600' },
+    DROPPED: { label: 'Dropped', color: 'bg-red-600' },
+    PAUSED: { label: 'Paused', color: 'bg-yellow-600' },
+  };
+  
+  const { label, color } = statusMap[status.status] || { label: status.status, color: 'bg-neutral-600' };
+  
+  // Show progress for active statuses
+  if ((status.status === 'WATCHING' || status.status === 'READING') && status.current > 0) {
+    if (status.total) {
+      return { text: `EP ${status.current}/${status.total}`, color };
+    }
+    return { text: `EP ${status.current}`, color };
+  }
+  
+  return { text: label, color };
 };
 
 // Individual card component
@@ -116,10 +143,15 @@ const TrendingCard: React.FC<{
   onSuggest: () => void;
   isAdded: boolean;
   isAdding: boolean;
-}> = ({ item, onAdd, onSuggest, isAdded, isAdding }) => {
+  userStatus?: BulkStatusItem;
+}> = ({ item, onAdd, onSuggest, isAdded, isAdding, userStatus }) => {
   const [imageError, setImageError] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const imageUrl = getImageUrl(item.imageUrl);
+  
+  // Check if user already has this in their list
+  const isInList = !!userStatus;
+  const statusBadge = userStatus ? formatStatusBadge(userStatus) : null;
 
   return (
     <div
@@ -147,13 +179,24 @@ const TrendingCard: React.FC<{
           {item.type}
         </div>
 
+        {/* User Status Badge - shown when user has item in list */}
+        {statusBadge && !showActions && (
+          <div className={`absolute bottom-0 left-0 right-0 ${statusBadge.color} px-2 py-1.5 text-[10px] uppercase tracking-wider font-bold text-center`}>
+            {statusBadge.text}
+          </div>
+        )}
+
         {/* Hover Actions Overlay */}
         <div
           className={`absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2 transition-opacity ${
             showActions ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          {isAdded ? (
+          {isInList ? (
+            <span className={`text-xs uppercase font-bold px-3 py-2 ${statusBadge?.color || 'bg-neutral-600'}`}>
+              {statusBadge?.text || 'In List'}
+            </span>
+          ) : isAdded ? (
             <span className="text-xs text-green-500 uppercase font-bold px-3 py-2 border border-green-700">
               Added
             </span>
@@ -200,10 +243,18 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
   const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
   const [suggestItem, setSuggestItem] = useState<MediaItem | null>(null);
+  const [userStatuses, setUserStatuses] = useState<Record<string, BulkStatusItem>>({});
 
   useEffect(() => {
     loadTrending();
   }, []);
+
+  // Fetch user statuses after categories are loaded
+  useEffect(() => {
+    if (categories.length > 0) {
+      fetchUserStatuses();
+    }
+  }, [categories]);
 
   const loadTrending = async () => {
     setLoading(true);
@@ -214,6 +265,21 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
       console.error('Failed to load trending:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserStatuses = async () => {
+    // Collect all refIds from all categories
+    const allRefIds = categories.flatMap(cat => cat.items.map(item => item.id));
+    
+    if (allRefIds.length === 0) return;
+    
+    try {
+      const statuses = await getStatusesByRefIds(allRefIds);
+      setUserStatuses(statuses);
+    } catch (error) {
+      // Silently fail - user might not be logged in
+      console.error('Failed to fetch user statuses:', error);
     }
   };
 
@@ -285,6 +351,7 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
               onSuggest={handleSuggest}
               addedItems={addedItems}
               addingItems={addingItems}
+              userStatuses={userStatuses}
             />
           ))}
         </div>

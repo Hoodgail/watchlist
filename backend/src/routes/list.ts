@@ -11,6 +11,7 @@ router.use(authenticate);
 
 router.get('/', validate(listQuerySchema, 'query'), listController.getList);
 router.post('/', validate(createMediaItemSchema), listController.createItem);
+router.post('/statuses', listController.getStatusesByRefIds);
 router.get('/:id', listController.getItem);
 router.patch('/:id', validate(updateMediaItemSchema), listController.updateItem);
 router.delete('/:id', listController.deleteItem);

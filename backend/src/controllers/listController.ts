@@ -88,3 +88,28 @@ export async function deleteItem(
     next(error);
   }
 }
+
+export async function getStatusesByRefIds(
+  req: Request<unknown, unknown, { refIds: string[] }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    
+    const { refIds } = req.body;
+    
+    if (!Array.isArray(refIds)) {
+      res.status(400).json({ error: 'refIds must be an array' });
+      return;
+    }
+    
+    const statuses = await listService.getStatusesByRefIds(req.user.id, refIds);
+    res.json(statuses);
+  } catch (error) {
+    next(error);
+  }
+}

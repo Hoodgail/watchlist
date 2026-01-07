@@ -290,3 +290,49 @@ export async function getMediaItem(userId: string, itemId: string): Promise<Medi
   const { userId: _, ...rest } = item;
   return rest;
 }
+
+export interface BulkStatusItem {
+  refId: string;
+  status: MediaStatus;
+  current: number;
+  total: number | null;
+}
+
+export async function getStatusesByRefIds(
+  userId: string,
+  refIds: string[]
+): Promise<Record<string, BulkStatusItem>> {
+  if (refIds.length === 0) {
+    return {};
+  }
+
+  // Limit to prevent abuse
+  const limitedRefIds = refIds.slice(0, 100);
+
+  const items = await prisma.mediaItem.findMany({
+    where: {
+      userId,
+      refId: { in: limitedRefIds },
+    },
+    select: {
+      refId: true,
+      status: true,
+      current: true,
+      total: true,
+    },
+  });
+
+  const result: Record<string, BulkStatusItem> = {};
+  for (const item of items) {
+    if (item.refId) {
+      result[item.refId] = {
+        refId: item.refId,
+        status: item.status,
+        current: item.current,
+        total: item.total,
+      };
+    }
+  }
+
+  return result;
+}
