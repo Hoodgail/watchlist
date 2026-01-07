@@ -189,10 +189,23 @@ async function createServer() {
   
   const MANGADEX_API_BASE = 'https://api.mangadex.org';
   
+  // Helper to build query string from Express query object (handles arrays)
+  function buildQueryString(query: Record<string, any>): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) {
+        value.forEach(v => params.append(key, v));
+      } else if (value !== undefined && value !== null) {
+        params.append(key, String(value));
+      }
+    }
+    return params.toString();
+  }
+  
   // Proxy search requests
   app.get('/api/mangadex/manga', async (req: Request, res: Response) => {
     try {
-      const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
+      const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga?${queryString}`);
       
       if (!response.ok) {
@@ -213,7 +226,7 @@ async function createServer() {
     const { mangaId } = req.params;
     
     try {
-      const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
+      const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga/${mangaId}?${queryString}`);
       
       if (!response.ok) {
@@ -234,7 +247,7 @@ async function createServer() {
     const { mangaId } = req.params;
     
     try {
-      const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
+      const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga/${mangaId}/aggregate?${queryString}`);
       
       if (!response.ok) {
@@ -253,7 +266,7 @@ async function createServer() {
   // Proxy chapter list
   app.get('/api/mangadex/chapter', async (req: Request, res: Response) => {
     try {
-      const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
+      const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/chapter?${queryString}`);
       
       if (!response.ok) {
