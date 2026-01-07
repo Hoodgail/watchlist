@@ -120,6 +120,62 @@ function getDefaultMetaTags(): string {
   `;
 }
 
+// ============ MangaPlus Proxy Helpers ============
+
+interface MangaPlusPage {
+  url: string;
+  encryptionKey: string;
+  pageNumber: number;
+}
+
+/**
+ * Parse MangaPlus protobuf response to extract image URLs and encryption keys
+ */
+function parseMangaPlusResponse(buffer: ArrayBuffer): MangaPlusPage[] {
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+  
+  // Pattern to match image URL followed by encryption key
+  const pattern = /(https:\/\/jumpg-assets\.tokyo-cdn\.com\/secure\/title\/\d+\/chapter\/\d+\/manga_page\/\w+\/(\d+)\.jpg\?[^\s\x00-\x1f]+)[^\w]*([0-9a-f]{128})/g;
+  
+  const pages: MangaPlusPage[] = [];
+  let match;
+  
+  while ((match = pattern.exec(text)) !== null) {
+    const imageUrl = match[1];
+    const pageNumber = parseInt(match[2], 10);
+    const encryptionKey = match[3];
+    
+    pages.push({
+      url: imageUrl,
+      encryptionKey,
+      pageNumber,
+    });
+  }
+  
+  // Sort by page number
+  pages.sort((a, b) => a.pageNumber - b.pageNumber);
+  
+  return pages;
+}
+
+/**
+ * Decrypt a MangaPlus image using XOR with the encryption key
+ */
+function decryptMangaPlusImage(encryptedData: Uint8Array, keyHex: string): Uint8Array {
+  // Convert hex key to bytes
+  const keyBytes = new Uint8Array(
+    keyHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+  );
+  
+  // XOR decrypt
+  const decrypted = new Uint8Array(encryptedData.length);
+  for (let i = 0; i < encryptedData.length; i++) {
+    decrypted[i] = encryptedData[i] ^ keyBytes[i % keyBytes.length];
+  }
+  
+  return decrypted;
+}
+
 async function createServer() {
   const app = express();
 
@@ -127,6 +183,80 @@ async function createServer() {
   if (isProduction) {
     app.use(compression());
   }
+
+  // ============ MangaPlus Proxy Endpoints ============
+  // These bypass CORS restrictions for MangaPlus API and images
+  
+  // Fetch chapter data (pages + encryption keys)
+  app.get('/api/mangaplus/chapter/:chapterId', async (req: Request, res: Response) => {
+    const { chapterId } = req.params;
+    
+    try {
+      const mangaPlusUrl = `https://jumpg-webapi.tokyo-cdn.com/api/manga_viewer?chapter_id=${chapterId}&split=yes&img_quality=high&clang=eng`;
+      
+      const response = await fetch(mangaPlusUrl);
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch from MangaPlus' });
+        return;
+      }
+      
+      const buffer = await response.arrayBuffer();
+      const pages = parseMangaPlusResponse(buffer);
+      
+      if (pages.length === 0) {
+        res.status(404).json({ error: 'No pages found in chapter' });
+        return;
+      }
+      
+      res.json({ pages });
+    } catch (error) {
+      console.error('[MangaPlus] Chapter fetch error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Fetch and decrypt image
+  app.get('/api/mangaplus/image', async (req: Request, res: Response) => {
+    const { url, key } = req.query;
+    
+    if (!url || !key || typeof url !== 'string' || typeof key !== 'string') {
+      res.status(400).json({ error: 'Missing url or key parameter' });
+      return;
+    }
+    
+    // Validate the URL is from MangaPlus CDN
+    if (!url.startsWith('https://jumpg-assets.tokyo-cdn.com/')) {
+      res.status(400).json({ error: 'Invalid image URL' });
+      return;
+    }
+    
+    // Validate key is 128 hex characters
+    if (!/^[0-9a-f]{128}$/.test(key)) {
+      res.status(400).json({ error: 'Invalid encryption key' });
+      return;
+    }
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch image' });
+        return;
+      }
+      
+      const buffer = await response.arrayBuffer();
+      const encrypted = new Uint8Array(buffer);
+      const decrypted = decryptMangaPlusImage(encrypted, key);
+      
+      res.set('Content-Type', 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      res.send(Buffer.from(decrypted));
+    } catch (error) {
+      console.error('[MangaPlus] Image fetch error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   let vite: any;
   let template: string;

@@ -192,6 +192,7 @@ export interface ChapterInfo {
   scanlationGroup: string | null;
   publishedAt: string;
   externalUrl: string | null;
+  isUnavailable?: boolean;
 }
 
 export interface ChapterImages {

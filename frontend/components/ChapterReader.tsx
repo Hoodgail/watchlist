@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ChapterInfo, ChapterImages, ReadingMode, ImageQuality } from '../services/mangadexTypes';
 import * as mangadex from '../services/mangadex';
+import * as mangaplus from '../services/mangaplus';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
 
@@ -36,6 +37,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [pageUrls, setPageUrls] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -43,11 +45,13 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isMangaPlusChapter, setIsMangaPlusChapter] = useState(false);
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const blobUrlsRef = useRef<string[]>([]);
 
   // Current chapter info
   const currentChapter = useMemo(() => 
@@ -65,6 +69,17 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   useEffect(() => {
     loadChapterImages();
   }, [chapterId, readerSettings.imageQuality]);
+
+  // Cleanup blob URLs on unmount or chapter change
+  useEffect(() => {
+    return () => {
+      // Revoke any blob URLs when component unmounts or chapter changes
+      if (blobUrlsRef.current.length > 0) {
+        mangaplus.revokeMangaPlusImages(blobUrlsRef.current);
+        blobUrlsRef.current = [];
+      }
+    };
+  }, [chapterId]);
 
   // Save reading progress
   useEffect(() => {
@@ -129,10 +144,18 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
   const loadChapterImages = async () => {
     setLoading(true);
+    setLoadingProgress(0);
     setError(null);
     setCurrentPage(0);
     setPageUrls([]);
     setLoadedImages(new Set());
+    setIsMangaPlusChapter(false);
+
+    // Clean up previous blob URLs
+    if (blobUrlsRef.current.length > 0) {
+      mangaplus.revokeMangaPlusImages(blobUrlsRef.current);
+      blobUrlsRef.current = [];
+    }
 
     try {
       const isDownloaded = isChapterDownloaded(chapterId);
@@ -162,16 +185,38 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           throw new Error('This chapter is not available offline');
         }
 
-        const images = await mangadex.getChapterImages(chapterId);
-        setChapterImages(images);
+        // Check if this is a MangaPlus chapter (has external URL)
+        const chapter = currentChapter;
+        if (chapter?.externalUrl && mangaplus.isMangaPlusUrl(chapter.externalUrl)) {
+          // Load from MangaPlus with progress tracking
+          setIsMangaPlusChapter(true);
+          const urls = await mangaplus.getMangaPlusChapterImages(
+            chapter.externalUrl,
+            (progress) => setLoadingProgress(progress)
+          );
+          blobUrlsRef.current = urls; // Track for cleanup
+          setPageUrls(urls);
+        } else if (chapter?.externalUrl) {
+          // Non-MangaPlus external URL - not supported for in-app reading
+          throw new Error('This chapter is only available on an external website');
+        } else {
+          // Regular MangaDex chapter
+          const images = await mangadex.getChapterImages(chapterId);
+          setChapterImages(images);
 
-        const quality: ImageQuality = readerSettings.imageQuality;
-        const urls = mangadex.buildAllImageUrls(images, quality);
-        setPageUrls(urls);
+          const quality: ImageQuality = readerSettings.imageQuality;
+          const urls = mangadex.buildAllImageUrls(images, quality);
+          setPageUrls(urls);
+        }
       }
     } catch (err) {
       console.error('Failed to load chapter:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load chapter');
+      // Handle MangaPlus errors with specific messages
+      if (err instanceof mangaplus.MangaPlusError) {
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load chapter');
+      }
     } finally {
       setLoading(false);
     }
@@ -337,11 +382,29 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
   // Render loading state
   if (loading) {
+    // Check if loading a MangaPlus chapter (based on current chapter info)
+    const loadingMangaPlus = currentChapter?.externalUrl && mangaplus.isMangaPlusUrl(currentChapter.externalUrl);
+    
     return (
-      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-        <div className="text-neutral-600 uppercase tracking-wider text-sm animate-pulse">
-          Loading chapter...
+      <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-2 border-neutral-800 border-t-orange-500 rounded-full animate-spin" />
+        <div className="text-neutral-600 uppercase tracking-wider text-sm">
+          {loadingMangaPlus ? 'Loading from MangaPlus...' : 'Loading chapter...'}
         </div>
+        {loadingMangaPlus && (
+          <>
+            {/* Progress bar for MangaPlus loading */}
+            <div className="w-48 h-1 bg-neutral-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-orange-500 transition-all duration-200"
+                style={{ width: `${loadingProgress}%` }}
+              />
+            </div>
+            <div className="text-neutral-700 text-xs">
+              {loadingProgress > 0 ? `${loadingProgress}% decrypted` : 'Fetching pages...'}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -398,8 +461,13 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             </button>
 
             <div className="text-center">
-              <div className="text-sm font-medium">
+              <div className="text-sm font-medium flex items-center justify-center gap-2">
                 {currentChapter && mangadex.formatChapterNumber(currentChapter)}
+                {isMangaPlusChapter && (
+                  <span className="text-xs bg-orange-600 text-white px-1.5 py-0.5 rounded font-bold">
+                    M+
+                  </span>
+                )}
               </div>
               <div className="text-xs text-neutral-500">
                 {currentPage + 1} / {pageUrls.length}

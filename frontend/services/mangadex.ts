@@ -196,6 +196,7 @@ export async function getMangaChapters(
     translatedLanguage?: string[];
     orderByChapter?: 'asc' | 'desc';
     includeScanlationGroup?: boolean;
+    includeExternalUrl?: boolean;
   } = {}
 ): Promise<{ data: ChapterInfo[]; total: number }> {
   const params = new URLSearchParams({
@@ -210,6 +211,11 @@ export async function getMangaChapters(
 
   if (options.includeScanlationGroup !== false) {
     params.append('includes[]', 'scanlation_group');
+  }
+  
+  // Include chapters with external URLs (like MangaPlus)
+  if (options.includeExternalUrl !== false) {
+    params.append('includeExternalUrl', '1');
   }
 
   // Filter content ratings
@@ -248,6 +254,7 @@ export async function getAllMangaChapters(
       offset,
       translatedLanguage,
       orderByChapter: 'asc',
+      includeExternalUrl: true,
     });
 
     allChapters.push(...result.data);
@@ -272,10 +279,16 @@ export async function getAllMangaChapters(
  */
 export async function getMangaAggregate(
   mangaId: string,
-  translatedLanguage: string[] = ['en']
+  translatedLanguage: string[] = ['en'],
+  options: { includeUnavailable?: boolean } = {}
 ): Promise<VolumeWithChapters[]> {
   const params = new URLSearchParams();
   translatedLanguage.forEach((lang) => params.append('translatedLanguage[]', lang));
+  
+  // Include unavailable chapters (e.g., chapters from licensed manga that aren't directly hosted)
+  if (options.includeUnavailable !== false) {
+    params.append('groups[]', '00e03853-1b96-4f41-9542-c71b8692033b'); // Include MangaPlus group
+  }
 
   const response = await rateLimitedFetch(
     `${MANGADEX_API_BASE}/manga/${mangaId}/aggregate?${params.toString()}`

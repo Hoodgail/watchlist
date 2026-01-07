@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MangaDetails, ChapterInfo, VolumeWithChapters } from '../services/mangadexTypes';
 import * as mangadex from '../services/mangadex';
+import { isMangaPlusUrl } from '../services/mangaplus';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
 
@@ -502,13 +503,17 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                         const downloaded = isChapterDownloaded(chapter.id);
                         const fullChapter = allChapters.find(c => c.id === chapter.id);
                         const isSelected = selectedChapters.has(chapter.id);
+                        const hasExternalUrl = !!fullChapter?.externalUrl;
+                        const isMangaPlus = isMangaPlusUrl(fullChapter?.externalUrl || null);
+                        const isUnavailable = fullChapter?.isUnavailable && !hasExternalUrl;
+                        const canRead = !isUnavailable || downloaded;
                         
                         return (
                           <div
                             key={chapter.id}
-                            className={`px-4 py-3 flex items-center justify-between hover:bg-neutral-900 transition-colors ${
+                            className={`px-4 py-3 flex items-center justify-between transition-colors ${
                               isSelected ? 'bg-neutral-900' : 'bg-black'
-                            }`}
+                            } ${isUnavailable ? 'opacity-50' : 'hover:bg-neutral-900'}`}
                           >
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               {isSelectionMode && (
@@ -517,6 +522,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                   checked={isSelected}
                                   onChange={() => toggleChapterSelection(chapter.id)}
                                   className="w-4 h-4 bg-neutral-800 border-neutral-700"
+                                  disabled={isUnavailable}
                                 />
                               )}
                               
@@ -524,14 +530,15 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                 onClick={() => {
                                   if (isSelectionMode) {
                                     toggleChapterSelection(chapter.id);
-                                  } else {
+                                  } else if (canRead) {
                                     onReadChapter(mangaId, chapter.id);
                                   }
                                 }}
-                                className="flex-1 text-left min-w-0"
+                                disabled={!canRead && !isSelectionMode}
+                                className={`flex-1 text-left min-w-0 ${!canRead ? 'cursor-not-allowed' : ''}`}
                               >
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium text-white">
+                                  <span className={`font-medium ${isUnavailable ? 'text-neutral-500' : 'text-white'}`}>
                                     Ch. {chapter.chapter || '?'}
                                   </span>
                                   {fullChapter?.title && (
@@ -541,11 +548,22 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                   )}
                                 </div>
                                 {fullChapter && (
-                                  <div className="text-xs text-neutral-600 mt-1">
+                                  <div className="text-xs text-neutral-600 mt-1 flex items-center gap-2">
                                     {fullChapter.scanlationGroup && (
-                                      <span>{fullChapter.scanlationGroup} • </span>
+                                      <span>{fullChapter.scanlationGroup}</span>
                                     )}
-                                    {fullChapter.pages} pages
+                                    {hasExternalUrl ? (
+                                      isMangaPlus ? (
+                                        <span className="text-orange-500">MangaPlus</span>
+                                      ) : (
+                                        <span className="text-yellow-600">External</span>
+                                      )
+                                    ) : (
+                                      <span>{fullChapter.pages} pages</span>
+                                    )}
+                                    {isUnavailable && (
+                                      <span className="text-red-500">Unavailable</span>
+                                    )}
                                   </div>
                                 )}
                               </button>
@@ -554,6 +572,11 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                             <div className="flex items-center gap-2">
                               {downloaded && (
                                 <span className="text-xs text-green-500 uppercase">Offline</span>
+                              )}
+                              {hasExternalUrl && !downloaded && (
+                                <span className="text-xs text-orange-500 uppercase px-1.5 py-0.5 border border-orange-500/30">
+                                  {isMangaPlus ? 'M+' : 'EXT'}
+                                </span>
                               )}
                               
                               {!isSelectionMode && (
@@ -567,7 +590,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                   </button>
-                                ) : isOnline && (
+                                ) : isOnline && !hasExternalUrl && !isUnavailable && (
                                   <button
                                     onClick={() => fullChapter && downloadChapters(mangaId, manga.title, [fullChapter])}
                                     className="p-1 text-neutral-600 hover:text-white transition-colors"
