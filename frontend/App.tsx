@@ -104,7 +104,7 @@ const App: React.FC = () => {
     try {
       const created = await api.addToList(newItem);
       setMyList((prev) => [...prev, created]);
-      setCurrentView(newItem.type === 'MANGA' ? 'READLIST' : 'WATCHLIST');
+      // Don't navigate away - let user continue adding items
       showToast(`Added "${newItem.title}" to your list`, 'success');
     } catch (error: any) {
       console.error('Failed to add item:', error);

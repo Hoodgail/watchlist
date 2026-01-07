@@ -3,7 +3,7 @@ import { MediaItem, SearchResult } from '../types';
 import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions } from '../services/mediaSearch';
 
 interface SearchMediaProps {
-  onAdd: (item: Omit<MediaItem, 'id'>) => void;
+  onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
 }
 
 const CATEGORIES: { value: SearchCategory; label: string }[] = [
@@ -22,6 +22,8 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
+  const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +48,22 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
     }
   };
 
-  const handleAdd = (result: SearchResult) => {
-    const mediaItem = searchResultToMediaItem(result);
-    onAdd(mediaItem);
+  const handleAdd = async (result: SearchResult) => {
+    if (addedItems.has(result.id) || addingItems.has(result.id)) return;
+    
+    setAddingItems(prev => new Set(prev).add(result.id));
+    
+    try {
+      const mediaItem = searchResultToMediaItem(result);
+      await onAdd(mediaItem);
+      setAddedItems(prev => new Set(prev).add(result.id));
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev);
+        next.delete(result.id);
+        return next;
+      });
+    }
   };
 
   return (
@@ -173,12 +188,19 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
                 </div>
 
                 {/* Add Button */}
-                <button
-                  onClick={() => handleAdd(item)}
-                  className="flex-shrink-0 text-sm border border-neutral-700 text-neutral-400 px-4 py-2 hover:bg-white hover:text-black hover:border-white transition-all uppercase rounded-none"
-                >
-                  + Add
-                </button>
+                {addedItems.has(item.id) ? (
+                  <span className="flex-shrink-0 text-sm border border-green-700 text-green-500 px-4 py-2 uppercase rounded-none">
+                    Added
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleAdd(item)}
+                    disabled={addingItems.has(item.id)}
+                    className="flex-shrink-0 text-sm border border-neutral-700 text-neutral-400 px-4 py-2 hover:bg-white hover:text-black hover:border-white transition-all uppercase rounded-none disabled:opacity-50"
+                  >
+                    {addingItems.has(item.id) ? '...' : '+ Add'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
