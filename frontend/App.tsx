@@ -20,7 +20,7 @@ const getInitialRoute = (): { view: View; isOAuthCallback: boolean } => {
   
   // Check for OAuth callback
   if (path === '/auth/callback' || (search.includes('accessToken') && search.includes('refreshToken'))) {
-    return { view: 'WATCHLIST', isOAuthCallback: true };
+    return { view: 'HOT', isOAuthCallback: true };
   }
   
   return { view: 'WATCHLIST', isOAuthCallback: false };

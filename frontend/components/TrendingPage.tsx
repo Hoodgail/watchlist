@@ -6,6 +6,7 @@ import {
   searchResultToMediaItem 
 } from '../services/mediaSearch';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
+import { QuickAddModal } from './QuickAddModal';
 import { getStatusesByRefIds, BulkStatusItem } from '../services/api';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
@@ -25,12 +26,13 @@ const getImageUrl = (imageUrl?: string): string | null => {
 // Horizontal scrollable row component
 const TrendingRow: React.FC<{
   category: TrendingCategory;
-  onAdd: (item: SearchResult) => void;
+  onQuickAdd: (item: SearchResult) => void;
+  onAddWithDetails: (item: SearchResult) => void;
   onSuggest: (item: SearchResult) => void;
   addedItems: Set<string>;
   addingItems: Set<string>;
   userStatuses: Record<string, BulkStatusItem>;
-}> = ({ category, onAdd, onSuggest, addedItems, addingItems, userStatuses }) => {
+}> = ({ category, onQuickAdd, onAddWithDetails, onSuggest, addedItems, addingItems, userStatuses }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
@@ -99,7 +101,8 @@ const TrendingRow: React.FC<{
             <TrendingCard
               key={item.id}
               item={item}
-              onAdd={() => onAdd(item)}
+              onQuickAdd={() => onQuickAdd(item)}
+              onAddWithDetails={() => onAddWithDetails(item)}
               onSuggest={() => onSuggest(item)}
               isAdded={addedItems.has(item.id)}
               isAdding={addingItems.has(item.id)}
@@ -139,12 +142,13 @@ const formatStatusBadge = (status: BulkStatusItem): { text: string; color: strin
 // Individual card component
 const TrendingCard: React.FC<{
   item: SearchResult;
-  onAdd: () => void;
+  onQuickAdd: () => void;
+  onAddWithDetails: () => void;
   onSuggest: () => void;
   isAdded: boolean;
   isAdding: boolean;
   userStatus?: BulkStatusItem;
-}> = ({ item, onAdd, onSuggest, isAdded, isAdding, userStatus }) => {
+}> = ({ item, onQuickAdd, onAddWithDetails, onSuggest, isAdded, isAdding, userStatus }) => {
   const [imageError, setImageError] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const imageUrl = getImageUrl(item.imageUrl);
@@ -201,23 +205,37 @@ const TrendingCard: React.FC<{
               Added
             </span>
           ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAdd();
-              }}
-              disabled={isAdding}
-              className="text-xs uppercase font-bold px-3 py-2 bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50"
-            >
-              {isAdding ? '...' : '+ Add'}
-            </button>
+            <>
+              {/* Quick Add to Planned */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickAdd();
+                }}
+                disabled={isAdding}
+                className="text-xs uppercase font-bold px-3 py-2 bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 w-24 text-center"
+              >
+                {isAdding ? '...' : '+ Planned'}
+              </button>
+              {/* Add with Details */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddWithDetails();
+                }}
+                disabled={isAdding}
+                className="text-xs uppercase font-bold px-3 py-2 border border-neutral-400 text-neutral-200 hover:border-white hover:text-white transition-colors disabled:opacity-50 w-24 text-center"
+              >
+                + Details
+              </button>
+            </>
           )}
           <button
             onClick={(e) => {
               e.stopPropagation();
               onSuggest();
             }}
-            className="text-xs uppercase font-bold px-3 py-2 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white transition-colors"
+            className="text-xs uppercase font-bold px-3 py-2 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white transition-colors w-24 text-center"
           >
             Suggest
           </button>
@@ -243,6 +261,7 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
   const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
   const [suggestItem, setSuggestItem] = useState<MediaItem | null>(null);
+  const [quickAddItem, setQuickAddItem] = useState<SearchResult | null>(null);
   const [userStatuses, setUserStatuses] = useState<Record<string, BulkStatusItem>>({});
 
   useEffect(() => {
@@ -301,6 +320,48 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
     }
   };
 
+  // Quick add to planned
+  const handleQuickAdd = async (item: SearchResult) => {
+    if (addedItems.has(item.id) || addingItems.has(item.id)) return;
+
+    setAddingItems(prev => new Set(prev).add(item.id));
+
+    try {
+      const mediaItem = searchResultToMediaItem(item);
+      // Set status to PLAN_TO_WATCH for quick add
+      await onAdd({ ...mediaItem, status: 'PLAN_TO_WATCH', current: 0 });
+      setAddedItems(prev => new Set(prev).add(item.id));
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
+  // Open modal for adding with details
+  const handleAddWithDetails = (item: SearchResult) => {
+    setQuickAddItem(item);
+  };
+
+  // Handle add from modal
+  const handleModalAdd = async (mediaItem: Omit<MediaItem, 'id'>) => {
+    if (!quickAddItem) return;
+    
+    setAddingItems(prev => new Set(prev).add(quickAddItem.id));
+    try {
+      await onAdd(mediaItem);
+      setAddedItems(prev => new Set(prev).add(quickAddItem.id));
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev);
+        if (quickAddItem) next.delete(quickAddItem.id);
+        return next;
+      });
+    }
+  };
+
   const handleSuggest = (item: SearchResult) => {
     // Convert SearchResult to MediaItem-like object for the modal
     const mediaItem: MediaItem = {
@@ -347,7 +408,8 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
             <TrendingRow
               key={index}
               category={category}
-              onAdd={handleAdd}
+              onQuickAdd={handleQuickAdd}
+              onAddWithDetails={handleAddWithDetails}
               onSuggest={handleSuggest}
               addedItems={addedItems}
               addingItems={addingItems}
@@ -355,6 +417,15 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
             />
           ))}
         </div>
+      )}
+
+      {/* Quick Add Modal */}
+      {quickAddItem && (
+        <QuickAddModal
+          item={quickAddItem}
+          onAdd={handleModalAdd}
+          onClose={() => setQuickAddItem(null)}
+        />
       )}
 
       {/* Suggest Modal */}
