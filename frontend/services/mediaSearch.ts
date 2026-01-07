@@ -4,7 +4,7 @@ const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
-const MANGAHOOK_BASE_URL = import.meta.env.VITE_MANGAHOOK_API_URL || 'https://mangadex.hoodgail.me/api';
+const MANGADEX_API_BASE = 'https://api.mangadex.org';
 
 // ============ TMDB API (TV, Movie, Anime) ============
 
@@ -242,72 +242,130 @@ export async function searchAnime(query: string, options: SearchOptions = {}): P
   }
 }
 
-// ============ MangaHook API (Manga) ============
+// ============ MangaDex API (Manga) ============
 
-interface MangaHookResult {
-  id: string;
-  image: string;
-  title: string;
+interface MangaDexMangaAttributes {
+  title: { [key: string]: string };
+  altTitles?: { [key: string]: string }[];
+  description?: { [key: string]: string };
+  year?: number | null;
+  status?: string;
 }
 
-interface MangaHookSearchResponse {
-  mangaList: MangaHookResult[];
-  metaData: {
-    totalPages: number;
+interface MangaDexRelationship {
+  id: string;
+  type: string;
+  attributes?: {
+    fileName?: string;
   };
 }
 
-interface MangaHookDetails {
+interface MangaDexManga {
   id: string;
-  title: string;
-  alternativeTitle?: string;
-  status?: string;
-  imageUrl?: string;
-  chapterList?: { id: string; name: string; view: string; createdAt: string }[];
+  type: 'manga';
+  attributes: MangaDexMangaAttributes;
+  relationships: MangaDexRelationship[];
+}
+
+interface MangaDexSearchResponse {
+  result: string;
+  data: MangaDexManga[];
+  total: number;
+}
+
+interface MangaDexAggregateResponse {
+  result: string;
+  volumes: {
+    [volume: string]: {
+      volume: string;
+      count: number;
+      chapters: {
+        [chapter: string]: {
+          chapter: string;
+          id: string;
+          count: number;
+        };
+      };
+    };
+  };
+}
+
+function getPreferredTitle(titleObj: { [key: string]: string }): string {
+  return titleObj['en'] || titleObj['ja-ro'] || titleObj['ja'] || Object.values(titleObj)[0] || 'Unknown';
+}
+
+function getMangaCoverUrl(manga: MangaDexManga): string | undefined {
+  const coverRel = manga.relationships.find(r => r.type === 'cover_art');
+  if (coverRel?.attributes?.fileName) {
+    return `https://uploads.mangadex.org/covers/${manga.id}/${coverRel.attributes.fileName}.256.jpg`;
+  }
+  return undefined;
+}
+
+async function getMangaChapterCount(mangaId: string): Promise<number | null> {
+  try {
+    const response = await fetch(
+      `${MANGADEX_API_BASE}/manga/${mangaId}/aggregate?translatedLanguage[]=en`
+    );
+    if (!response.ok) return null;
+    
+    const data: MangaDexAggregateResponse = await response.json();
+    const allChapters = new Set<string>();
+    
+    for (const volKey of Object.keys(data.volumes)) {
+      const vol = data.volumes[volKey];
+      for (const chKey of Object.keys(vol.chapters)) {
+        allChapters.add(chKey);
+      }
+    }
+    
+    return allChapters.size || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function searchManga(query: string): Promise<SearchResult[]> {
   try {
-    const response = await fetch(
-      `${MANGAHOOK_BASE_URL}/search/${encodeURIComponent(query)}?page=1`
-    );
+    const params = new URLSearchParams({
+      title: query,
+      limit: '5',
+      offset: '0',
+      'includes[]': 'cover_art',
+      'order[relevance]': 'desc',
+      'contentRating[]': 'safe',
+    });
+    params.append('contentRating[]', 'suggestive');
+
+    const response = await fetch(`${MANGADEX_API_BASE}/manga?${params.toString()}`);
 
     if (!response.ok) {
-      throw new Error('MangaHook search failed');
+      throw new Error('MangaDex search failed');
     }
 
-    const data: MangaHookSearchResponse = await response.json();
-    const results = data.mangaList.slice(0, 5);
+    const data: MangaDexSearchResponse = await response.json();
+    const results = data.data.slice(0, 5);
 
-    // Get details for each manga to get chapter count
+    // Get chapter counts for each manga
     const detailedResults = await Promise.all(
-      results.map(async (item) => {
-        const details = await getMangaDetails(item.id);
+      results.map(async (manga) => {
+        const chapterCount = await getMangaChapterCount(manga.id);
 
         return {
-          id: `mangadex:${item.id}`,
-          title: item.title,
+          id: `mangadex:${manga.id}`,
+          title: getPreferredTitle(manga.attributes.title),
           type: 'MANGA' as MediaType,
-          total: details?.chapterList?.length || null,
-          imageUrl: item.image || details?.imageUrl,
+          total: chapterCount,
+          imageUrl: getMangaCoverUrl(manga),
+          year: manga.attributes.year ?? undefined,
         };
       })
     );
 
     return detailedResults;
   } catch (error) {
-    console.error('MangaHook search error:', error);
+    console.error('MangaDex search error:', error);
     return [];
-  }
-}
-
-async function getMangaDetails(id: string): Promise<MangaHookDetails | null> {
-  try {
-    const response = await fetch(`${MANGAHOOK_BASE_URL}/manga/${id}`);
-    if (!response.ok) return null;
-    return await response.json();
-  } catch {
-    return null;
   }
 }
 

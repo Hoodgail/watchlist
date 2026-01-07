@@ -4,6 +4,7 @@ import listRoutes from './list.js';
 import friendRoutes from './friends.js';
 import suggestionRoutes from './suggestions.js';
 import profileRoutes from './profile.js';
+import mangadexRoutes from './mangadex.js';
 
 const router = Router();
 
@@ -12,6 +13,7 @@ router.use('/list', listRoutes);
 router.use('/friends', friendRoutes);
 router.use('/suggestions', suggestionRoutes);
 router.use('/profile', profileRoutes);
+router.use('/mangadex', mangadexRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {
