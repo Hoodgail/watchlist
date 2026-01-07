@@ -4,6 +4,8 @@ import { useToast } from '../context/ToastContext';
 import * as api from '../services/api';
 import { UserAvatar } from './Layout';
 
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoodgail.me';
+
 // Discord icon component
 const DiscordIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -23,6 +25,8 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
   const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState<boolean>(user?.isPublic ?? false);
+  const [privacyLoading, setPrivacyLoading] = useState(false);
 
   // Load linked providers
   useEffect(() => {
@@ -44,6 +48,30 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
 
     loadProviders();
   }, [user?.oauthProviders]);
+
+  // Sync privacy state with user
+  useEffect(() => {
+    if (user?.isPublic !== undefined) {
+      setIsPublic(user.isPublic);
+    }
+  }, [user?.isPublic]);
+
+  const handlePrivacyToggle = async () => {
+    setPrivacyLoading(true);
+    const newValue = !isPublic;
+    
+    try {
+      await api.updatePrivacySettings(newValue);
+      setIsPublic(newValue);
+      await refreshUser();
+      showToast(newValue ? 'Your profile is now public' : 'Your profile is now private', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update privacy settings';
+      showToast(message, 'error');
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
 
   const handleLinkDiscord = async () => {
     setLinkingProvider('discord');
@@ -127,8 +155,80 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               <p className="text-xs text-neutral-600 truncate">{user.email}</p>
             </div>
           </div>
+          
+          {/* Profile Link */}
+          <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold uppercase text-sm">Public Profile</p>
+                <p className="text-xs text-neutral-500">
+                  {FRONTEND_URL.replace(/^https?:\/\//, '')}/u/{user.username}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${FRONTEND_URL}/u/${user.username}`);
+                  showToast('Profile link copied!', 'success');
+                }}
+                className="text-xs border border-neutral-700 px-3 py-2 text-neutral-400 hover:border-neutral-600 hover:text-white uppercase tracking-wider transition-colors"
+              >
+                Copy Link
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Privacy Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
+          Privacy
+        </h3>
+        
+        <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="font-bold uppercase text-sm">Public Profile</p>
+              <p className="text-xs text-neutral-500 mt-1">
+                {isPublic 
+                  ? 'Anyone can view your watchlist without logging in.'
+                  : 'Only your followers can view your watchlist.'}
+              </p>
+            </div>
+            
+            <button
+              onClick={handlePrivacyToggle}
+              disabled={privacyLoading}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+                isPublic ? 'bg-green-600' : 'bg-neutral-700'
+              } ${privacyLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              aria-label={isPublic ? 'Make profile private' : 'Make profile public'}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 ${
+                  isPublic ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-neutral-800">
+            <p className="text-xs text-neutral-600">
+              {isPublic ? (
+                <>
+                  <span className="text-green-500 font-semibold">Public:</span> Your profile is visible to everyone. 
+                  Anyone can see your watchlist, ratings, and notes via your profile link.
+                </>
+              ) : (
+                <>
+                  <span className="text-neutral-400 font-semibold">Private:</span> Only users who follow you can see your watchlist.
+                  Others will see a "private profile" message.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Connected Accounts Section */}
       <div className="space-y-4">

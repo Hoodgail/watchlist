@@ -20,6 +20,7 @@ export interface UserResponse {
   email: string;
   displayName: string | null;
   avatarUrl: string | null;
+  isPublic: boolean;
   createdAt: Date;
 }
 
@@ -90,6 +91,7 @@ export async function register(input: RegisterInput): Promise<{ user: UserRespon
         email: true,
         displayName: true,
         avatarUrl: true,
+        isPublic: true,
         createdAt: true,
       },
     });
@@ -149,6 +151,7 @@ export async function login(input: LoginInput): Promise<{ user: UserResponse; to
       email: user.email,
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
+      isPublic: user.isPublic,
       createdAt: user.createdAt,
     },
     tokens,
@@ -217,6 +220,7 @@ export async function getCurrentUser(userId: string): Promise<UserResponse | nul
       email: true,
       displayName: true,
       avatarUrl: true,
+      isPublic: true,
       createdAt: true,
     },
   });
@@ -236,6 +240,7 @@ export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithO
       email: true,
       displayName: true,
       avatarUrl: true,
+      isPublic: true,
       createdAt: true,
       passwordHash: true,
       oauthAccounts: {
@@ -257,6 +262,7 @@ export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithO
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    isPublic: user.isPublic,
     createdAt: user.createdAt,
     hasPassword: !!user.passwordHash,
     oauthProviders: user.oauthAccounts.map((account) => ({

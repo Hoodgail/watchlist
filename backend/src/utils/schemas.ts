@@ -34,7 +34,7 @@ export const createMediaItemSchema = z.object({
   notes: z.string().max(5000).optional(),
   rating: z.number().int().min(0).max(10).nullable().optional(),
   imageUrl: z.string().url().max(500).optional(),
-  refId: z.string().max(100).regex(/^[a-z]+:[a-zA-Z0-9_-]+$/, 'refId must be in format "source:id" (e.g., "tmdb:12345")').optional(),
+  refId: z.string().max(100).regex(/^[a-z]+:[a-zA-Z0-9_-]+$/, 'refId must be in format "source:id" (e.g., "tmdb:12345")') ,
 });
 
 export const updateMediaItemSchema = z.object({

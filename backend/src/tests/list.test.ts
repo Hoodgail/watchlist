@@ -191,12 +191,14 @@ describe('List Endpoints', () => {
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'TV Show', type: 'TV', status: 'WATCHING', current: 0 });
+        .send({ title: 'TV Show', type: 'TV', status: 'WATCHING', current: 0 })
+        .expect(201);
 
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Manga', type: 'MANGA', status: 'READING', current: 0 });
+        .send({ title: 'Manga', type: 'MANGA', status: 'READING', current: 0 })
+        .expect(201);
 
       const response = await request(app)
         .get('/api/list?type=MANGA')
@@ -213,12 +215,14 @@ describe('List Endpoints', () => {
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Show 1', type: 'TV', status: 'WATCHING', current: 0 });
+        .send({ title: 'Show 1', type: 'TV', status: 'WATCHING', current: 0 })
+        .expect(201);
 
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Show 2', type: 'TV', status: 'COMPLETED', current: 10, total: 10 });
+        .send({ title: 'Show 2', type: 'TV', status: 'COMPLETED', current: 10, total: 10 })
+        .expect(201);
 
       const response = await request(app)
         .get('/api/list?status=COMPLETED')
@@ -236,17 +240,20 @@ describe('List Endpoints', () => {
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Completed Show', type: 'TV', status: 'COMPLETED', current: 10, total: 10 });
+        .send({ title: 'Completed Show', type: 'TV', status: 'COMPLETED', current: 10, total: 10 })
+        .expect(201);
 
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Watching Show', type: 'TV', status: 'WATCHING', current: 5, total: 10 });
+        .send({ title: 'Watching Show', type: 'TV', status: 'WATCHING', current: 5, total: 10 })
+        .expect(201);
 
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Plan to Watch', type: 'TV', status: 'PLAN_TO_WATCH', current: 0, total: 10 });
+        .send({ title: 'Plan to Watch', type: 'TV', status: 'PLAN_TO_WATCH', current: 0, total: 10 })
+        .expect(201);
 
       const response = await request(app)
         .get('/api/list')
@@ -268,12 +275,14 @@ describe('List Endpoints', () => {
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Zebra Show', type: 'TV', status: 'WATCHING', current: 0 });
+        .send({ title: 'Zebra Show', type: 'TV', status: 'WATCHING', current: 0 })
+        .expect(201);
 
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Alpha Show', type: 'TV', status: 'WATCHING', current: 0 });
+        .send({ title: 'Alpha Show', type: 'TV', status: 'WATCHING', current: 0 })
+        .expect(201);
 
       const response = await request(app)
         .get('/api/list?sortBy=title')
@@ -291,12 +300,14 @@ describe('List Endpoints', () => {
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'Low Rated', type: 'TV', status: 'COMPLETED', current: 10, total: 10, rating: 3 });
+        .send({ title: 'Low Rated', type: 'TV', status: 'COMPLETED', current: 10, total: 10, rating: 3 })
+        .expect(201);
 
       await request(app)
         .post('/api/list')
         .set(authHeader(user.accessToken))
-        .send({ title: 'High Rated', type: 'TV', status: 'COMPLETED', current: 10, total: 10, rating: 9 });
+        .send({ title: 'High Rated', type: 'TV', status: 'COMPLETED', current: 10, total: 10, rating: 9 })
+        .expect(201);
 
       const response = await request(app)
         .get('/api/list?sortBy=rating')

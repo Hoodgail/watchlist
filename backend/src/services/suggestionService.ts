@@ -84,18 +84,23 @@ export async function createSuggestion(
     throw new ForbiddenError('You must follow this user to send them suggestions');
   }
 
-  // Check for existing pending suggestion of the same media
+  // Check for existing suggestion of the same media (any status)
   const existingSuggestion = await prisma.suggestion.findFirst({
     where: {
       fromUserId,
       toUserId,
       refId: input.refId,
-      status: 'PENDING',
     },
   });
 
   if (existingSuggestion) {
-    throw new ConflictError('You already have a pending suggestion for this media to this user');
+    if (existingSuggestion.status === 'PENDING') {
+      throw new ConflictError('You already have a pending suggestion for this media to this user');
+    }
+    // If previously accepted or dismissed, delete the old suggestion and create a new one
+    await prisma.suggestion.delete({
+      where: { id: existingSuggestion.id },
+    });
   }
 
   const suggestion = await prisma.suggestion.create({

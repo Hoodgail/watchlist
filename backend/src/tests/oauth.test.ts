@@ -83,7 +83,8 @@ describe('OAuth Endpoints', () => {
 
       // Should redirect to frontend with error
       expect(response.headers.location).toContain('error=');
-      expect(response.headers.location).toContain('No%20authorization%20code%20received');
+      // Accept either + or %20 for space encoding
+      expect(response.headers.location).toMatch(/No(\+|%20)authorization(\+|%20)code(\+|%20)received/);
     });
 
     it('should handle OAuth error from provider', async () => {
@@ -93,7 +94,8 @@ describe('OAuth Endpoints', () => {
 
       // Should redirect to frontend with the provider's error
       expect(response.headers.location).toContain('error=');
-      expect(response.headers.location).toContain('User%20denied%20access');
+      // Accept either + or %20 for space encoding
+      expect(response.headers.location).toMatch(/User(\+|%20)denied(\+|%20)access/);
     });
 
     it('should handle invalid provider', async () => {

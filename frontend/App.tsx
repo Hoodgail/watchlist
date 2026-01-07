@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { MediaList } from './components/MediaList';
 import { SearchMedia } from './components/SearchMedia';
@@ -8,31 +9,26 @@ import { AuthForm } from './components/AuthForm';
 import { SuggestionList } from './components/SuggestionList';
 import { OAuthCallback } from './components/OAuthCallback';
 import { Settings } from './components/Settings';
+import { PublicProfile } from './components/PublicProfile';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter } from './types';
 import * as api from './services/api';
 
-// Simple path-based routing
-const getInitialRoute = (): { view: View; isOAuthCallback: boolean } => {
-  const path = window.location.pathname;
-  const search = window.location.search;
-  
-  // Check for OAuth callback
-  if (path === '/auth/callback' || (search.includes('accessToken') && search.includes('refreshToken'))) {
-    return { view: 'HOT', isOAuthCallback: true };
-  }
-  
-  return { view: 'WATCHLIST', isOAuthCallback: false };
+// Check if current path is OAuth callback
+const isOAuthCallbackPath = (path: string, search: string): boolean => {
+  return path === '/auth/callback' || (search.includes('accessToken') && search.includes('refreshToken'));
 };
 
-const App: React.FC = () => {
+// Main App component that handles the authenticated app
+const MainApp: React.FC = () => {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   
-  const initialRoute = getInitialRoute();
-  const [currentView, setCurrentView] = useState<View>(initialRoute.view);
-  const [isOAuthCallback, setIsOAuthCallback] = useState(initialRoute.isOAuthCallback);
+  const [currentView, setCurrentView] = useState<View>('WATCHLIST');
+  const [isOAuthCallback, setIsOAuthCallback] = useState(isOAuthCallbackPath(location.pathname, location.search));
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
 
@@ -224,16 +220,16 @@ const App: React.FC = () => {
 
   const handleOAuthComplete = () => {
     setIsOAuthCallback(false);
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/');
+    // Clean up URL using navigate
+    navigate('/', { replace: true });
     setCurrentView('WATCHLIST');
     showToast('Welcome!', 'success');
   };
 
   const handleOAuthError = (error: string) => {
     setIsOAuthCallback(false);
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/');
+    // Clean up URL using navigate
+    navigate('/', { replace: true });
     showToast(error, 'error');
   };
 
@@ -389,6 +385,22 @@ const App: React.FC = () => {
     >
       {renderContent()}
     </Layout>
+  );
+};
+
+// Root App component with routing
+const App: React.FC = () => {
+  return (
+    <Routes>
+      {/* Public profile route - accessible without auth */}
+      <Route path="/u/:username" element={<PublicProfile />} />
+      
+      {/* OAuth callback route */}
+      <Route path="/auth/callback" element={<MainApp />} />
+      
+      {/* Main app - all other routes */}
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
   );
 };
 

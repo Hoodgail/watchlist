@@ -44,6 +44,7 @@ export interface AuthUser {
   email: string;
   displayName?: string;
   avatarUrl?: string;
+  isPublic?: boolean;
   hasPassword?: boolean;
   oauthProviders?: string[];
 }
@@ -116,4 +117,31 @@ export interface Suggestion {
   message?: string;
   status: SuggestionStatus;
   createdAt: string;
+}
+
+// Public profile types
+export interface PublicProfileMediaItem {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  current: number;
+  total: number | null;
+  notes: string | null;
+  rating: number | null;
+  imageUrl: string | null;
+  refId: string;
+}
+
+export interface PublicProfile {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  isPublic: boolean;
+  isOwnProfile: boolean;
+  isFollowing: boolean;
+  followerCount: number;
+  followingCount: number;
+  list?: PublicProfileMediaItem[];
 }

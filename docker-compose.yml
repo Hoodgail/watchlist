@@ -80,13 +80,20 @@ services:
       args:
         - VITE_API_URL=${VITE_API_URL:-https://watchlist-api.hoodgail.me/api}
         - VITE_TMDB_API_KEY=${VITE_TMDB_API_KEY}
+        - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-https://watchlist.hoodgail.me}
     container_name: watchlist-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=80
+      - VITE_API_URL=${VITE_API_URL:-https://watchlist-api.hoodgail.me/api}
+      - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-https://watchlist.hoodgail.me}
     networks:
       - dokploy-network
+      - internal
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"

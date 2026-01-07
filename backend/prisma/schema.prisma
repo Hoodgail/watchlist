@@ -36,19 +36,20 @@ model User {
   passwordHash String?  @map("password_hash") @db.VarChar(255)
   displayName  String?  @map("display_name") @db.VarChar(64)
   avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
+  isPublic     Boolean  @default(false) @map("is_public")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
   mediaItems             MediaItem[]
-  following              Friendship[]      @relation("UserFollowing")
-  followers              Friendship[]      @relation("UserFollowers")
-  sentFriendRequests     FriendRequest[]   @relation("SentRequests")
-  receivedFriendRequests FriendRequest[]   @relation("ReceivedRequests")
+  following              Friendship[]    @relation("UserFollowing")
+  followers              Friendship[]    @relation("UserFollowers")
+  sentFriendRequests     FriendRequest[] @relation("SentRequests")
+  receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
   refreshTokens          RefreshToken[]
   oauthAccounts          OAuthAccount[]
-  sentSuggestions        Suggestion[]      @relation("SentSuggestions")
-  receivedSuggestions    Suggestion[]      @relation("ReceivedSuggestions")
+  sentSuggestions        Suggestion[]    @relation("SentSuggestions")
+  receivedSuggestions    Suggestion[]    @relation("ReceivedSuggestions")
 
   @@map("users")
 }
@@ -130,16 +131,16 @@ enum SuggestionStatus {
 }
 
 model Suggestion {
-  id          String           @id @default(uuid())
-  fromUserId  String           @map("from_user_id")
-  toUserId    String           @map("to_user_id")
-  title       String           @db.VarChar(255)
-  type        MediaType
-  refId       String           @map("ref_id")
-  imageUrl    String?          @map("image_url")
-  message     String?          @db.Text
-  status      SuggestionStatus @default(PENDING)
-  createdAt   DateTime         @default(now()) @map("created_at")
+  id         String           @id @default(uuid())
+  fromUserId String           @map("from_user_id")
+  toUserId   String           @map("to_user_id")
+  title      String           @db.VarChar(255)
+  type       MediaType
+  refId      String           @map("ref_id")
+  imageUrl   String?          @map("image_url")
+  message    String?          @db.Text
+  status     SuggestionStatus @default(PENDING)
+  createdAt  DateTime         @default(now()) @map("created_at")
 
   // Relations
   fromUser User @relation("SentSuggestions", fields: [fromUserId], references: [id], onDelete: Cascade)
