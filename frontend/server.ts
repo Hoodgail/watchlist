@@ -326,7 +326,8 @@ async function createServer() {
     });
   } else {
     // Production: serve static files from dist
-    const distPath = path.resolve(__dirname, 'dist');
+    // In production, server.js is in the same directory as index.html and assets
+    const distPath = __dirname;
     template = fs.readFileSync(path.resolve(distPath, 'index.html'), 'utf-8');
     
     // Handle profile pages with dynamic meta tags
