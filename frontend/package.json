@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/server.js",
-    "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:vite"
+    "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:vite --external:express --external:compression"
   },
   "dependencies": {
     "compression": "^1.8.1",
