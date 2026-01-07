@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MediaItem, SearchResult } from '../types';
-import { searchMedia, searchResultToMediaItem, SearchCategory } from '../services/mediaSearch';
+import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions } from '../services/mediaSearch';
 
 interface SearchMediaProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => void;
@@ -17,6 +17,8 @@ const CATEGORIES: { value: SearchCategory; label: string }[] = [
 export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('all');
+  const [year, setYear] = useState('');
+  const [includeAdult, setIncludeAdult] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -30,7 +32,11 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
     setResults([]);
 
     try {
-      const items = await searchMedia(query, category);
+      const options: SearchOptions = {
+        includeAdult,
+        year: year.trim() || undefined,
+      };
+      const items = await searchMedia(query, category, options);
       setResults(items);
     } catch (error) {
       console.error('Search failed:', error);
@@ -67,6 +73,34 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
               {cat.label}
             </button>
           ))}
+        </div>
+
+        {/* Search Options */}
+        <div className="flex gap-4 items-center flex-wrap">
+          <div className="flex items-center gap-2">
+            <label htmlFor="year" className="text-xs text-neutral-500 uppercase tracking-wider">
+              Year
+            </label>
+            <input
+              id="year"
+              type="text"
+              value={year}
+              onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="e.g. 2024"
+              className="w-20 bg-black border border-neutral-700 px-2 py-1 text-white placeholder-neutral-700 text-xs focus:border-white outline-none font-mono rounded-none"
+            />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeAdult}
+              onChange={(e) => setIncludeAdult(e.target.checked)}
+              className="w-4 h-4 bg-black border border-neutral-700 rounded-none accent-white cursor-pointer"
+            />
+            <span className="text-xs text-neutral-500 uppercase tracking-wider">
+              Include Adult
+            </span>
+          </label>
         </div>
 
         <form onSubmit={handleSearch} className="flex gap-0">

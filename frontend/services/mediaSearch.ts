@@ -20,6 +20,12 @@ interface TMDBSearchResult {
   genre_ids?: number[];
   number_of_episodes?: number;
   number_of_seasons?: number;
+  popularity?: number;
+}
+
+export interface SearchOptions {
+  year?: string;
+  includeAdult?: boolean;
 }
 
 interface TMDBSearchResponse {
@@ -42,15 +48,67 @@ interface TMDBTVDetails {
 // Anime genre IDs in TMDB
 const ANIME_GENRE_ID = 16; // Animation genre
 
-async function searchTMDB(query: string, mediaType: 'movie' | 'tv'): Promise<TMDBSearchResult[]> {
+async function searchTMDBMulti(
+  query: string,
+  options: SearchOptions = {}
+): Promise<TMDBSearchResult[]> {
   if (!TMDB_API_KEY) {
     console.warn('TMDB API key not found');
     return [];
   }
 
   try {
+    const params = new URLSearchParams({
+      api_key: TMDB_API_KEY,
+      query: query,
+      page: '1',
+      include_adult: options.includeAdult ? 'true' : 'false',
+    });
+
     const response = await fetch(
-      `${TMDB_BASE_URL}/search/${mediaType}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=1`
+      `${TMDB_BASE_URL}/search/multi?${params.toString()}`
+    );
+
+    if (!response.ok) {
+      throw new Error('TMDB multi search failed');
+    }
+
+    const data: TMDBSearchResponse = await response.json();
+    // Sort by popularity (descending) and filter to only movie/tv
+    const filtered = data.results
+      .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    return filtered.slice(0, 10);
+  } catch (error) {
+    console.error('TMDB multi search error:', error);
+    return [];
+  }
+}
+
+async function searchTMDB(
+  query: string,
+  mediaType: 'movie' | 'tv',
+  options: SearchOptions = {}
+): Promise<TMDBSearchResult[]> {
+  if (!TMDB_API_KEY) {
+    console.warn('TMDB API key not found');
+    return [];
+  }
+
+  try {
+    const params = new URLSearchParams({
+      api_key: TMDB_API_KEY,
+      query: query,
+      page: '1',
+      include_adult: options.includeAdult ? 'true' : 'false',
+    });
+
+    if (options.year) {
+      params.append('year', options.year);
+    }
+
+    const response = await fetch(
+      `${TMDB_BASE_URL}/search/${mediaType}?${params.toString()}`
     );
 
     if (!response.ok) {
@@ -58,7 +116,9 @@ async function searchTMDB(query: string, mediaType: 'movie' | 'tv'): Promise<TMD
     }
 
     const data: TMDBSearchResponse = await response.json();
-    return data.results.slice(0, 5);
+    // Sort by popularity (descending)
+    const sorted = [...data.results].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    return sorted.slice(0, 5);
   } catch (error) {
     console.error('TMDB search error:', error);
     return [];
@@ -92,8 +152,8 @@ function isAnime(result: TMDBSearchResult | TMDBTVDetails): boolean {
   return genres.includes(ANIME_GENRE_ID);
 }
 
-export async function searchMovies(query: string): Promise<SearchResult[]> {
-  const results = await searchTMDB(query, 'movie');
+export async function searchMovies(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  const results = await searchTMDB(query, 'movie', options);
 
   return results.map((item) => ({
     id: `tmdb:${item.id}`,
@@ -106,8 +166,8 @@ export async function searchMovies(query: string): Promise<SearchResult[]> {
   }));
 }
 
-export async function searchTV(query: string): Promise<SearchResult[]> {
-  const results = await searchTMDB(query, 'tv');
+export async function searchTV(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  const results = await searchTMDB(query, 'tv', options);
 
   // Get details for each show to get episode count
   const detailedResults = await Promise.all(
@@ -130,19 +190,35 @@ export async function searchTV(query: string): Promise<SearchResult[]> {
   return detailedResults;
 }
 
-export async function searchAnime(query: string): Promise<SearchResult[]> {
+export async function searchAnime(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
   // Search for animation genre specifically
   if (!TMDB_API_KEY) return [];
 
   try {
+    const params = new URLSearchParams({
+      api_key: TMDB_API_KEY,
+      query: query,
+      with_genres: String(ANIME_GENRE_ID),
+      page: '1',
+      include_adult: options.includeAdult ? 'true' : 'false',
+    });
+
+    if (options.year) {
+      params.append('year', options.year);
+    }
+
     const response = await fetch(
-      `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&with_genres=${ANIME_GENRE_ID}&page=1`
+      `${TMDB_BASE_URL}/search/tv?${params.toString()}`
     );
 
     if (!response.ok) return [];
 
     const data: TMDBSearchResponse = await response.json();
-    const animeResults = data.results.filter(isAnime).slice(0, 5);
+    // Sort by popularity (descending)
+    const animeResults = data.results
+      .filter(isAnime)
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+      .slice(0, 5);
 
     const detailedResults = await Promise.all(
       animeResults.map(async (item) => {
@@ -239,29 +315,83 @@ async function getMangaDetails(id: string): Promise<MangaHookDetails | null> {
 
 export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga';
 
+async function searchAllWithMulti(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  const results = await searchTMDBMulti(query, options);
+  
+  const mappedResults = await Promise.all(
+    results.map(async (item) => {
+      if (item.media_type === 'movie') {
+        return {
+          id: `tmdb:${item.id}`,
+          title: item.title || 'Unknown Title',
+          type: 'MOVIE' as MediaType,
+          total: 1,
+          imageUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : undefined,
+          year: item.release_date ? parseInt(item.release_date.split('-')[0]) : undefined,
+          overview: item.overview,
+        };
+      } else {
+        // TV show
+        const details = await getTVDetails(item.id);
+        const anime = isAnime(item);
+        return {
+          id: `tmdb:${item.id}`,
+          title: item.name || 'Unknown Title',
+          type: (anime ? 'ANIME' : 'TV') as MediaType,
+          total: details?.number_of_episodes || null,
+          imageUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : undefined,
+          year: item.first_air_date ? parseInt(item.first_air_date.split('-')[0]) : undefined,
+          overview: item.overview,
+        };
+      }
+    })
+  );
+
+  return mappedResults;
+}
+
 export async function searchMedia(
   query: string,
-  category: SearchCategory = 'all'
+  category: SearchCategory = 'all',
+  options: SearchOptions = {}
 ): Promise<SearchResult[]> {
   if (!query.trim()) return [];
 
   const searches: Promise<SearchResult[]>[] = [];
 
-  if (category === 'all' || category === 'movie') {
-    searches.push(searchMovies(query));
-  }
-  if (category === 'all' || category === 'tv') {
-    searches.push(searchTV(query));
-  }
-  if (category === 'all' || category === 'anime') {
-    searches.push(searchAnime(query));
-  }
-  if (category === 'all' || category === 'manga') {
+  if (category === 'all') {
+    // Use multi endpoint for 'all' category (more efficient)
+    searches.push(searchAllWithMulti(query, options));
     searches.push(searchManga(query));
+  } else {
+    if (category === 'movie') {
+      searches.push(searchMovies(query, options));
+    }
+    if (category === 'tv') {
+      searches.push(searchTV(query, options));
+    }
+    if (category === 'anime') {
+      searches.push(searchAnime(query, options));
+    }
+    if (category === 'manga') {
+      searches.push(searchManga(query));
+    }
   }
 
   const results = await Promise.all(searches);
-  return results.flat();
+  const flatResults = results.flat();
+  
+  // Deduplicate by refId (id field in SearchResult)
+  const seen = new Set<string>();
+  const deduplicated = flatResults.filter(item => {
+    if (seen.has(item.id)) {
+      return false;
+    }
+    seen.add(item.id);
+    return true;
+  });
+
+  return deduplicated;
 }
 
 // Convert search result to media item for adding to list
