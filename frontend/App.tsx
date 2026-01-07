@@ -433,18 +433,7 @@ const MainApp: React.FC = () => {
     }
   };
 
-  // Render manga detail overlay
-  if (selectedMangaId) {
-    return (
-      <MangaDetail
-        mangaId={selectedMangaId}
-        onClose={handleCloseManga}
-        onReadChapter={handleReadChapter}
-      />
-    );
-  }
-
-  // Render chapter reader overlay
+  // Render chapter reader overlay (check this FIRST since it's opened from MangaDetail)
   if (readerState) {
     return (
       <ChapterReader
@@ -453,6 +442,17 @@ const MainApp: React.FC = () => {
         chapters={readerState.chapters}
         onClose={handleCloseReader}
         onChapterChange={handleChapterChange}
+      />
+    );
+  }
+
+  // Render manga detail overlay
+  if (selectedMangaId) {
+    return (
+      <MangaDetail
+        mangaId={selectedMangaId}
+        onClose={handleCloseManga}
+        onReadChapter={handleReadChapter}
       />
     );
   }
