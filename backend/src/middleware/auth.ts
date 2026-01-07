@@ -17,6 +17,7 @@ declare global {
         email: string;
         username: string;
         displayName: string | null;
+        avatarUrl: string | null;
       };
     }
   }
@@ -45,6 +46,7 @@ export async function authenticate(
         email: true,
         username: true,
         displayName: true,
+        avatarUrl: true,
       },
     });
 

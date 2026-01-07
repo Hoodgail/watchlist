@@ -81,7 +81,7 @@ export async function me(
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    const user = await authService.getCurrentUser(req.user.id);
+    const user = await authService.getCurrentUserWithOAuth(req.user.id);
     res.json(user);
   } catch (error) {
     next(error);

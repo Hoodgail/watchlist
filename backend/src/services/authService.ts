@@ -19,6 +19,7 @@ export interface UserResponse {
   username: string;
   email: string;
   displayName: string | null;
+  avatarUrl: string | null;
   createdAt: Date;
 }
 
@@ -88,6 +89,7 @@ export async function register(input: RegisterInput): Promise<{ user: UserRespon
         username: true,
         email: true,
         displayName: true,
+        avatarUrl: true,
         createdAt: true,
       },
     });
@@ -127,7 +129,11 @@ export async function login(input: LoginInput): Promise<{ user: UserResponse; to
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  // Verify password
+  // Verify password (OAuth-only users have null passwordHash)
+  if (!user.passwordHash) {
+    throw new UnauthorizedError('Please login with your OAuth provider');
+  }
+  
   const isValid = await bcrypt.compare(input.password, user.passwordHash);
   if (!isValid) {
     throw new UnauthorizedError('Invalid email or password');
@@ -142,6 +148,7 @@ export async function login(input: LoginInput): Promise<{ user: UserResponse; to
       username: user.username,
       email: user.email,
       displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
       createdAt: user.createdAt,
     },
     tokens,
@@ -209,7 +216,59 @@ export async function getCurrentUser(userId: string): Promise<UserResponse | nul
       username: true,
       email: true,
       displayName: true,
+      avatarUrl: true,
       createdAt: true,
     },
   });
+}
+
+export interface UserWithOAuthResponse extends UserResponse {
+  hasPassword: boolean;
+  oauthProviders: Array<{ provider: string; linkedAt: Date }>;
+}
+
+export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithOAuthResponse | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      displayName: true,
+      avatarUrl: true,
+      createdAt: true,
+      passwordHash: true,
+      oauthAccounts: {
+        select: {
+          provider: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    createdAt: user.createdAt,
+    hasPassword: !!user.passwordHash,
+    oauthProviders: user.oauthAccounts.map((account) => ({
+      provider: account.provider,
+      linkedAt: account.createdAt,
+    })),
+  };
+}
+
+/**
+ * Create tokens for a user (used by OAuth service)
+ */
+export async function createTokensForUser(userId: string, email: string): Promise<AuthTokens> {
+  return createTokens(userId, email);
 }

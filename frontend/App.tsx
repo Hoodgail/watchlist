@@ -4,15 +4,34 @@ import { MediaList } from './components/MediaList';
 import { SearchMedia } from './components/SearchMedia';
 import { FriendList } from './components/FriendList';
 import { AuthForm } from './components/AuthForm';
+import { SuggestionList } from './components/SuggestionList';
+import { OAuthCallback } from './components/OAuthCallback';
+import { Settings } from './components/Settings';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter } from './types';
 import * as api from './services/api';
 
+// Simple path-based routing
+const getInitialRoute = (): { view: View; isOAuthCallback: boolean } => {
+  const path = window.location.pathname;
+  const search = window.location.search;
+  
+  // Check for OAuth callback
+  if (path === '/auth/callback' || (search.includes('accessToken') && search.includes('refreshToken'))) {
+    return { view: 'WATCHLIST', isOAuthCallback: true };
+  }
+  
+  return { view: 'WATCHLIST', isOAuthCallback: false };
+};
+
 const App: React.FC = () => {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { showToast } = useToast();
-  const [currentView, setCurrentView] = useState<View>('WATCHLIST');
+  
+  const initialRoute = getInitialRoute();
+  const [currentView, setCurrentView] = useState<View>(initialRoute.view);
+  const [isOAuthCallback, setIsOAuthCallback] = useState(initialRoute.isOAuthCallback);
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
 
@@ -32,14 +51,19 @@ const App: React.FC = () => {
   const [friends, setFriends] = useState<User[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
 
+  // Pending suggestions count for badge
+  const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0);
+
   // Load user's list when authenticated
   useEffect(() => {
     if (user) {
       loadMyList();
       loadFriends();
+      loadPendingSuggestionsCount();
     } else {
       setMyList([]);
       setFriends([]);
+      setPendingSuggestionsCount(0);
     }
   }, [user]);
 
@@ -64,6 +88,15 @@ const App: React.FC = () => {
       console.error('Failed to load friends:', error);
     } finally {
       setFriendsLoading(false);
+    }
+  }, []);
+
+  const loadPendingSuggestionsCount = useCallback(async () => {
+    try {
+      const suggestions = await api.getReceivedSuggestions('PENDING');
+      setPendingSuggestionsCount(suggestions.length);
+    } catch (error) {
+      console.error('Failed to load suggestions count:', error);
     }
   }, []);
 
@@ -188,6 +221,30 @@ const App: React.FC = () => {
     showToast('Logged out successfully', 'info');
   };
 
+  const handleOAuthComplete = () => {
+    setIsOAuthCallback(false);
+    // Clean up URL
+    window.history.replaceState({}, document.title, '/');
+    setCurrentView('WATCHLIST');
+    showToast('Welcome!', 'success');
+  };
+
+  const handleOAuthError = (error: string) => {
+    setIsOAuthCallback(false);
+    // Clean up URL
+    window.history.replaceState({}, document.title, '/');
+    showToast(error, 'error');
+  };
+
+  // Handle OAuth callback
+  if (isOAuthCallback) {
+    return (
+      <Layout currentView={currentView} onViewChange={setCurrentView} user={null}>
+        <OAuthCallback onComplete={handleOAuthComplete} onError={handleOAuthError} />
+      </Layout>
+    );
+  }
+
   // Show loading spinner while checking auth
   if (authLoading) {
     return (
@@ -239,6 +296,7 @@ const App: React.FC = () => {
               setWatchlistSort(sort);
               loadMyList(sort);
             }}
+            showSuggestButton={true}
           />
         );
       case 'READLIST':
@@ -258,6 +316,7 @@ const App: React.FC = () => {
               setReadlistSort(sort);
               loadMyList(sort);
             }}
+            showSuggestButton={true}
           />
         );
       case 'SEARCH':
@@ -302,6 +361,16 @@ const App: React.FC = () => {
             />
           </div>
         );
+      case 'SUGGESTIONS':
+        return (
+          <SuggestionList
+            onSuggestionCountChange={(count) => setPendingSuggestionsCount(count)}
+          />
+        );
+      case 'SETTINGS':
+        return (
+          <Settings onBack={() => setCurrentView('WATCHLIST')} />
+        );
       default:
         return null;
     }
@@ -313,6 +382,7 @@ const App: React.FC = () => {
       onViewChange={setCurrentView}
       user={user}
       onLogout={handleLogout}
+      pendingSuggestionsCount={pendingSuggestionsCount}
     >
       {renderContent()}
     </Layout>

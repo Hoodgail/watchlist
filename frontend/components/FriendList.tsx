@@ -1,6 +1,50 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 
+// Friend Avatar component with fallback to initials
+const FriendAvatar: React.FC<{ 
+  user: User; 
+  size?: 'sm' | 'md' | 'lg';
+}> = ({ user, size = 'md' }) => {
+  const sizeClasses = {
+    sm: 'w-6 h-6 text-xs',
+    md: 'w-10 h-10 text-sm',
+    lg: 'w-12 h-12 text-lg',
+  };
+
+  const initials = user.username
+    .split(/[_\s]/)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const baseClasses = `${sizeClasses[size]} rounded-full flex items-center justify-center font-bold uppercase flex-shrink-0`;
+
+  if (user.avatarUrl) {
+    return (
+      <div className={`${baseClasses} overflow-hidden`}>
+        <img 
+          src={user.avatarUrl} 
+          alt={user.username}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // Fallback to initials on image load error
+            e.currentTarget.style.display = 'none';
+            e.currentTarget.parentElement!.innerHTML = `<span class="w-full h-full bg-neutral-800 text-white border border-neutral-700 rounded-full flex items-center justify-center">${initials}</span>`;
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${baseClasses} bg-neutral-800 text-white border border-neutral-700`}>
+      {initials}
+    </div>
+  );
+};
+
 interface FriendListProps {
   friends: User[];
   onViewFriend: (friend: User) => void;
@@ -91,8 +135,9 @@ export const FriendList: React.FC<FriendListProps> = ({
                 <div className="flex justify-between items-start mb-4">
                   <button
                     onClick={() => onViewFriend(friend)}
-                    className="text-left flex-grow"
+                    className="text-left flex-grow flex items-center gap-3"
                   >
+                    <FriendAvatar user={friend} size="md" />
                     <h3 className="text-2xl font-bold text-white uppercase tracking-tighter group-hover:underline decoration-1 underline-offset-4">
                       {friend.username}
                     </h3>
@@ -151,9 +196,12 @@ export const FriendList: React.FC<FriendListProps> = ({
                 key={user.id}
                 className="flex items-center justify-between p-3 bg-neutral-900 border border-neutral-800"
               >
-                <span className="text-sm uppercase text-white font-bold">
-                  {user.username}
-                </span>
+                <div className="flex items-center gap-3">
+                  <FriendAvatar user={user} size="sm" />
+                  <span className="text-sm uppercase text-white font-bold">
+                    {user.username}
+                  </span>
+                </div>
                 <button
                   onClick={() => handleFollow(user.id)}
                   disabled={followingId === user.id}

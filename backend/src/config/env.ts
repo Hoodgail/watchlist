@@ -11,6 +11,14 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:3200'),
+  
+  // OAuth - Discord (optional for backwards compatibility)
+  DISCORD_CLIENT_ID: z.string().optional(),
+  DISCORD_CLIENT_SECRET: z.string().optional(),
+  DISCORD_REDIRECT_URI: z.string().optional(),
+  
+  // Frontend URL for OAuth callback redirects
+  FRONTEND_URL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

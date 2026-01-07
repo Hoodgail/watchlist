@@ -5,6 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Watchlist</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            animation: {
+              fadeIn: 'fadeIn 0.2s ease-out',
+              slideDown: 'slideDown 0.2s ease-out',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(-4px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              slideDown: {
+                '0%': { opacity: '0', maxHeight: '0' },
+                '100%': { opacity: '1', maxHeight: '1000px' },
+              },
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      /* Custom scrollbar for better UX */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #171717;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #404040;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #525252;
+      }
+      
+      /* Smooth scroll behavior */
+      html {
+        scroll-behavior: smooth;
+      }
+      
+      /* Hide number input arrows */
+      input[type="number"]::-webkit-inner-spin-button,
+      input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      input[type="number"] {
+        -moz-appearance: textfield;
+      }
+      
+      /* Touch action for swipe gestures */
+      .swipeable {
+        touch-action: pan-y;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

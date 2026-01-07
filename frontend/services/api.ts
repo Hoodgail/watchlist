@@ -8,6 +8,8 @@ import {
   RegisterCredentials,
   AuthResponse,
   User,
+  Suggestion,
+  SuggestionStatus,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -399,6 +401,70 @@ export async function getUserList(userId: string): Promise<User> {
   };
 }
 
+// ============ OAUTH API ============
+
+export async function getOAuthUrl(provider: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/auth/oauth/${provider}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to get OAuth URL');
+  }
+  
+  const data = await response.json();
+  return data.authorizationUrl;
+}
+
+interface LinkedProvidersResponse {
+  linked: Array<{ provider: string; linkedAt: string }>;
+  available: string[];
+}
+
+export async function getLinkedProviders(): Promise<string[]> {
+  const response = await fetchWithAuth('/auth/oauth/providers');
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to get linked providers');
+  }
+  
+  const data: LinkedProvidersResponse = await response.json();
+  // Return just the provider names for backwards compatibility
+  return data.linked.map(p => p.provider);
+}
+
+export async function linkOAuthAccount(provider: string, code: string): Promise<void> {
+  const response = await fetchWithAuth(`/auth/oauth/${provider}/link`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to link OAuth account');
+  }
+}
+
+export async function unlinkOAuthAccount(provider: string): Promise<void> {
+  const response = await fetchWithAuth(`/auth/oauth/${provider}/link`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to unlink OAuth account');
+  }
+}
+
+// Store and retrieve tokens (exported for OAuth callback)
+export function storeTokens(accessToken: string, refreshToken: string): void {
+  setTokens(accessToken, refreshToken);
+}
+
+export function removeTokens(): void {
+  clearTokens();
+}
+
 // ============ HEALTH CHECK ============
 
 export async function healthCheck(): Promise<boolean> {
@@ -407,5 +473,92 @@ export async function healthCheck(): Promise<boolean> {
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+// ============ SUGGESTIONS API ============
+
+export async function getReceivedSuggestions(status?: SuggestionStatus): Promise<Suggestion[]> {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetchWithAuth(`/suggestions/received${query}`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch received suggestions');
+  }
+
+  return await response.json();
+}
+
+export async function getSentSuggestions(): Promise<Suggestion[]> {
+  const response = await fetchWithAuth('/suggestions/sent');
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch sent suggestions');
+  }
+
+  return await response.json();
+}
+
+export interface SendSuggestionPayload {
+  title: string;
+  type: MediaType;
+  refId: string;
+  imageUrl?: string;
+  message?: string;
+}
+
+export async function sendSuggestion(userId: string, suggestion: SendSuggestionPayload): Promise<Suggestion> {
+  const response = await fetchWithAuth(`/suggestions/${userId}`, {
+    method: 'POST',
+    body: JSON.stringify(suggestion),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to send suggestion');
+  }
+
+  return await response.json();
+}
+
+export async function acceptSuggestion(id: string): Promise<Suggestion> {
+  const response = await fetchWithAuth(`/suggestions/${id}/accept`, {
+    method: 'PATCH',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to accept suggestion');
+  }
+
+  return await response.json();
+}
+
+export async function dismissSuggestion(id: string): Promise<Suggestion> {
+  const response = await fetchWithAuth(`/suggestions/${id}/dismiss`, {
+    method: 'PATCH',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to dismiss suggestion');
+  }
+
+  return await response.json();
+}
+
+export async function deleteSuggestion(id: string): Promise<void> {
+  const response = await fetchWithAuth(`/suggestions/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to delete suggestion');
   }
 }

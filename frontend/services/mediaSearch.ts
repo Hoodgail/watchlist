@@ -273,5 +273,6 @@ export function searchResultToMediaItem(result: SearchResult): Omit<MediaItem, '
     total: result.total,
     status: result.type === 'MANGA' ? 'READING' : 'PLAN_TO_WATCH',
     imageUrl: result.imageUrl,
+    refId: result.id,
   };
 }

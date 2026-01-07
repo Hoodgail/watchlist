@@ -45,4 +45,14 @@ export function authHeader(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
 
+/**
+ * Create a follow relationship between two users
+ */
+export async function createFollow(followerToken: string, targetUserId: string): Promise<void> {
+  await request(app)
+    .post(`/api/friends/${targetUserId}`)
+    .set(authHeader(followerToken))
+    .expect(201);
+}
+
 export { request, app };

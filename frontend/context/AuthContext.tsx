@@ -9,6 +9,8 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  initiateOAuthLogin: (provider: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -61,6 +63,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const currentUser = await api.getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  }, []);
+
+  const initiateOAuthLogin = useCallback(async (provider: string) => {
+    try {
+      const authUrl = await api.getOAuthUrl(provider);
+      // Redirect to OAuth provider
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Failed to initiate OAuth login:', error);
+      throw error;
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -68,6 +90,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
+    refreshUser,
+    initiateOAuthLogin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

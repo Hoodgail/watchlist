@@ -33,6 +33,7 @@ export interface MediaItem {
 export interface User {
   id: string;
   username: string;
+  avatarUrl?: string;
   list: MediaItem[];
 }
 
@@ -41,6 +42,10 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string;
+  displayName?: string;
+  avatarUrl?: string;
+  hasPassword?: boolean;
+  oauthProviders?: string[];
 }
 
 export interface LoginCredentials {
@@ -88,4 +93,27 @@ export interface SearchResult {
   overview?: string;
 }
 
-export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'FRIENDS' | 'FRIEND_VIEW' | 'LOGIN' | 'REGISTER';
+export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER';
+
+// Suggestion types
+export type SuggestionStatus = 'PENDING' | 'ACCEPTED' | 'DISMISSED';
+
+export interface SuggestionUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl?: string;
+}
+
+export interface Suggestion {
+  id: string;
+  fromUser: SuggestionUser;
+  toUser: SuggestionUser;
+  title: string;
+  type: MediaType;
+  refId: string;
+  imageUrl?: string;
+  message?: string;
+  status: SuggestionStatus;
+  createdAt: string;
+}
