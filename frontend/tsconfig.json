@@ -21,9 +21,13 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@shared/*": [
+        "../shared/*"
       ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": ["**/*", "../shared/**/*"]
 }

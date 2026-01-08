@@ -3,6 +3,13 @@ import compression from 'compression';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  parseMangaPlusResponse,
+  decryptMangaPlusImage,
+  isValidMangaPlusCdnUrl,
+  isValidEncryptionKey,
+  buildMangaPlusApiUrl,
+} from '../shared/mangaplus';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -118,62 +125,6 @@ function getDefaultMetaTags(): string {
     <meta name="twitter:description" content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching." />
     <meta name="twitter:image" content="${FRONTEND_URL}/assets/banner.png" />
   `;
-}
-
-// ============ MangaPlus Proxy Helpers ============
-
-interface MangaPlusPage {
-  url: string;
-  encryptionKey: string;
-  pageNumber: number;
-}
-
-/**
- * Parse MangaPlus protobuf response to extract image URLs and encryption keys
- */
-function parseMangaPlusResponse(buffer: ArrayBuffer): MangaPlusPage[] {
-  const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-  
-  // Pattern to match image URL followed by encryption key
-  const pattern = /(https:\/\/jumpg-assets\.tokyo-cdn\.com\/secure\/title\/\d+\/chapter\/\d+\/manga_page\/\w+\/(\d+)\.jpg\?[^\s\x00-\x1f]+)[^\w]*([0-9a-f]{128})/g;
-  
-  const pages: MangaPlusPage[] = [];
-  let match;
-  
-  while ((match = pattern.exec(text)) !== null) {
-    const imageUrl = match[1];
-    const pageNumber = parseInt(match[2], 10);
-    const encryptionKey = match[3];
-    
-    pages.push({
-      url: imageUrl,
-      encryptionKey,
-      pageNumber,
-    });
-  }
-  
-  // Sort by page number
-  pages.sort((a, b) => a.pageNumber - b.pageNumber);
-  
-  return pages;
-}
-
-/**
- * Decrypt a MangaPlus image using XOR with the encryption key
- */
-function decryptMangaPlusImage(encryptedData: Uint8Array, keyHex: string): Uint8Array {
-  // Convert hex key to bytes
-  const keyBytes = new Uint8Array(
-    keyHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
-  );
-  
-  // XOR decrypt
-  const decrypted = new Uint8Array(encryptedData.length);
-  for (let i = 0; i < encryptedData.length; i++) {
-    decrypted[i] = encryptedData[i] ^ keyBytes[i % keyBytes.length];
-  }
-  
-  return decrypted;
 }
 
 async function createServer() {
@@ -452,7 +403,7 @@ async function createServer() {
     const { chapterId } = req.params;
     
     try {
-      const mangaPlusUrl = `https://jumpg-webapi.tokyo-cdn.com/api/manga_viewer?chapter_id=${chapterId}&split=yes&img_quality=high&clang=eng`;
+      const mangaPlusUrl = buildMangaPlusApiUrl(chapterId);
       
       const response = await fetch(mangaPlusUrl);
       
@@ -486,13 +437,13 @@ async function createServer() {
     }
     
     // Validate the URL is from MangaPlus CDN
-    if (!url.startsWith('https://jumpg-assets.tokyo-cdn.com/')) {
+    if (!isValidMangaPlusCdnUrl(url)) {
       res.status(400).json({ error: 'Invalid image URL' });
       return;
     }
     
     // Validate key is 128 hex characters
-    if (!/^[0-9a-f]{128}$/.test(key)) {
+    if (!isValidEncryptionKey(key)) {
       res.status(400).json({ error: 'Invalid encryption key' });
       return;
     }

@@ -1,49 +1,28 @@
 // MangaPlus Service - Fetch and decrypt chapter images from MangaPlus
 // Used for external URL chapters from MangaDex that link to MangaPlus
 
-export interface MangaPlusPage {
-  url: string;
-  encryptionKey: string;
-  pageNumber: number;
-}
+import {
+  MangaPlusPage,
+  MangaPlusChapter,
+  MangaPlusError,
+  isMangaPlusUrl,
+  extractMangaPlusChapterId,
+  parseMangaPlusResponse,
+  decryptMangaPlusImage,
+} from '@shared/mangaplus';
 
-export interface MangaPlusChapter {
-  pages: MangaPlusPage[];
-  title?: string;
-}
+// Re-export shared types and utilities for consumers of this service
+export type { MangaPlusPage, MangaPlusChapter };
+export {
+  MangaPlusError,
+  isMangaPlusUrl,
+  extractMangaPlusChapterId,
+  parseMangaPlusResponse,
+  decryptMangaPlusImage,
+};
 
 // Proxy endpoint for CORS bypass (defined in server.ts)
 const MANGAPLUS_PROXY = '/api/mangaplus';
-
-/**
- * Check if a URL is a MangaPlus external URL
- */
-export function isMangaPlusUrl(url: string | null): boolean {
-  if (!url) return false;
-  return url.includes('mangaplus.shueisha.co.jp');
-}
-
-/**
- * Extract chapter ID from MangaPlus viewer URL
- * e.g., https://mangaplus.shueisha.co.jp/viewer/1027248 -> 1027248
- */
-export function extractMangaPlusChapterId(url: string): string | null {
-  const match = url.match(/viewer\/(\d+)/);
-  return match ? match[1] : null;
-}
-
-/**
- * Custom error class for MangaPlus errors
- */
-export class MangaPlusError extends Error {
-  constructor(
-    message: string,
-    public readonly code: 'RATE_LIMITED' | 'NOT_AVAILABLE' | 'NETWORK_ERROR' | 'PARSE_ERROR' | 'UNKNOWN'
-  ) {
-    super(message);
-    this.name = 'MangaPlusError';
-  }
-}
 
 /**
  * Fetch MangaPlus chapter data (pages + encryption keys)
@@ -104,55 +83,6 @@ export async function fetchMangaPlusChapter(chapterId: string): Promise<MangaPlu
   }
   
   return data;
-}
-
-/**
- * Parse MangaPlus protobuf response to extract image URLs and encryption keys
- * The response is binary protobuf, but we can extract URLs via regex
- */
-export function parseMangaPlusResponse(buffer: ArrayBuffer): MangaPlusPage[] {
-  const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-  
-  // Pattern to match image URL followed by encryption key
-  const pattern = /(https:\/\/jumpg-assets\.tokyo-cdn\.com\/secure\/title\/\d+\/chapter\/\d+\/manga_page\/\w+\/(\d+)\.jpg\?[^\s\x00-\x1f]+)[^\w]*([0-9a-f]{128})/g;
-  
-  const pages: MangaPlusPage[] = [];
-  let match;
-  
-  while ((match = pattern.exec(text)) !== null) {
-    const imageUrl = match[1];
-    const pageNumber = parseInt(match[2], 10);
-    const encryptionKey = match[3];
-    
-    pages.push({
-      url: imageUrl,
-      encryptionKey,
-      pageNumber,
-    });
-  }
-  
-  // Sort by page number
-  pages.sort((a, b) => a.pageNumber - b.pageNumber);
-  
-  return pages;
-}
-
-/**
- * Decrypt a MangaPlus image using XOR with the encryption key
- */
-export function decryptMangaPlusImage(encryptedData: Uint8Array, keyHex: string): Uint8Array {
-  // Convert hex key to bytes
-  const keyBytes = new Uint8Array(
-    keyHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
-  );
-  
-  // XOR decrypt
-  const decrypted = new Uint8Array(encryptedData.length);
-  for (let i = 0; i < encryptedData.length; i++) {
-    decrypted[i] = encryptedData[i] ^ keyBytes[i % keyBytes.length];
-  }
-  
-  return decrypted;
 }
 
 /**

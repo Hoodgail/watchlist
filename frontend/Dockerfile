@@ -3,14 +3,18 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy shared module first
+COPY shared ./shared
+
+# Copy frontend package files
+COPY frontend/package*.json ./frontend/
 
 # Install dependencies (--legacy-peer-deps needed for react-helmet-async with React 19)
+WORKDIR /app/frontend
 RUN npm ci --legacy-peer-deps
 
-# Copy source files
-COPY . .
+# Copy frontend source files
+COPY frontend ./
 
 # Build arguments for environment variables
 ARG VITE_API_URL
@@ -33,12 +37,16 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+# Copy shared module (needed at runtime for SSR server)
+COPY shared ./shared
+
 # Install production dependencies only
-COPY package*.json ./
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
 RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copy built files from builder
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/frontend/dist ./dist
 
 # Environment variables
 ENV NODE_ENV=production
