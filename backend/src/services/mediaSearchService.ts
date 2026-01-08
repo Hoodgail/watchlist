@@ -18,6 +18,7 @@ import {
   MOVIE_PROVIDERS,
   MANGA_PROVIDERS,
 } from './consumet/providerRegistry.js';
+import { createRefId } from '@shared/refId.js';
 
 // ============ Types ============
 
@@ -52,12 +53,8 @@ export interface SearchOptions {
 
 // ============ ID Helpers ============
 
-/**
- * Create a prefixed ID for a search result
- */
-function createPrefixedId(source: MediaSource, id: string | number): string {
-  return `${source}:${id}`;
-}
+// Use shared createRefId for creating prefixed IDs
+const createPrefixedId = createRefId;
 
 // ============ TMDB Converters ============
 

@@ -3,6 +3,8 @@
  * Supports multiple manga providers through the consumet backend
  */
 
+import { createRefId, parseRefId, isSourceRefId } from '@shared/refId';
+
 // Types
 export type MangaProviderName = 
   | 'mangadex' 
@@ -317,27 +319,27 @@ export function sortChaptersDesc(chapters: MangaChapter[]): MangaChapter[] {
  * Format: provider:mangaId
  */
 export function createMangaRefId(mangaId: string, provider: MangaProviderName): string {
-  return `${provider}:${mangaId}`;
+  return createRefId(provider, mangaId);
 }
 
 /**
  * Parse a reference ID to get provider and manga ID
  */
 export function parseMangaRefId(refId: string): { provider: MangaProviderName; mangaId: string } | null {
-  const parts = refId.split(':');
-  if (parts.length < 2) return null;
+  const parsed = parseRefId(refId);
+  if (!parsed) return null;
   
-  const provider = parts[0] as MangaProviderName;
-  const mangaId = parts.slice(1).join(':'); // Handle IDs that contain colons
-  
-  return { provider, mangaId };
+  return { 
+    provider: parsed.source as MangaProviderName, 
+    mangaId: parsed.id 
+  };
 }
 
 /**
  * Check if a refId is for a specific provider
  */
 export function isProviderRefId(refId: string, provider: MangaProviderName): boolean {
-  return refId.startsWith(`${provider}:`);
+  return isSourceRefId(refId, provider);
 }
 
 /**
