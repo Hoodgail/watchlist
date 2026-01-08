@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ChapterInfo, ChapterImages, ReadingMode, ImageQuality } from '../services/mangadexTypes';
 import * as manga from '../services/manga';
 import { MangaProviderName } from '../services/manga';
-import * as mangaplus from '../services/mangaplus';
+import * as mediaSearch from '../services/mediaSearch';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
 
@@ -23,6 +23,12 @@ function proxyImageUrl(url: string): string {
     return url;
   }
   return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+}
+
+// Helper to check if URL is a MangaPlus URL
+function isMangaPlusUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.includes('mangaplus.shueisha.co.jp');
 }
 
 export const ChapterReader: React.FC<ChapterReaderProps> = ({
@@ -87,7 +93,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     return () => {
       // Revoke any blob URLs when component unmounts or chapter changes
       if (blobUrlsRef.current.length > 0) {
-        mangaplus.revokeMangaPlusImages(blobUrlsRef.current);
+        blobUrlsRef.current.forEach(url => {
+          if (url.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+          }
+        });
         blobUrlsRef.current = [];
       }
     };
@@ -165,7 +175,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
     // Clean up previous blob URLs
     if (blobUrlsRef.current.length > 0) {
-      mangaplus.revokeMangaPlusImages(blobUrlsRef.current);
+      blobUrlsRef.current.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
       blobUrlsRef.current = [];
     }
 
@@ -197,22 +211,38 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           throw new Error('This chapter is not available offline');
         }
 
-        // Check if this is a MangaPlus chapter (has external URL) - only for mangadex provider
-        const chapter = currentChapter;
-        if (chapter?.externalUrl && mangaplus.isMangaPlusUrl(chapter.externalUrl)) {
-          // Load from MangaPlus with progress tracking
-          setIsMangaPlusChapter(true);
-          const urls = await mangaplus.getMangaPlusChapterImages(
-            chapter.externalUrl,
-            (progress) => setLoadingProgress(progress)
-          );
-          blobUrlsRef.current = urls; // Track for cleanup
-          setPageUrls(urls);
-        } else if (chapter?.externalUrl) {
-          // Non-MangaPlus external URL - not supported for in-app reading
-          throw new Error('This chapter is only available on an external website');
+        // For MangaDex provider, use the external chapter info endpoint
+        // This handles MangaPlus external URLs and regular MangaDex chapters
+        if (provider === 'mangadex') {
+          const chapterInfo = await mediaSearch.getExternalChapterInfo(chapterId);
+          
+          if (!chapterInfo) {
+            throw new Error('Failed to fetch chapter info');
+          }
+
+          if (chapterInfo.type === 'external') {
+            // Non-MangaPlus external URL - not supported for in-app reading
+            throw new Error(chapterInfo.message || 'This chapter is only available on an external website');
+          }
+
+          if (chapterInfo.type === 'mangaplus') {
+            // MangaPlus chapter - load images with progress
+            setIsMangaPlusChapter(true);
+            const mangaPlusPages = chapterInfo.pages as mediaSearch.MangaPlusPageInfo[];
+            
+            // Build URLs using the backend proxy
+            const urls = mangaPlusPages.map(p => 
+              mediaSearch.getMangaPlusImageUrl(p.url, p.encryptionKey)
+            );
+            setPageUrls(urls);
+          } else {
+            // Regular MangaDex chapter
+            const mangaDexPages = chapterInfo.pages as mediaSearch.MangaDexPageInfo[];
+            const urls = mangaDexPages.map(p => proxyImageUrl(p.img));
+            setPageUrls(urls);
+          }
         } else {
-          // Use unified manga service for all providers
+          // Use unified manga service for other providers
           const chapterPages = await manga.getChapterPages(chapterId, provider);
           // Proxy images through our server to bypass hotlink protection
           const urls = chapterPages.pages.map(p => proxyImageUrl(p.img));
@@ -221,12 +251,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       }
     } catch (err) {
       console.error('Failed to load chapter:', err);
-      // Handle MangaPlus errors with specific messages
-      if (err instanceof mangaplus.MangaPlusError) {
-        setError(err.message);
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to load chapter');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to load chapter');
     } finally {
       setLoading(false);
     }
@@ -393,7 +418,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   // Render loading state
   if (loading) {
     // Check if loading a MangaPlus chapter (based on current chapter info)
-    const loadingMangaPlus = currentChapter?.externalUrl && mangaplus.isMangaPlusUrl(currentChapter.externalUrl);
+    const loadingMangaPlus = currentChapter?.externalUrl && isMangaPlusUrl(currentChapter.externalUrl);
     
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center gap-4">

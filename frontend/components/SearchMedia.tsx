@@ -3,6 +3,15 @@ import { MediaItem, SearchResult, ProviderInfo, ProviderName } from '../types';
 import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders } from '../services/mediaSearch';
 import { QuickAddModal } from './QuickAddModal';
 
+// Helper to proxy image URLs through our server to bypass hotlink protection
+function proxyImageUrl(url: string): string {
+  // Don't proxy blob URLs or already-proxied URLs
+  if (url.startsWith('blob:') || url.startsWith('/api/')) {
+    return url;
+  }
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+}
+
 interface SearchMediaProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
 }
@@ -330,7 +339,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
                 {item.imageUrl && (
                   <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
                     <img
-                      src={item.imageUrl}
+                      src={proxyImageUrl(item.imageUrl)}
                       alt={item.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {

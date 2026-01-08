@@ -19,6 +19,18 @@ router.get('/latest', mangaController.getLatestManga);
 // GET /api/manga/search?q=<query>&provider=mangadex&page=1
 router.get('/search', mangaController.searchManga);
 
+// ============ External Chapter Routes (MangaPlus support) ============
+
+// Get external chapter info (handles MangaPlus, external URLs, and regular MangaDex chapters)
+// GET /api/manga/external/chapter/:chapterId/info
+router.get('/external/chapter/:chapterId/info', mangaController.getExternalChapterInfo);
+
+// Decrypt and serve MangaPlus image
+// GET /api/manga/external/mangaplus/image?url=...&key=...
+router.get('/external/mangaplus/image', mangaController.getMangaPlusImage);
+
+// ============ Standard Provider Routes ============
+
 // Get manga info from a specific provider
 // GET /api/manga/:provider/:id
 router.get('/:provider/:id', mangaController.getMangaInfo);

@@ -174,6 +174,48 @@ export async function getEpisodeServers(
 
 // ============ Manga Reading Functions ============
 
+// External chapter info response types
+export interface MangaPlusPageInfo {
+  page: number;
+  url: string;
+  encryptionKey: string;
+}
+
+export interface MangaDexPageInfo {
+  page: number;
+  img: string;
+}
+
+export interface ExternalChapterInfo {
+  type: 'mangaplus' | 'mangadex' | 'external';
+  chapterId: string;
+  externalUrl?: string;
+  message?: string;
+  pages?: MangaPlusPageInfo[] | MangaDexPageInfo[];
+}
+
+// Get external chapter info (handles MangaPlus, external URLs, and regular MangaDex chapters)
+export async function getExternalChapterInfo(
+  chapterId: string
+): Promise<ExternalChapterInfo | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/manga/external/chapter/${encodeURIComponent(chapterId)}/info`);
+    if (!response.ok) {
+      console.error('External chapter info fetch failed:', response.status);
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('External chapter info error:', error);
+    return null;
+  }
+}
+
+// Build MangaPlus image proxy URL
+export function getMangaPlusImageUrl(url: string, key: string): string {
+  return `${API_BASE_URL}/manga/external/mangaplus/image?url=${encodeURIComponent(url)}&key=${key}`;
+}
+
 // Get chapter pages for manga reading
 export async function getChapterPages(
   provider: ProviderName,

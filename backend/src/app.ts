@@ -13,7 +13,10 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security middleware
-app.use(helmet());
+// Configure helmet to allow cross-origin resource loading for image proxy endpoints
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 // CORS - allow all origins
 app.use(cors());
