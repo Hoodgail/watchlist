@@ -40,6 +40,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     deleteOfflineManga,
     deleteOfflineChapter,
     getReadingProgress,
+    getOfflineCoverUrl,
     downloadedManga,
     activeDownload,
   } = useOffline();
@@ -48,6 +49,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
   const [volumes, setVolumes] = useState<VolumeWithChapters[]>([]);
   const [allChapters, setAllChapters] = useState<ChapterInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [offlineCoverUrl, setOfflineCoverUrl] = useState<string | null>(null);
   const [chaptersLoading, setChaptersLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedVolumes, setExpandedVolumes] = useState<Set<string>>(new Set());
@@ -60,9 +62,19 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     loadMangaDetails();
   }, [mangaId, provider]);
 
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (offlineCoverUrl && offlineCoverUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(offlineCoverUrl);
+      }
+    };
+  }, [offlineCoverUrl]);
+
   const loadMangaDetails = async () => {
     setLoading(true);
     setError(null);
+    setOfflineCoverUrl(null);
 
     try {
       // Try to load from offline storage first
@@ -70,6 +82,11 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
       
       if (offlineManga) {
         setManga(offlineManga.data);
+        // Load offline cover if available
+        const coverUrl = await getOfflineCoverUrl(mangaId);
+        if (coverUrl) {
+          setOfflineCoverUrl(coverUrl);
+        }
         setLoading(false);
       }
 
@@ -328,9 +345,9 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
         <div className="flex gap-4">
           {/* Cover */}
           <div className="flex-shrink-0 w-32">
-            {manga.coverUrlSmall ? (
+            {offlineCoverUrl || manga.coverUrlSmall ? (
               <img
-                src={proxyImageUrl(manga.coverUrlSmall) || ''}
+                src={offlineCoverUrl || proxyImageUrl(manga.coverUrlSmall) || ''}
                 alt={manga.title}
                 className="w-full aspect-[2/3] object-cover bg-neutral-900 border border-neutral-800"
               />

@@ -54,6 +54,8 @@ interface OfflineContextType {
   isMangaDownloaded: (mangaId: string) => boolean;
   getOfflinePageUrl: (chapterId: string, pageNumber: number) => Promise<string | null>;
   getOfflineChapterPageUrls: (chapterId: string) => Promise<string[]>;
+  getOfflineChapters: (mangaId: string) => Promise<ChapterInfo[]>;
+  getOfflineCoverUrl: (mangaId: string) => Promise<string | null>;
   getStorageInfo: () => Promise<offlineStorage.StorageInfo>;
   refreshDownloadedContent: () => Promise<void>;
 }
@@ -454,6 +456,32 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return pages.map(page => URL.createObjectURL(page.imageBlob));
   }, []);
   
+  const getOfflineChapters = useCallback(async (mangaId: string): Promise<ChapterInfo[]> => {
+    const offlineChapters = await offlineStorage.getOfflineChaptersForManga(mangaId);
+    // Return chapters that have pages downloaded, sorted by chapter number
+    const chaptersWithPages: ChapterInfo[] = [];
+    for (const oc of offlineChapters) {
+      const pageCount = await offlineStorage.getDownloadedPageCount(oc.id);
+      if (pageCount > 0) {
+        chaptersWithPages.push(oc.data);
+      }
+    }
+    // Sort by chapter number (ascending)
+    return chaptersWithPages.sort((a, b) => {
+      const aNum = parseFloat(a.chapter || '0') || 0;
+      const bNum = parseFloat(b.chapter || '0') || 0;
+      return aNum - bNum;
+    });
+  }, []);
+  
+  const getOfflineCoverUrl = useCallback(async (mangaId: string): Promise<string | null> => {
+    const offlineManga = await offlineStorage.getOfflineManga(mangaId);
+    if (offlineManga?.coverBlob) {
+      return URL.createObjectURL(offlineManga.coverBlob);
+    }
+    return null;
+  }, []);
+  
   const getStorageInfo = useCallback(async () => {
     return offlineStorage.getStorageInfo();
   }, []);
@@ -482,6 +510,8 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     isMangaDownloaded,
     getOfflinePageUrl,
     getOfflineChapterPageUrls,
+    getOfflineChapters,
+    getOfflineCoverUrl,
     getStorageInfo,
     refreshDownloadedContent,
   };

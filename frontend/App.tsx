@@ -31,7 +31,7 @@ const isOAuthCallbackPath = (path: string, search: string): boolean => {
 const MainApp: React.FC = () => {
   const { user, isLoading: authLoading, logout } = useAuth();
   const { showToast } = useToast();
-  const { isOnline } = useOffline();
+  const { isOnline, isChapterDownloaded, getOfflineChapters } = useOffline();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -265,14 +265,30 @@ const MainApp: React.FC = () => {
   const handleReadChapter = useCallback(async (mangaId: string, chapterId: string) => {
     const provider = selectedManga?.provider || 'mangadex';
     try {
-      // Load chapters for navigation using unified manga service
-      const chapters = await manga.getAllChapters(mangaId, provider);
+      let chapters: ChapterInfo[];
+      
+      // If offline or chapter is downloaded, try to load chapters from offline storage first
+      if (!isOnline || isChapterDownloaded(chapterId)) {
+        const offlineChapters = await getOfflineChapters(mangaId);
+        if (offlineChapters.length > 0) {
+          chapters = offlineChapters;
+        } else if (!isOnline) {
+          throw new Error('No offline chapters available');
+        } else {
+          // Online but no offline chapters - fetch from API
+          chapters = await manga.getAllChapters(mangaId, provider);
+        }
+      } else {
+        // Online and chapter not downloaded - fetch from API
+        chapters = await manga.getAllChapters(mangaId, provider);
+      }
+      
       setReaderState({ mangaId, chapterId, chapters, provider });
     } catch (error) {
       console.error('Failed to load chapters:', error);
       showToast('Failed to open chapter', 'error');
     }
-  }, [showToast, selectedManga]);
+  }, [showToast, selectedManga, isOnline, isChapterDownloaded, getOfflineChapters]);
 
   const handleCloseReader = useCallback(() => {
     setReaderState(null);
