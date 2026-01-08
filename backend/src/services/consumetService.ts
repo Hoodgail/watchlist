@@ -1,69 +1,302 @@
-const CONSUMET_URL = process.env.CONSUMET_URL || 'http://consumet:3000';
-const FETCH_TIMEOUT_MS = 10000; // 10 second timeout for API calls
+/**
+ * Consumet Service - Unified API for all Consumet providers
+ * 
+ * This service provides a high-level interface to interact with various media providers
+ * using the @consumet/extensions SDK.
+ */
 
-// Helper to add timeout to fetch
-async function fetchWithTimeout(url: string, timeoutMs: number = FETCH_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+// Re-export all types
+export * from './consumet/types.js';
+export * from './consumet/providerRegistry.js';
+
+// Import providers
+import * as animeProviders from './consumet/animeProviders.js';
+import * as movieProviders from './consumet/movieProviders.js';
+import * as mangaProviders from './consumet/mangaProviders.js';
+import * as metaProviders from './consumet/metaProviders.js';
+import * as bookProviders from './consumet/bookProviders.js';
+import * as lightNovelProviders from './consumet/lightNovelProviders.js';
+import * as comicProviders from './consumet/comicProviders.js';
+
+import { 
+  ProviderName,
+  AnimeProviderName,
+  MovieProviderName,
+  MangaProviderName,
+  MetaProviderName,
+  BookProviderName,
+  LightNovelProviderName,
+  ComicProviderName,
+  UnifiedSearchResult,
+  UnifiedMediaInfo,
+  UnifiedSourceResult,
+  UnifiedChapterPages,
+  UnifiedBookResult,
+  UnifiedServer,
+  SearchOptions,
+  PaginatedResults,
+  MediaCategory,
+} from './consumet/types.js';
+
+import {
+  ANIME_PROVIDERS,
+  MOVIE_PROVIDERS,
+  MANGA_PROVIDERS,
+  getProviderInfo,
+  isValidProvider,
+} from './consumet/providerRegistry.js';
+
+// ============ Unified Search Functions ============
+
+/**
+ * Search across any provider
+ */
+export async function search(
+  query: string,
+  provider: ProviderName,
+  options: SearchOptions = {}
+): Promise<PaginatedResults<UnifiedSearchResult | UnifiedBookResult>> {
+  // Anime providers
+  if (ANIME_PROVIDERS.includes(provider as AnimeProviderName)) {
+    return animeProviders.searchAnime(query, provider as AnimeProviderName, options);
+  }
   
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    return response;
-  } finally {
-    clearTimeout(timeoutId);
+  // Movie providers
+  if (MOVIE_PROVIDERS.includes(provider as MovieProviderName)) {
+    return movieProviders.searchMovies(query, provider as MovieProviderName, options);
+  }
+  
+  // Manga providers
+  if (MANGA_PROVIDERS.includes(provider as MangaProviderName)) {
+    return mangaProviders.searchManga(query, provider as MangaProviderName, options);
+  }
+  
+  // Meta providers
+  if (['anilist', 'anilist-manga', 'tmdb'].includes(provider)) {
+    return metaProviders.searchMeta(query, provider as MetaProviderName, options);
+  }
+  
+  // Book providers
+  if (provider === 'libgen') {
+    return bookProviders.searchBooks(query, provider as BookProviderName, options);
+  }
+  
+  // Light novel providers
+  if (provider === 'novelupdates') {
+    return lightNovelProviders.searchLightNovels(query, provider as LightNovelProviderName, options);
+  }
+  
+  // Comic providers
+  if (provider === 'getcomics') {
+    return comicProviders.searchComics(query, provider as ComicProviderName, options);
+  }
+  
+  throw new Error(`Unknown provider: ${provider}`);
+}
+
+/**
+ * Search by category (uses default provider for category)
+ */
+export async function searchByCategory(
+  query: string,
+  category: MediaCategory,
+  options: SearchOptions = {}
+): Promise<PaginatedResults<UnifiedSearchResult | UnifiedBookResult>> {
+  switch (category) {
+    case 'anime':
+      return metaProviders.searchAnilistAnime(query, options);
+    case 'movie':
+    case 'tv':
+      return movieProviders.searchMovies(query, 'flixhq', options);
+    case 'manga':
+      return mangaProviders.searchManga(query, 'mangadex', options);
+    case 'book':
+      return bookProviders.searchBooks(query, 'libgen', options);
+    case 'lightnovel':
+      return lightNovelProviders.searchLightNovels(query, 'novelupdates', options);
+    case 'comic':
+      return comicProviders.searchComics(query, 'getcomics', options);
+    default:
+      return { currentPage: 1, hasNextPage: false, results: [] };
   }
 }
 
-// ============ Types ============
+// ============ Unified Info Functions ============
 
 /**
- * Consumet Anilist anime result structure
- * Based on API response from /meta/anilist endpoints
+ * Get media info from any provider
  */
-export interface ConsumetAnimeResult {
-  id: string;
-  malId?: number;
-  title: {
-    romaji?: string;
-    english?: string;
-    native?: string;
-    userPreferred?: string;
-  };
-  image?: string;
-  imageHash?: string;
-  trailer?: {
-    id?: string;
-    site?: string;
-    thumbnail?: string;
-    thumbnailHash?: string;
-  };
-  description?: string;
-  status?: string;
-  cover?: string;
-  coverHash?: string;
-  rating?: number;
-  releaseDate?: number;
-  color?: string;
-  genres?: string[];
-  totalEpisodes?: number | null;
-  currentEpisodeCount?: number;
-  duration?: number;
-  type?: string; // "TV", "MOVIE", "OVA", "ONA", etc.
+export async function getInfo(
+  id: string,
+  provider: ProviderName,
+  mediaType?: 'movie' | 'tv'
+): Promise<UnifiedMediaInfo | null> {
+  // Anime providers
+  if (ANIME_PROVIDERS.includes(provider as AnimeProviderName)) {
+    return animeProviders.getAnimeInfo(id, provider as AnimeProviderName);
+  }
+  
+  // Movie providers
+  if (MOVIE_PROVIDERS.includes(provider as MovieProviderName)) {
+    return movieProviders.getMovieInfo(id, provider as MovieProviderName);
+  }
+  
+  // Manga providers
+  if (MANGA_PROVIDERS.includes(provider as MangaProviderName)) {
+    return mangaProviders.getMangaInfo(id, provider as MangaProviderName);
+  }
+  
+  // Meta providers
+  if (['anilist', 'anilist-manga', 'tmdb'].includes(provider)) {
+    return metaProviders.getMetaInfo(id, provider as MetaProviderName, mediaType);
+  }
+  
+  // Light novel providers
+  if (provider === 'novelupdates') {
+    return lightNovelProviders.getLightNovelInfo(id, provider as LightNovelProviderName);
+  }
+  
+  return null;
 }
 
-interface ConsumetSearchResponse {
-  currentPage: number;
-  hasNextPage: boolean;
-  results: ConsumetAnimeResult[];
+// ============ Unified Source Functions ============
+
+/**
+ * Get streaming sources for an episode
+ */
+export async function getEpisodeSources(
+  episodeId: string,
+  provider: ProviderName,
+  mediaId?: string
+): Promise<UnifiedSourceResult | null> {
+  // Anime providers
+  if (ANIME_PROVIDERS.includes(provider as AnimeProviderName)) {
+    return animeProviders.getEpisodeSources(episodeId, provider as AnimeProviderName);
+  }
+  
+  // Movie providers (require mediaId)
+  if (MOVIE_PROVIDERS.includes(provider as MovieProviderName)) {
+    if (!mediaId) throw new Error('mediaId is required for movie providers');
+    return movieProviders.getEpisodeSources(episodeId, mediaId, provider as MovieProviderName);
+  }
+  
+  // Meta providers
+  if (provider === 'anilist') {
+    return metaProviders.getAnilistEpisodeSources(episodeId);
+  }
+  
+  if (provider === 'tmdb') {
+    if (!mediaId) throw new Error('mediaId is required for TMDB');
+    return metaProviders.getTMDBEpisodeSources(episodeId, mediaId);
+  }
+  
+  return null;
+}
+
+/**
+ * Get episode servers
+ */
+export async function getEpisodeServers(
+  episodeId: string,
+  provider: ProviderName,
+  mediaId?: string
+): Promise<UnifiedServer[]> {
+  // Anime providers
+  if (ANIME_PROVIDERS.includes(provider as AnimeProviderName)) {
+    return animeProviders.getEpisodeServers(episodeId, provider as AnimeProviderName);
+  }
+  
+  // Movie providers
+  if (MOVIE_PROVIDERS.includes(provider as MovieProviderName)) {
+    if (!mediaId) throw new Error('mediaId is required for movie providers');
+    return movieProviders.getEpisodeServers(episodeId, mediaId, provider as MovieProviderName);
+  }
+  
+  return [];
+}
+
+/**
+ * Get chapter pages for manga
+ */
+export async function getChapterPages(
+  chapterId: string,
+  provider: MangaProviderName
+): Promise<UnifiedChapterPages | null> {
+  return mangaProviders.getChapterPages(chapterId, provider);
+}
+
+// ============ Trending/Discovery Functions ============
+
+/**
+ * Get trending anime
+ */
+export async function getTrendingAnime(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<UnifiedSearchResult>> {
+  return metaProviders.getTrendingAnime(page, perPage);
+}
+
+/**
+ * Get popular anime
+ */
+export async function getPopularAnime(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<UnifiedSearchResult>> {
+  return metaProviders.getPopularAnime(page, perPage);
+}
+
+/**
+ * Get trending movies
+ */
+export async function getTrendingMovies(): Promise<UnifiedSearchResult[]> {
+  return movieProviders.getTrendingMovies();
+}
+
+/**
+ * Get trending TV shows
+ */
+export async function getTrendingTVShows(): Promise<UnifiedSearchResult[]> {
+  return movieProviders.getTrendingTVShows();
+}
+
+/**
+ * Get popular manga
+ */
+export async function getPopularManga(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<UnifiedSearchResult>> {
+  return mangaProviders.getPopularManga(page, perPage);
+}
+
+/**
+ * Get latest updated manga
+ */
+export async function getLatestManga(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<UnifiedSearchResult>> {
+  return mangaProviders.getLatestUpdatedManga(page, perPage);
+}
+
+/**
+ * Get anime airing schedule
+ */
+export async function getAiringSchedule(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<UnifiedSearchResult>> {
+  return metaProviders.getAiringSchedule(page, perPage);
 }
 
 // ============ Helper Functions ============
 
 /**
- * Get the preferred title from Consumet anime result
- * Priority: English > Romaji > Native > UserPreferred
+ * Get preferred title from anime/manga result
  */
-export function getPreferredTitle(title: ConsumetAnimeResult['title']): string {
+export function getPreferredTitle(title: UnifiedSearchResult['title'] | { romaji?: string; english?: string; native?: string; userPreferred?: string }): string {
   if (typeof title === 'string') return title;
   return title.english || title.romaji || title.native || title.userPreferred || 'Unknown';
 }
@@ -71,120 +304,35 @@ export function getPreferredTitle(title: ConsumetAnimeResult['title']): string {
 /**
  * Extract year from release date
  */
-export function extractYear(releaseDate?: number): number | undefined {
-  return releaseDate ?? undefined;
-}
-
-// ============ API Functions ============
-
-/**
- * Search anime using Anilist via Consumet
- * Endpoint: GET {CONSUMET_URL}/meta/anilist/{query}
- */
-export async function searchAnimeAnilist(
-  query: string,
-  page: number = 1,
-  perPage: number = 10
-): Promise<ConsumetAnimeResult[]> {
-  try {
-    const params = new URLSearchParams({
-      page: String(page),
-      perPage: String(perPage),
-    });
-
-    const response = await fetchWithTimeout(
-      `${CONSUMET_URL}/meta/anilist/${encodeURIComponent(query)}?${params.toString()}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Consumet Anilist search failed: ${response.status}`);
-    }
-
-    const data = (await response.json()) as ConsumetSearchResponse;
-    return data.results || [];
-  } catch (error) {
-    console.error('Consumet Anilist search error:', error);
-    return [];
+export function extractYear(releaseDate?: string | number): number | undefined {
+  if (typeof releaseDate === 'number') return releaseDate;
+  if (typeof releaseDate === 'string') {
+    const year = parseInt(releaseDate);
+    return isNaN(year) ? undefined : year;
   }
+  return undefined;
 }
 
-/**
- * Get trending anime from Anilist via Consumet
- * Endpoint: GET {CONSUMET_URL}/meta/anilist/trending
- */
-export async function getTrendingAnime(
-  page: number = 1,
-  perPage: number = 20
-): Promise<ConsumetAnimeResult[]> {
-  try {
-    const params = new URLSearchParams({
-      page: String(page),
-      perPage: String(perPage),
-    });
+// ============ Legacy Exports (for backwards compatibility) ============
 
-    const response = await fetchWithTimeout(
-      `${CONSUMET_URL}/meta/anilist/trending?${params.toString()}`
-    );
+// Re-export types that might be used elsewhere
+export type { 
+  UnifiedSearchResult as ConsumetAnimeResult,
+  AnimeProviderName,
+  MovieProviderName,
+  MangaProviderName,
+  MetaProviderName,
+};
 
-    if (!response.ok) {
-      throw new Error(`Consumet Anilist trending failed: ${response.status}`);
-    }
+// Legacy function aliases
+export const searchAnimeAnilist = metaProviders.searchAnilistAnime;
+export const getAnimeInfo = metaProviders.getAnilistAnimeInfo;
 
-    const data = (await response.json()) as ConsumetSearchResponse;
-    return data.results || [];
-  } catch (error) {
-    console.error('Consumet Anilist trending error:', error);
-    return [];
-  }
-}
-
-/**
- * Get popular anime from Anilist via Consumet
- * Endpoint: GET {CONSUMET_URL}/meta/anilist/popular
- */
-export async function getPopularAnime(
-  page: number = 1,
-  perPage: number = 20
-): Promise<ConsumetAnimeResult[]> {
-  try {
-    const params = new URLSearchParams({
-      page: String(page),
-      perPage: String(perPage),
-    });
-
-    const response = await fetchWithTimeout(
-      `${CONSUMET_URL}/meta/anilist/popular?${params.toString()}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Consumet Anilist popular failed: ${response.status}`);
-    }
-
-    const data = (await response.json()) as ConsumetSearchResponse;
-    return data.results || [];
-  } catch (error) {
-    console.error('Consumet Anilist popular error:', error);
-    return [];
-  }
-}
-
-/**
- * Get anime info by ID from Anilist via Consumet
- * Endpoint: GET {CONSUMET_URL}/meta/anilist/info/{id}
- */
-export async function getAnimeInfo(id: string): Promise<ConsumetAnimeResult | null> {
-  try {
-    const response = await fetchWithTimeout(
-      `${CONSUMET_URL}/meta/anilist/info/${encodeURIComponent(id)}`
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as ConsumetAnimeResult;
-  } catch (error) {
-    console.error('Consumet Anilist info error:', error);
-    return null;
-  }
-}
+// Export provider registries
+export { 
+  ANIME_PROVIDERS, 
+  MOVIE_PROVIDERS, 
+  MANGA_PROVIDERS,
+  getProviderInfo,
+  isValidProvider,
+};

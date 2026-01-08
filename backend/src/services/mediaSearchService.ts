@@ -1,12 +1,29 @@
 import * as tmdbService from './tmdbService.js';
 import * as consumetService from './consumetService.js';
 import * as mangadexService from './mangadexService.js';
+import { 
+  ProviderName, 
+  UnifiedSearchResult, 
+  UnifiedBookResult,
+  PaginatedResults,
+  ProviderInfo,
+  MediaCategory as ConsumetMediaCategory,
+} from './consumet/types.js';
+import {
+  getProvidersByCategory,
+  getAllProviders,
+  isValidProvider,
+  getProviderInfo,
+  ANIME_PROVIDERS,
+  MOVIE_PROVIDERS,
+  MANGA_PROVIDERS,
+} from './consumet/providerRegistry.js';
 
 // ============ Types ============
 
-export type MediaSource = 'tmdb' | 'consumet-anilist' | 'mangadex';
-export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA';
-export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga';
+export type MediaSource = 'tmdb' | 'consumet-anilist' | 'mangadex' | ProviderName;
+export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' | 'BOOK' | 'LIGHT_NOVEL' | 'COMIC';
+export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga' | 'book' | 'lightnovel' | 'comic';
 
 export interface SearchResult {
   id: string;           // Prefixed: "tmdb:123", "consumet-anilist:abc", "mangadex:xyz"
@@ -17,6 +34,7 @@ export interface SearchResult {
   year?: number;
   overview?: string;
   source: MediaSource;
+  provider?: ProviderName; // The specific provider used
 }
 
 export interface TrendingCategory {
@@ -27,6 +45,9 @@ export interface TrendingCategory {
 export interface SearchOptions {
   year?: string;
   includeAdult?: boolean;
+  provider?: ProviderName; // Specific provider to use
+  page?: number;
+  perPage?: number;
 }
 
 // ============ ID Helpers ============
@@ -79,7 +100,41 @@ function tmdbTVToSearchResult(
 // ============ Consumet Converters ============
 
 /**
- * Convert Consumet anime result to SearchResult
+ * Convert Consumet unified result to SearchResult
+ */
+function consumetToSearchResult(item: UnifiedSearchResult, mediaType: MediaType = 'ANIME'): SearchResult {
+  return {
+    id: createPrefixedId(item.provider, item.id),
+    title: consumetService.getPreferredTitle(item.title),
+    type: mediaType,
+    total: item.totalEpisodes || item.totalChapters || null,
+    imageUrl: item.image,
+    year: consumetService.extractYear(item.releaseDate),
+    overview: item.description?.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ''),
+    source: item.provider,
+    provider: item.provider,
+  };
+}
+
+/**
+ * Convert Consumet book result to SearchResult
+ */
+function consumetBookToSearchResult(item: UnifiedBookResult): SearchResult {
+  return {
+    id: createPrefixedId(item.provider, item.id),
+    title: item.title,
+    type: 'BOOK',
+    total: null,
+    imageUrl: item.image,
+    year: item.year ? parseInt(item.year) : undefined,
+    overview: item.description,
+    source: item.provider,
+    provider: item.provider,
+  };
+}
+
+/**
+ * Convert Consumet anime result to SearchResult (legacy)
  */
 function consumetAnimeToSearchResult(item: consumetService.ConsumetAnimeResult): SearchResult {
   return {
@@ -91,6 +146,7 @@ function consumetAnimeToSearchResult(item: consumetService.ConsumetAnimeResult):
     year: consumetService.extractYear(item.releaseDate),
     overview: item.description?.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ''),
     source: 'consumet-anilist',
+    provider: 'anilist',
   };
 }
 
@@ -109,6 +165,99 @@ function mangadexToSearchResult(item: mangadexService.MangaSearchResult): Search
     year: item.year,
     overview: item.description,
     source: 'mangadex',
+    provider: 'mangadex',
+  };
+}
+
+// ============ Provider API Functions ============
+
+/**
+ * Get list of available providers, optionally filtered by category
+ */
+export function getProviders(category?: SearchCategory): ProviderInfo[] {
+  if (!category || category === 'all') {
+    return getAllProviders();
+  }
+  
+  // Map our search categories to consumet categories
+  const categoryMap: Record<SearchCategory, ConsumetMediaCategory | undefined> = {
+    all: undefined,
+    anime: 'anime',
+    movie: 'movie',
+    tv: 'tv',
+    manga: 'manga',
+    book: 'book',
+    lightnovel: 'lightnovel',
+    comic: 'comic',
+  };
+  
+  const consumetCategory = categoryMap[category];
+  if (!consumetCategory) return getAllProviders();
+  
+  return getProvidersByCategory(consumetCategory);
+}
+
+/**
+ * Search using a specific provider
+ */
+export async function searchWithProvider(
+  query: string,
+  provider: ProviderName,
+  options: SearchOptions = {}
+): Promise<PaginatedResults<SearchResult>> {
+  if (!isValidProvider(provider)) {
+    return { currentPage: 1, hasNextPage: false, results: [] };
+  }
+
+  const providerInfo = getProviderInfo(provider);
+  if (!providerInfo) {
+    return { currentPage: 1, hasNextPage: false, results: [] };
+  }
+
+  const consumetResults = await consumetService.search(query, provider, {
+    page: options.page,
+    perPage: options.perPage,
+  });
+
+  // Determine media type based on provider category
+  let mediaType: MediaType;
+  switch (providerInfo.category) {
+    case 'anime':
+      mediaType = 'ANIME';
+      break;
+    case 'movie':
+    case 'tv':
+      mediaType = 'MOVIE';
+      break;
+    case 'manga':
+      mediaType = 'MANGA';
+      break;
+    case 'book':
+      mediaType = 'BOOK';
+      break;
+    case 'lightnovel':
+      mediaType = 'LIGHT_NOVEL';
+      break;
+    case 'comic':
+      mediaType = 'COMIC';
+      break;
+    default:
+      mediaType = 'ANIME';
+  }
+
+  const results = consumetResults.results.map((item) => {
+    if ('authors' in item) {
+      return consumetBookToSearchResult(item as UnifiedBookResult);
+    }
+    return consumetToSearchResult(item as UnifiedSearchResult, mediaType);
+  });
+
+  return {
+    currentPage: consumetResults.currentPage,
+    hasNextPage: consumetResults.hasNextPage,
+    totalPages: consumetResults.totalPages,
+    totalResults: consumetResults.totalResults,
+    results,
   };
 }
 
@@ -143,11 +292,17 @@ async function searchTV(query: string, options: SearchOptions = {}): Promise<Sea
  * Search anime using Consumet Anilist (primary) with TMDB fallback
  */
 async function searchAnime(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  // If a specific provider is requested, use it
+  if (options.provider && ANIME_PROVIDERS.includes(options.provider as any)) {
+    const results = await searchWithProvider(query, options.provider, options);
+    return results.results;
+  }
+
   // Try Consumet Anilist first (better anime data)
-  const consumetResults = await consumetService.searchAnimeAnilist(query, 1, 10);
+  const consumetResults = await consumetService.searchAnimeAnilist(query, { page: 1, perPage: 10 });
   
-  if (consumetResults.length > 0) {
-    return consumetResults.slice(0, 5).map(consumetAnimeToSearchResult);
+  if (consumetResults.results.length > 0) {
+    return consumetResults.results.slice(0, 5).map((item) => consumetToSearchResult(item, 'ANIME'));
   }
   
   // Fallback to TMDB anime search
@@ -165,9 +320,16 @@ async function searchAnime(query: string, options: SearchOptions = {}): Promise<
 }
 
 /**
- * Search manga using MangaDex
+ * Search manga using MangaDex or specified provider
  */
-async function searchMangaItems(query: string): Promise<SearchResult[]> {
+async function searchMangaItems(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  // If a specific provider is requested, use it
+  if (options.provider && MANGA_PROVIDERS.includes(options.provider as any)) {
+    const results = await searchWithProvider(query, options.provider, options);
+    return results.results;
+  }
+
+  // Default to MangaDex
   try {
     const { results } = await mangadexService.searchManga(query, 5, 0);
     return results.map(mangadexToSearchResult);
@@ -178,6 +340,33 @@ async function searchMangaItems(query: string): Promise<SearchResult[]> {
 }
 
 /**
+ * Search books using Libgen
+ */
+async function searchBooks(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  const provider = options.provider || 'libgen';
+  const results = await searchWithProvider(query, provider, options);
+  return results.results;
+}
+
+/**
+ * Search light novels
+ */
+async function searchLightNovels(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  const provider = options.provider || 'novelupdates';
+  const results = await searchWithProvider(query, provider, options);
+  return results.results;
+}
+
+/**
+ * Search comics
+ */
+async function searchComics(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  const provider = options.provider || 'getcomics';
+  const results = await searchWithProvider(query, provider, options);
+  return results.results;
+}
+
+/**
  * Search all sources using TMDB multi endpoint + MangaDex + Consumet
  */
 async function searchAll(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
@@ -185,7 +374,7 @@ async function searchAll(query: string, options: SearchOptions = {}): Promise<Se
   const [tmdbMultiResults, mangaResults, animeResults] = await Promise.all([
     tmdbService.searchTMDBMulti(query, options),
     searchMangaItems(query),
-    consumetService.searchAnimeAnilist(query, 1, 5),
+    consumetService.searchAnimeAnilist(query, { page: 1, perPage: 5 }),
   ]);
 
   // Convert TMDB multi results
@@ -201,7 +390,7 @@ async function searchAll(query: string, options: SearchOptions = {}): Promise<Se
   );
 
   // Convert Consumet anime results
-  const consumetSearchResults = animeResults.map(consumetAnimeToSearchResult);
+  const consumetSearchResults = animeResults.results.map((item) => consumetToSearchResult(item, 'ANIME'));
 
   // Combine all results
   const allResults = [...tmdbSearchResults, ...mangaResults, ...consumetSearchResults];
@@ -229,6 +418,12 @@ export async function searchMedia(
 ): Promise<SearchResult[]> {
   if (!query.trim()) return [];
 
+  // If a specific provider is given, use provider search
+  if (options.provider && isValidProvider(options.provider)) {
+    const results = await searchWithProvider(query, options.provider, options);
+    return results.results;
+  }
+
   switch (category) {
     case 'all':
       return searchAll(query, options);
@@ -239,7 +434,13 @@ export async function searchMedia(
     case 'anime':
       return searchAnime(query, options);
     case 'manga':
-      return searchMangaItems(query);
+      return searchMangaItems(query, options);
+    case 'book':
+      return searchBooks(query, options);
+    case 'lightnovel':
+      return searchLightNovels(query, options);
+    case 'comic':
+      return searchComics(query, options);
     default:
       return [];
   }
@@ -280,16 +481,24 @@ export async function getTrendingTV(timeWindow: 'day' | 'week' = 'week'): Promis
  * Get trending anime from Consumet Anilist
  */
 export async function getTrendingAnime(): Promise<SearchResult[]> {
-  const results = await consumetService.getTrendingAnime(1, 20);
-  return results.map(consumetAnimeToSearchResult);
+  const paginatedResults = await consumetService.getTrendingAnime(1, 20);
+  return paginatedResults.results.map((item) => consumetToSearchResult(item, 'ANIME'));
 }
 
 /**
  * Get popular anime from Consumet Anilist
  */
 export async function getPopularAnime(): Promise<SearchResult[]> {
-  const results = await consumetService.getPopularAnime(1, 20);
-  return results.map(consumetAnimeToSearchResult);
+  const paginatedResults = await consumetService.getPopularAnime(1, 20);
+  return paginatedResults.results.map((item) => consumetToSearchResult(item, 'ANIME'));
+}
+
+/**
+ * Get popular manga from MangaDex
+ */
+export async function getPopularManga(): Promise<SearchResult[]> {
+  const paginatedResults = await consumetService.getPopularManga(1, 20);
+  return paginatedResults.results.map((item) => consumetToSearchResult(item, 'MANGA'));
 }
 
 /**
@@ -366,13 +575,18 @@ export function searchResultToMediaItem(result: SearchResult): {
   imageUrl?: string;
   refId: string;
 } {
+  const isReadable = result.type === 'MANGA' || result.type === 'BOOK' || result.type === 'LIGHT_NOVEL' || result.type === 'COMIC';
   return {
     title: result.title,
     type: result.type,
     current: 0,
     total: result.total,
-    status: result.type === 'MANGA' ? 'READING' : 'PLAN_TO_WATCH',
+    status: isReadable ? 'READING' : 'PLAN_TO_WATCH',
     imageUrl: result.imageUrl,
     refId: result.id,
   };
 }
+
+// ============ Re-exports for Controller ============
+
+export { isValidProvider, getProviderInfo };

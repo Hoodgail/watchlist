@@ -1,10 +1,30 @@
-export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA';
+export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' | 'BOOK' | 'LIGHT_NOVEL' | 'COMIC';
 
 export type MediaStatus = 'WATCHING' | 'READING' | 'COMPLETED' | 'PLAN_TO_WATCH' | 'DROPPED' | 'PAUSED';
 
 export type SortBy = 'status' | 'title' | 'rating' | 'updatedAt' | 'createdAt';
 
 export type FriendActivityFilter = '' | 'friends_watching' | 'friends_done' | 'friends_dropped';
+
+// Provider types
+export type ProviderName = 
+  | 'hianime' | 'animepahe' | 'animekai' | 'kickassanime'
+  | 'flixhq' | 'goku' | 'sflix' | 'himovies' | 'dramacool'
+  | 'mangadex' | 'comick' | 'mangapill' | 'mangahere' | 'mangakakalot' | 'mangareader' | 'asurascans'
+  | 'anilist' | 'anilist-manga' | 'tmdb'
+  | 'libgen' | 'readlightnovels' | 'getcomics';
+
+export type MediaCategory = 'anime' | 'movie' | 'tv' | 'manga' | 'book' | 'lightnovel' | 'comic';
+
+export interface ProviderInfo {
+  name: ProviderName;
+  displayName: string;
+  category: MediaCategory;
+  language: string;
+  isWorking: boolean;
+  logo?: string;
+  baseUrl?: string;
+}
 
 export interface FriendStatus {
   id: string;
@@ -92,6 +112,38 @@ export interface SearchResult {
   imageUrl?: string;
   year?: number;
   overview?: string;
+  source?: string; // The source/provider used
+  provider?: ProviderName; // The specific provider
+}
+
+// Streaming source types
+export interface StreamingSource {
+  url: string;
+  quality?: string;
+  isM3U8?: boolean;
+}
+
+export interface StreamingSubtitle {
+  url: string;
+  lang: string;
+}
+
+export interface StreamingSources {
+  sources: StreamingSource[];
+  subtitles?: StreamingSubtitle[];
+  headers?: Record<string, string>;
+}
+
+// Chapter page types (for manga reading)
+export interface ChapterPage {
+  page: number;
+  img: string;
+  headerForImage?: Record<string, string>;
+}
+
+export interface ChapterPages {
+  chapterId: string;
+  pages: ChapterPage[];
 }
 
 export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS';

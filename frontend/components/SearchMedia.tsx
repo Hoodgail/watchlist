@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { MediaItem, SearchResult } from '../types';
-import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions } from '../services/mediaSearch';
+import React, { useState, useEffect } from 'react';
+import { MediaItem, SearchResult, ProviderInfo, ProviderName } from '../types';
+import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders } from '../services/mediaSearch';
 import { QuickAddModal } from './QuickAddModal';
 
 interface SearchMediaProps {
@@ -13,11 +13,53 @@ const CATEGORIES: { value: SearchCategory; label: string }[] = [
   { value: 'movie', label: 'FILM' },
   { value: 'anime', label: 'ANIME' },
   { value: 'manga', label: 'MANGA' },
+  { value: 'book', label: 'BOOKS' },
+  { value: 'lightnovel', label: 'LIGHT NOVELS' },
+  { value: 'comic', label: 'COMICS' },
 ];
+
+// Map categories to their available providers
+const CATEGORY_PROVIDERS: Record<SearchCategory, ProviderName[]> = {
+  all: [],
+  anime: ['anilist', 'hianime', 'animepahe', 'animekai', 'kickassanime'],
+  movie: ['tmdb', 'flixhq', 'goku', 'sflix', 'himovies'],
+  tv: ['tmdb', 'flixhq', 'goku', 'sflix', 'himovies', 'dramacool'],
+  manga: ['mangadex', 'comick', 'mangapill', 'mangahere', 'mangakakalot', 'mangareader', 'asurascans', 'anilist-manga'],
+  book: ['libgen'],
+  lightnovel: ['readlightnovels'],
+  comic: ['getcomics'],
+};
+
+// Display names for providers
+const PROVIDER_NAMES: Record<ProviderName, string> = {
+  'hianime': 'HiAnime',
+  'animepahe': 'AnimePahe',
+  'animekai': 'AnimeKai',
+  'kickassanime': 'KickAssAnime',
+  'flixhq': 'FlixHQ',
+  'goku': 'Goku',
+  'sflix': 'SFlix',
+  'himovies': 'HiMovies',
+  'dramacool': 'DramaCool',
+  'mangadex': 'MangaDex',
+  'comick': 'ComicK',
+  'mangapill': 'MangaPill',
+  'mangahere': 'MangaHere',
+  'mangakakalot': 'MangaKakalot',
+  'mangareader': 'MangaReader',
+  'asurascans': 'AsuraScans',
+  'anilist': 'AniList',
+  'anilist-manga': 'AniList',
+  'tmdb': 'TMDB',
+  'libgen': 'Libgen',
+  'readlightnovels': 'ReadLightNovels',
+  'getcomics': 'GetComics',
+};
 
 export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('all');
+  const [provider, setProvider] = useState<ProviderName | ''>('');
   const [year, setYear] = useState('');
   const [includeAdult, setIncludeAdult] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -26,6 +68,17 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
   const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
   const [quickAddItem, setQuickAddItem] = useState<SearchResult | null>(null);
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+
+  // Get available providers for current category
+  const availableProviders = CATEGORY_PROVIDERS[category] || [];
+
+  // Reset provider when category changes if it's not valid for new category
+  useEffect(() => {
+    if (provider && !availableProviders.includes(provider)) {
+      setProvider('');
+    }
+  }, [category, provider, availableProviders]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +92,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
       const options: SearchOptions = {
         includeAdult,
         year: year.trim() || undefined,
+        provider: provider || undefined,
       };
       const items = await searchMedia(query, category, options);
       setResults(items);
@@ -104,6 +158,30 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
     }
   };
 
+  // Get type label for display
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'LIGHT_NOVEL': return 'LN';
+      case 'COMIC': return 'COMIC';
+      case 'BOOK': return 'BOOK';
+      default: return type;
+    }
+  };
+
+  // Get unit label (episodes/chapters/pages)
+  const getUnitLabel = (type: string) => {
+    switch (type) {
+      case 'MANGA':
+      case 'LIGHT_NOVEL':
+      case 'COMIC':
+        return 'CH';
+      case 'BOOK':
+        return 'PG';
+      default:
+        return 'EP';
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
@@ -127,6 +205,61 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
             </button>
           ))}
         </div>
+
+        {/* Provider Selection (only show if category has providers) */}
+        {availableProviders.length > 0 && (
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-neutral-500 uppercase tracking-wider">
+                Source
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                  className="bg-black border border-neutral-700 px-3 py-1 text-xs uppercase tracking-wider text-white hover:border-neutral-500 focus:border-white outline-none flex items-center gap-2"
+                >
+                  {provider ? PROVIDER_NAMES[provider] : 'Auto'}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {showProviderDropdown && (
+                  <div className="absolute top-full left-0 mt-1 bg-black border border-neutral-700 z-10 min-w-[150px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProvider('');
+                        setShowProviderDropdown(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-xs uppercase tracking-wider hover:bg-neutral-900 ${
+                        !provider ? 'text-white bg-neutral-800' : 'text-neutral-400'
+                      }`}
+                    >
+                      Auto (Default)
+                    </button>
+                    {availableProviders.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          setProvider(p);
+                          setShowProviderDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs uppercase tracking-wider hover:bg-neutral-900 ${
+                          provider === p ? 'text-white bg-neutral-800' : 'text-neutral-400'
+                        }`}
+                      >
+                        {PROVIDER_NAMES[p]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Search Options */}
         <div className="flex gap-4 items-center flex-wrap">
@@ -212,16 +345,21 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
                   <h4 className="font-bold text-lg uppercase tracking-tight truncate">
                     {item.title}
                   </h4>
-                  <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase">
+                  <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase flex-wrap">
                     <span className="bg-neutral-900 px-1 border border-neutral-800">
-                      {item.type}
+                      {getTypeLabel(item.type)}
                     </span>
                     <span>
                       {item.total
-                        ? `${item.total} ${item.type === 'MANGA' ? 'CH' : 'EP'}`
+                        ? `${item.total} ${getUnitLabel(item.type)}`
                         : 'ONGOING'}
                     </span>
                     {item.year && <span className="text-neutral-600">{item.year}</span>}
+                    {item.provider && (
+                      <span className="text-neutral-700 bg-neutral-900/50 px-1">
+                        {PROVIDER_NAMES[item.provider] || item.provider}
+                      </span>
+                    )}
                   </div>
                 </div>
 
