@@ -10,7 +10,7 @@ export type FriendActivityFilter = '' | 'friends_watching' | 'friends_done' | 'f
 export type ProviderName = 
   | 'hianime' | 'animepahe' | 'animekai' | 'kickassanime'
   | 'flixhq' | 'goku' | 'sflix' | 'himovies' | 'dramacool'
-  | 'mangadex' | 'comick' | 'mangapill' | 'mangahere' | 'mangakakalot' | 'mangareader' | 'asurascans'
+  | 'mangadex' | 'mangahere' | 'mangapill' | 'comick' | 'mangakakalot' | 'mangareader' | 'asurascans'
   | 'anilist' | 'anilist-manga' | 'tmdb'
   | 'libgen' | 'readlightnovels' | 'getcomics';
 

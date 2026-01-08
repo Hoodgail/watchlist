@@ -3,15 +3,14 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import {
   MangaDetails,
   ChapterInfo,
-  ChapterImages,
   OfflineManga,
   DownloadTask,
   DownloadProgress,
   ReadingProgress,
   ReaderSettings,
-  ImageQuality,
+  MangaProviderName,
 } from '../services/mangadexTypes';
-import * as mangadex from '../services/mangadex';
+import * as manga from '../services/manga';
 import * as offlineStorage from '../services/offlineStorage';
 
 interface OfflineContextType {
@@ -33,9 +32,9 @@ interface OfflineContextType {
   readerSettings: ReaderSettings;
   
   // Actions
-  downloadManga: (manga: MangaDetails) => Promise<void>;
-  downloadChapter: (mangaId: string, mangaTitle: string, chapter: ChapterInfo) => Promise<void>;
-  downloadChapters: (mangaId: string, mangaTitle: string, chapters: ChapterInfo[]) => Promise<void>;
+  downloadManga: (manga: MangaDetails, provider?: MangaProviderName) => Promise<void>;
+  downloadChapter: (mangaId: string, mangaTitle: string, chapter: ChapterInfo, provider?: MangaProviderName) => Promise<void>;
+  downloadChapters: (mangaId: string, mangaTitle: string, chapters: ChapterInfo[], provider?: MangaProviderName) => Promise<void>;
   cancelDownload: (mangaId: string) => void;
   pauseDownload: () => void;
   resumeDownload: () => void;
@@ -172,20 +171,24 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   
   // ============ Download Functions ============
   
-  const downloadManga = useCallback(async (manga: MangaDetails) => {
+  const downloadManga = useCallback(async (mangaData: MangaDetails, provider: MangaProviderName = 'mangadex') => {
     try {
       // Download cover image
       let coverBlob: Blob | undefined;
-      if (manga.coverUrl) {
+      const coverUrl = mangaData.coverUrl || mangaData.coverUrlSmall;
+      if (coverUrl) {
         try {
-          coverBlob = await mangadex.fetchImageAsBlob(manga.coverUrl);
+          coverBlob = await manga.fetchImageAsBlob(coverUrl);
         } catch (error) {
           console.warn('Failed to download cover:', error);
         }
       }
       
+      // Add provider to manga data
+      const mangaWithProvider = { ...mangaData, provider };
+      
       // Save manga to IndexedDB
-      await offlineStorage.saveMangaOffline(manga, coverBlob);
+      await offlineStorage.saveMangaOffline(mangaWithProvider, coverBlob);
       await refreshDownloadedContent();
     } catch (error) {
       console.error('Failed to download manga:', error);
@@ -196,15 +199,17 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const downloadChapter = useCallback(async (
     mangaId: string,
     mangaTitle: string,
-    chapter: ChapterInfo
+    chapter: ChapterInfo,
+    provider: MangaProviderName = 'mangadex'
   ) => {
-    await downloadChapters(mangaId, mangaTitle, [chapter]);
+    await downloadChapters(mangaId, mangaTitle, [chapter], provider);
   }, []);
   
   const downloadChapters = useCallback(async (
     mangaId: string,
     mangaTitle: string,
-    chapters: ChapterInfo[]
+    chapters: ChapterInfo[],
+    provider: MangaProviderName = 'mangadex'
   ) => {
     const task: DownloadTask = {
       mangaId,
@@ -219,6 +224,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })),
       status: 'pending',
       createdAt: new Date(),
+      provider,
     };
     
     // Save chapter info to IndexedDB
@@ -233,6 +239,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (downloadQueue.length === 0) return;
     
     const task = downloadQueue[0];
+    const provider = task.provider || 'mangadex';
     setActiveDownload({ ...task, status: 'downloading' });
     
     downloadAbortController.current = new AbortController();
@@ -242,7 +249,6 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (downloadAbortController.current.signal.aborted) break;
         
         const chapterId = task.chapterIds[i];
-        const progress = task.progress[i];
         
         // Update progress to downloading
         setActiveDownload(prev => {
@@ -253,16 +259,17 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
         
         try {
-          // Get chapter images
-          const images = await mangadex.getChapterImages(chapterId);
-          const quality: ImageQuality = readerSettings.imageQuality;
-          const urls = mangadex.buildAllImageUrls(images, quality);
+          // Get chapter pages using the new unified manga service
+          const chapterPages = await manga.getChapterPages(chapterId, provider);
+          const urls = manga.buildImageUrls(chapterPages.pages);
           
           // Download each page
           for (let pageNum = 0; pageNum < urls.length; pageNum++) {
             if (downloadAbortController.current.signal.aborted) break;
             
-            const imageBlob = await mangadex.fetchImageAsBlob(urls[pageNum]);
+            // Get headers for this page if any
+            const pageData = chapterPages.pages[pageNum];
+            const imageBlob = await manga.fetchImageAsBlob(urls[pageNum], pageData.headerForImage);
             await offlineStorage.savePageOffline(task.mangaId, chapterId, pageNum, imageBlob);
             
             // Update progress
@@ -312,7 +319,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('Download failed:', error);
       setActiveDownload(prev => prev ? { ...prev, status: 'error' } : null);
     }
-  }, [downloadQueue, readerSettings.imageQuality, refreshDownloadedContent]);
+  }, [downloadQueue, refreshDownloadedContent]);
   
   const cancelDownload = useCallback((mangaId: string) => {
     if (activeDownload?.mangaId === mangaId) {

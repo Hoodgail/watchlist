@@ -394,6 +394,56 @@ async function createServer() {
     }
   });
 
+  // ============ Generic Image Proxy Endpoint ============
+  // Proxy images with browser-like headers to bypass hotlink protection
+  
+  app.get('/api/proxy/image', async (req: Request, res: Response) => {
+    const { url } = req.query;
+    
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'Missing url parameter' });
+      return;
+    }
+    
+    try {
+      // Parse URL to get origin for referer
+      const parsedUrl = new URL(url);
+      const origin = parsedUrl.origin;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br, zstd',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Priority': 'i',
+          'Referer': origin,
+          'Sec-Ch-Ua': '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'image',
+          'Sec-Fetch-Mode': 'no-cors',
+          'Sec-Fetch-Site': 'same-origin',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
+        },
+      });
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch image' });
+        return;
+      }
+      
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get('Content-Type') || 'image/jpeg';
+      
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('[Proxy] Image fetch error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // ============ MangaPlus Proxy Endpoints ============
   // These bypass CORS restrictions for MangaPlus API and images
   

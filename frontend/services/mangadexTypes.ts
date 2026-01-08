@@ -159,6 +159,16 @@ export interface ErrorResponse {
   }>;
 }
 
+// ============ Provider Type ============
+
+export type MangaProviderName = 
+  | 'mangadex' 
+  | 'mangahere'
+  | 'mangapill' 
+  | 'comick' 
+  | 'mangareader'
+  | 'asurascans';
+
 // ============ Helper Types ============
 
 export interface MangaDetails {
@@ -180,6 +190,7 @@ export interface MangaDetails {
   lastVolume: string | null;
   demographic: string | null;
   statistics?: MangaStatistics;
+  provider?: MangaProviderName;
 }
 
 export interface ChapterInfo {
@@ -248,6 +259,7 @@ export interface DownloadTask {
   progress: DownloadProgress[];
   status: 'pending' | 'downloading' | 'completed' | 'error' | 'paused';
   createdAt: Date;
+  provider?: MangaProviderName;
 }
 
 export interface ReadingProgress {

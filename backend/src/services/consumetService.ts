@@ -217,11 +217,17 @@ export async function getEpisodeServers(
 
 /**
  * Get chapter pages for manga
+ * Note: Meta providers like 'anilist-manga' don't provide chapter pages directly
  */
 export async function getChapterPages(
   chapterId: string,
-  provider: MangaProviderName
+  provider: MangaProviderName | 'anilist-manga'
 ): Promise<UnifiedChapterPages | null> {
+  // Meta providers don't provide chapter pages - they only aggregate metadata
+  if (provider === 'anilist-manga') {
+    console.warn('anilist-manga provider does not support chapter pages. Use a direct manga provider like mangadex.');
+    return null;
+  }
   return mangaProviders.getChapterPages(chapterId, provider);
 }
 

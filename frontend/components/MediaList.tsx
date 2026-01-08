@@ -27,6 +27,15 @@ const FRIEND_ACTIVITY_OPTIONS: { value: FriendActivityFilter; label: string }[] 
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
+// Helper to proxy image URLs through our server to bypass hotlink protection
+function proxyImageUrl(url: string): string {
+  // Don't proxy blob URLs, already-proxied URLs, or TMDB images (they don't need proxying)
+  if (url.startsWith('blob:') || url.startsWith('/api/') || url.includes('image.tmdb.org')) {
+    return url;
+  }
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+}
+
 // Status group order and configuration
 const STATUS_GROUP_CONFIG: {
   status: MediaStatus;
@@ -173,9 +182,16 @@ function StarIcon({ filled }: { filled: boolean }) {
 
 const getImageUrl = (imageUrl?: string): string | null => {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
+  let url: string;
+  if (imageUrl.startsWith('http')) {
+    url = imageUrl;
+  } else if (imageUrl.startsWith('/')) {
+    url = `${TMDB_IMAGE_BASE}${imageUrl}`;
+  } else {
+    url = imageUrl;
+  }
+  // Proxy external images to bypass hotlink protection
+  return proxyImageUrl(url);
 };
 
 const getShortStatus = (status: MediaStatus): string => {

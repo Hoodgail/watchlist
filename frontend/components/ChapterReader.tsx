@@ -1,7 +1,8 @@
 // ChapterReader Component - Full-screen manga reader with multiple modes
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ChapterInfo, ChapterImages, ReadingMode, ImageQuality } from '../services/mangadexTypes';
-import * as mangadex from '../services/mangadex';
+import * as manga from '../services/manga';
+import { MangaProviderName } from '../services/manga';
 import * as mangaplus from '../services/mangaplus';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
@@ -12,6 +13,16 @@ interface ChapterReaderProps {
   chapters: ChapterInfo[];
   onClose: () => void;
   onChapterChange: (chapterId: string) => void;
+  provider?: MangaProviderName;
+}
+
+// Helper to proxy image URLs through our server to bypass hotlink protection
+function proxyImageUrl(url: string): string {
+  // Don't proxy blob URLs or already-proxied URLs
+  if (url.startsWith('blob:') || url.startsWith('/api/')) {
+    return url;
+  }
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
 }
 
 export const ChapterReader: React.FC<ChapterReaderProps> = ({
@@ -20,6 +31,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   chapters,
   onClose,
   onChapterChange,
+  provider = 'mangadex',
 }) => {
   const { showToast } = useToast();
   const {
@@ -68,7 +80,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   // Load chapter images
   useEffect(() => {
     loadChapterImages();
-  }, [chapterId, readerSettings.imageQuality]);
+  }, [chapterId, readerSettings.imageQuality, provider]);
 
   // Cleanup blob URLs on unmount or chapter change
   useEffect(() => {
@@ -185,7 +197,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           throw new Error('This chapter is not available offline');
         }
 
-        // Check if this is a MangaPlus chapter (has external URL)
+        // Check if this is a MangaPlus chapter (has external URL) - only for mangadex provider
         const chapter = currentChapter;
         if (chapter?.externalUrl && mangaplus.isMangaPlusUrl(chapter.externalUrl)) {
           // Load from MangaPlus with progress tracking
@@ -200,12 +212,10 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           // Non-MangaPlus external URL - not supported for in-app reading
           throw new Error('This chapter is only available on an external website');
         } else {
-          // Regular MangaDex chapter
-          const images = await mangadex.getChapterImages(chapterId);
-          setChapterImages(images);
-
-          const quality: ImageQuality = readerSettings.imageQuality;
-          const urls = mangadex.buildAllImageUrls(images, quality);
+          // Use unified manga service for all providers
+          const chapterPages = await manga.getChapterPages(chapterId, provider);
+          // Proxy images through our server to bypass hotlink protection
+          const urls = chapterPages.pages.map(p => proxyImageUrl(p.img));
           setPageUrls(urls);
         }
       }
@@ -373,12 +383,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     if (!currentChapter) return;
 
     try {
-      await downloadChapters(mangaId, 'Manga', [currentChapter]);
+      await downloadChapters(mangaId, 'Manga', [currentChapter], provider);
       showToast('Chapter download started', 'success');
     } catch (err) {
       showToast('Failed to download chapter', 'error');
     }
-  }, [mangaId, currentChapter, downloadChapters, showToast]);
+  }, [mangaId, currentChapter, downloadChapters, showToast, provider]);
 
   // Render loading state
   if (loading) {
@@ -462,10 +472,15 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
             <div className="text-center">
               <div className="text-sm font-medium flex items-center justify-center gap-2">
-                {currentChapter && mangadex.formatChapterNumber(currentChapter)}
+                {currentChapter && manga.formatChapterInfo(currentChapter)}
                 {isMangaPlusChapter && (
                   <span className="text-xs bg-orange-600 text-white px-1.5 py-0.5 rounded font-bold">
                     M+
+                  </span>
+                )}
+                {!isMangaPlusChapter && provider !== 'mangadex' && (
+                  <span className="text-xs bg-neutral-700 text-white px-1.5 py-0.5 rounded font-bold uppercase">
+                    {manga.getProviderDisplayName(provider)}
                   </span>
                 )}
               </div>

@@ -108,13 +108,13 @@ export const PROVIDER_INFO: Record<ProviderName, ProviderInfo> = {
     isWorking: true,
     baseUrl: 'https://mangadex.org',
   },
-  comick: {
-    name: 'comick',
-    displayName: 'ComicK',
+  mangahere: {
+    name: 'mangahere',
+    displayName: 'MangaHere',
     category: 'manga',
     language: 'en',
     isWorking: true,
-    baseUrl: 'https://comick.io',
+    baseUrl: 'https://mangahere.cc',
   },
   mangapill: {
     name: 'mangapill',
@@ -124,13 +124,13 @@ export const PROVIDER_INFO: Record<ProviderName, ProviderInfo> = {
     isWorking: true,
     baseUrl: 'https://mangapill.com',
   },
-  mangahere: {
-    name: 'mangahere',
-    displayName: 'MangaHere',
+  comick: {
+    name: 'comick',
+    displayName: 'ComicK',
     category: 'manga',
     language: 'en',
     isWorking: true,
-    baseUrl: 'https://mangahere.cc',
+    baseUrl: 'https://comick.io',
   },
   mangareader: {
     name: 'mangareader',
@@ -236,9 +236,9 @@ export const MOVIE_PROVIDERS: MovieProviderName[] = [
 
 export const MANGA_PROVIDERS: MangaProviderName[] = [
   'mangadex',
-  'comick',
-  'mangapill',
   'mangahere',
+  'mangapill',
+  'comick',
   'mangareader',
   'asurascans',
 ];

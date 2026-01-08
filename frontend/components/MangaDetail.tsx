@@ -1,7 +1,8 @@
 // MangaDetail Component - Shows manga details and chapter list
 import React, { useState, useEffect, useCallback } from 'react';
 import { MangaDetails, ChapterInfo, VolumeWithChapters } from '../services/mangadexTypes';
-import * as mangadex from '../services/mangadex';
+import * as mangaService from '../services/manga';
+import { MangaProviderName, MangaChapter } from '../services/manga';
 import { isMangaPlusUrl } from '../services/mangaplus';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
@@ -10,12 +11,24 @@ interface MangaDetailProps {
   mangaId: string;
   onClose: () => void;
   onReadChapter: (mangaId: string, chapterId: string) => void;
+  provider?: MangaProviderName;
+}
+
+// Helper to proxy image URLs through our server to bypass hotlink protection
+function proxyImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  // Don't proxy blob URLs or already-proxied URLs
+  if (url.startsWith('blob:') || url.startsWith('/api/')) {
+    return url;
+  }
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
 }
 
 export const MangaDetail: React.FC<MangaDetailProps> = ({
   mangaId,
   onClose,
   onReadChapter,
+  provider = 'mangadex',
 }) => {
   const { showToast } = useToast();
   const {
@@ -44,7 +57,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
   // Load manga details
   useEffect(() => {
     loadMangaDetails();
-  }, [mangaId]);
+  }, [mangaId, provider]);
 
   const loadMangaDetails = async () => {
     setLoading(true);
@@ -61,17 +74,32 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
 
       // If online, fetch fresh data
       if (isOnline) {
-        const [mangaData, stats] = await Promise.all([
-          mangadex.getMangaById(mangaId),
-          mangadex.getMangaStatistics(mangaId),
-        ]);
-
-        const mangaWithStats: MangaDetails = {
-          ...mangaData,
-          statistics: stats || undefined,
+        // Use unified manga service for all providers
+        const mangaInfo = await mangaService.getMangaInfo(mangaId, provider);
+        
+        // Convert to MangaDetails format for UI compatibility
+        const mangaData: MangaDetails = {
+          id: mangaInfo.id,
+          title: mangaInfo.title,
+          altTitles: mangaInfo.altTitles || [],
+          description: mangaInfo.description || '',
+          coverUrl: mangaInfo.cover || mangaInfo.image || null,
+          coverUrlSmall: mangaInfo.image || mangaInfo.cover || null,
+          author: null, // Not available in unified API
+          artist: null,
+          status: (mangaInfo.status?.toLowerCase() as any) || 'ongoing',
+          year: mangaInfo.year || (typeof mangaInfo.releaseDate === 'number' ? mangaInfo.releaseDate : null),
+          contentRating: 'safe',
+          tags: (mangaInfo.genres || []).map((g, i) => ({ id: String(i), name: g, group: 'genre' })),
+          originalLanguage: 'en',
+          availableLanguages: ['en'],
+          lastChapter: mangaInfo.totalChapters ? String(mangaInfo.totalChapters) : null,
+          lastVolume: null,
+          demographic: null,
+          provider: provider,
         };
 
-        setManga(mangaWithStats);
+        setManga(mangaData);
         
         // Load chapters
         loadChapters();
@@ -90,10 +118,40 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     setChaptersLoading(true);
 
     try {
-      const [volumeData, chaptersData] = await Promise.all([
-        mangadex.getMangaAggregate(mangaId),
-        mangadex.getAllMangaChapters(mangaId),
-      ]);
+      // Use unified manga service for all providers
+      const mangaInfo = await mangaService.getMangaInfo(mangaId, provider);
+      const chapters = mangaInfo.chapters || [];
+      
+      // Convert MangaChapter to ChapterInfo format
+      const chaptersData: ChapterInfo[] = chapters.map(ch => ({
+        id: ch.id,
+        title: ch.title || null,
+        volume: ch.volume || null,
+        chapter: String(ch.number),
+        pages: ch.pages || 0,
+        translatedLanguage: 'en',
+        scanlationGroup: null,
+        publishedAt: ch.releaseDate || new Date().toISOString(),
+        externalUrl: ch.url || null,
+      }));
+
+      // Group chapters by volume (or "No Volume" if none)
+      const volumeMap = new Map<string, ChapterInfo[]>();
+      chaptersData.forEach(ch => {
+        const vol = ch.volume || 'No Volume';
+        if (!volumeMap.has(vol)) {
+          volumeMap.set(vol, []);
+        }
+        volumeMap.get(vol)!.push(ch);
+      });
+
+      const volumeData: VolumeWithChapters[] = Array.from(volumeMap.entries())
+        .map(([volume, chapters]) => ({ volume, chapters }))
+        .sort((a, b) => {
+          if (a.volume === 'No Volume') return 1;
+          if (b.volume === 'No Volume') return -1;
+          return parseFloat(a.volume) - parseFloat(b.volume);
+        });
 
       setVolumes(volumeData);
       setAllChapters(chaptersData);
@@ -153,7 +211,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     if (!manga) return;
 
     try {
-      await downloadManga(manga);
+      await downloadManga(manga, provider);
       showToast('Manga saved for offline reading', 'success');
     } catch (err) {
       showToast('Failed to save manga', 'error');
@@ -166,7 +224,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     const chaptersToDownload = allChapters.filter(ch => selectedChapters.has(ch.id));
     
     try {
-      await downloadChapters(mangaId, manga.title, chaptersToDownload);
+      await downloadChapters(mangaId, manga.title, chaptersToDownload, provider);
       showToast(`Downloading ${chaptersToDownload.length} chapters...`, 'success');
       setSelectedChapters(new Set());
       setIsSelectionMode(false);
@@ -180,8 +238,8 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
 
     setDownloadingAll(true);
     try {
-      await downloadManga(manga);
-      await downloadChapters(mangaId, manga.title, allChapters);
+      await downloadManga(manga, provider);
+      await downloadChapters(mangaId, manga.title, allChapters, provider);
       showToast(`Downloading all ${allChapters.length} chapters...`, 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');
@@ -271,7 +329,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
           <div className="flex-shrink-0 w-32">
             {manga.coverUrlSmall ? (
               <img
-                src={manga.coverUrlSmall}
+                src={proxyImageUrl(manga.coverUrlSmall) || ''}
                 alt={manga.title}
                 className="w-full aspect-[2/3] object-cover bg-neutral-900 border border-neutral-800"
               />
@@ -315,6 +373,12 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
               {manga.demographic && (
                 <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500 uppercase">
                   {manga.demographic}
+                </span>
+              )}
+              
+              {provider && (
+                <span className="px-2 py-0.5 text-xs border border-neutral-700 text-neutral-400 uppercase">
+                  {mangaService.getProviderDisplayName(provider)}
                 </span>
               )}
             </div>
@@ -592,7 +656,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                   </button>
                                 ) : isOnline && !hasExternalUrl && !isUnavailable && (
                                   <button
-                                    onClick={() => fullChapter && downloadChapters(mangaId, manga.title, [fullChapter])}
+                                    onClick={() => fullChapter && downloadChapters(mangaId, manga.title, [fullChapter], provider)}
                                     className="p-1 text-neutral-600 hover:text-white transition-colors"
                                     title="Download"
                                   >

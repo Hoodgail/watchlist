@@ -19,7 +19,8 @@ import { useOffline } from './context/OfflineContext';
 import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter } from './types';
 import { ChapterInfo } from './services/mangadexTypes';
 import * as api from './services/api';
-import * as mangadex from './services/mangadex';
+import * as manga from './services/manga';
+import { parseMangaRefId, MangaProviderName } from './services/manga';
 
 // Check if current path is OAuth callback
 const isOAuthCallbackPath = (path: string, search: string): boolean => {
@@ -59,11 +60,15 @@ const MainApp: React.FC = () => {
   const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0);
 
   // Manga reader state
-  const [selectedMangaId, setSelectedMangaId] = useState<string | null>(null);
+  const [selectedManga, setSelectedManga] = useState<{
+    id: string;
+    provider: MangaProviderName;
+  } | null>(null);
   const [readerState, setReaderState] = useState<{
     mangaId: string;
     chapterId: string;
     chapters: ChapterInfo[];
+    provider: MangaProviderName;
   } | null>(null);
 
   // Load user's list when authenticated
@@ -249,24 +254,25 @@ const MainApp: React.FC = () => {
   };
 
   // Manga reader handlers
-  const handleOpenManga = useCallback((mangaId: string) => {
-    setSelectedMangaId(mangaId);
+  const handleOpenManga = useCallback((mangaId: string, provider: MangaProviderName = 'mangadex') => {
+    setSelectedManga({ id: mangaId, provider });
   }, []);
 
   const handleCloseManga = useCallback(() => {
-    setSelectedMangaId(null);
+    setSelectedManga(null);
   }, []);
 
   const handleReadChapter = useCallback(async (mangaId: string, chapterId: string) => {
+    const provider = selectedManga?.provider || 'mangadex';
     try {
-      // Load chapters for navigation
-      const chapters = await mangadex.getAllMangaChapters(mangaId);
-      setReaderState({ mangaId, chapterId, chapters });
+      // Load chapters for navigation using unified manga service
+      const chapters = await manga.getAllChapters(mangaId, provider);
+      setReaderState({ mangaId, chapterId, chapters, provider });
     } catch (error) {
       console.error('Failed to load chapters:', error);
       showToast('Failed to open chapter', 'error');
     }
-  }, [showToast]);
+  }, [showToast, selectedManga]);
 
   const handleCloseReader = useCallback(() => {
     setReaderState(null);
@@ -280,9 +286,14 @@ const MainApp: React.FC = () => {
 
   // Open manga from list item (click on manga in readlist)
   const handleMangaItemClick = useCallback((item: MediaItem) => {
-    if (item.type === 'MANGA' && item.refId.startsWith('mangadex:')) {
-      const mangaId = item.refId.replace('mangadex:', '');
-      handleOpenManga(mangaId);
+    if (item.type === 'MANGA' && item.refId) {
+      const parsed = parseMangaRefId(item.refId);
+      if (parsed) {
+        handleOpenManga(parsed.mangaId, parsed.provider);
+      } else {
+        // Legacy support: assume mangadex if no provider prefix
+        handleOpenManga(item.refId, 'mangadex');
+      }
     }
   }, [handleOpenManga]);
 
@@ -442,17 +453,19 @@ const MainApp: React.FC = () => {
         chapters={readerState.chapters}
         onClose={handleCloseReader}
         onChapterChange={handleChapterChange}
+        provider={readerState.provider}
       />
     );
   }
 
   // Render manga detail overlay
-  if (selectedMangaId) {
+  if (selectedManga) {
     return (
       <MangaDetail
-        mangaId={selectedMangaId}
+        mangaId={selectedManga.id}
         onClose={handleCloseManga}
         onReadChapter={handleReadChapter}
+        provider={selectedManga.provider}
       />
     );
   }

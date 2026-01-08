@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useOffline } from '../context/OfflineContext';
 import { formatBytes, StorageInfo } from '../services/offlineStorage';
+import { getProviderDisplayName, MangaProviderName } from '../services/manga';
 
 interface DownloadManagerProps {
-  onMangaClick: (mangaId: string) => void;
+  onMangaClick: (mangaId: string, provider?: MangaProviderName) => void;
 }
 
 export const DownloadManager: React.FC<DownloadManagerProps> = ({ onMangaClick }) => {
@@ -257,7 +258,7 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ onMangaClick }
             downloadedManga.map((manga) => (
               <div
                 key={manga.id}
-                onClick={() => onMangaClick(manga.id)}
+                onClick={() => onMangaClick(manga.id, manga.data.provider)}
                 className="bg-neutral-950 border border-neutral-800 p-3 flex items-center gap-3 cursor-pointer hover:border-neutral-600 transition-colors"
               >
                 {/* Cover */}
@@ -279,7 +280,14 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ onMangaClick }
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold uppercase text-sm truncate">{manga.data.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold uppercase text-sm truncate">{manga.data.title}</h3>
+                    {manga.data.provider && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-neutral-800 text-neutral-400 uppercase tracking-wider flex-shrink-0">
+                        {getProviderDisplayName(manga.data.provider)}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-neutral-500">
                     {manga.chaptersDownloaded} chapters downloaded
                   </p>
