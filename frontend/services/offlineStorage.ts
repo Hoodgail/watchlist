@@ -210,8 +210,18 @@ export async function updateMangaChapterCount(mangaId: string): Promise<void> {
   const manga = await getOfflineManga(mangaId);
   if (!manga) return;
 
-  const count = await countByIndex(STORES.CHAPTERS, 'mangaId', mangaId);
-  manga.chaptersDownloaded = count;
+  // Count chapters that actually have downloaded pages
+  const chapters = await getByIndex<OfflineChapter>(STORES.CHAPTERS, 'mangaId', mangaId);
+  let downloadedCount = 0;
+  
+  for (const chapter of chapters) {
+    const pageCount = await countByIndex(STORES.PAGES, 'chapterId', chapter.id);
+    if (pageCount > 0) {
+      downloadedCount++;
+    }
+  }
+  
+  manga.chaptersDownloaded = downloadedCount;
   await putToStore(STORES.MANGA, manga);
 }
 
@@ -230,6 +240,17 @@ export async function saveChapterOffline(
 
   await putToStore(STORES.CHAPTERS, offlineChapter);
   await updateMangaChapterCount(mangaId);
+}
+
+export async function updateChapterPageCount(
+  chapterId: string,
+  pageCount: number
+): Promise<void> {
+  const chapter = await getOfflineChapter(chapterId);
+  if (chapter) {
+    chapter.data.pages = pageCount;
+    await putToStore(STORES.CHAPTERS, chapter);
+  }
 }
 
 export async function getOfflineChapter(chapterId: string): Promise<OfflineChapter | null> {
@@ -264,9 +285,19 @@ export async function isChapterDownloaded(chapterId: string): Promise<boolean> {
   const chapter = await getOfflineChapter(chapterId);
   if (!chapter) return false;
 
-  // Check if all pages are downloaded
+  // Check if pages are downloaded - we consider it downloaded if we have at least 1 page
+  // and either we have the expected count OR the expected count was unknown (0)
   const pages = await getByIndex<OfflinePage>(STORES.PAGES, 'chapterId', chapterId);
-  return pages.length > 0 && pages.length === chapter.data.pages;
+  if (pages.length === 0) return false;
+  
+  // If we have pages and either no expected count or matches expected count
+  const expectedPages = chapter.data.pages || 0;
+  return expectedPages === 0 || pages.length >= expectedPages;
+}
+
+export async function getDownloadedPageCount(chapterId: string): Promise<number> {
+  const pages = await getByIndex<OfflinePage>(STORES.PAGES, 'chapterId', chapterId);
+  return pages.length;
 }
 
 // ============ Page Operations ============
@@ -286,6 +317,9 @@ export async function savePageOffline(
   };
 
   await putToStore(STORES.PAGES, offlinePage);
+  if (pageNumber === 0) {
+    console.log('[Storage] Saving pages for chapter:', chapterId, 'blob size:', imageBlob.size);
+  }
 }
 
 export async function getOfflinePage(
@@ -297,6 +331,7 @@ export async function getOfflinePage(
 
 export async function getOfflinePagesForChapter(chapterId: string): Promise<OfflinePage[]> {
   const pages = await getByIndex<OfflinePage>(STORES.PAGES, 'chapterId', chapterId);
+  console.log('[Storage] getOfflinePagesForChapter:', chapterId, 'found:', pages.length);
   return pages.sort((a, b) => a.pageNumber - b.pageNumber);
 }
 

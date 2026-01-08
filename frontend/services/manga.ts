@@ -406,3 +406,101 @@ export async function getAllChapters(
     externalUrl: ch.url || null,
   }));
 }
+
+// ============ Chapter Page URL Resolution ============
+
+// Import mediaSearch for external chapter handling
+import * as mediaSearch from './mediaSearch';
+
+/**
+ * Result of resolving chapter page URLs
+ */
+export interface ChapterPageUrlsResult {
+  urls: string[];
+  headers: (Record<string, string> | undefined)[];
+  isMangaPlus: boolean;
+  isExternal: boolean;
+  externalMessage?: string;
+}
+
+/**
+ * Helper to proxy image URLs through our server to bypass hotlink protection
+ */
+export function proxyImageUrl(url: string): string {
+  // Don't proxy blob URLs or already-proxied URLs
+  if (url.startsWith('blob:') || url.startsWith('/api/')) {
+    return url;
+  }
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+}
+
+/**
+ * Get chapter page URLs for reading or downloading.
+ * Handles MangaDex, MangaPlus, and other providers uniformly.
+ * 
+ * @param chapterId - The chapter ID to fetch pages for
+ * @param provider - The manga provider (defaults to 'mangadex')
+ * @returns ChapterPageUrlsResult with URLs and metadata
+ * @throws Error if chapter cannot be loaded
+ */
+export async function getChapterPageUrls(
+  chapterId: string,
+  provider: MangaProviderName = 'mangadex'
+): Promise<ChapterPageUrlsResult> {
+  // For MangaDex provider, use the external chapter info endpoint
+  // This handles MangaPlus external URLs and regular MangaDex chapters
+  if (provider === 'mangadex') {
+    const chapterInfo = await mediaSearch.getExternalChapterInfo(chapterId);
+    
+    if (!chapterInfo) {
+      throw new Error('Failed to fetch chapter info');
+    }
+    
+    if (chapterInfo.type === 'external') {
+      // Non-MangaPlus external URL - not supported for in-app reading
+      return {
+        urls: [],
+        headers: [],
+        isMangaPlus: false,
+        isExternal: true,
+        externalMessage: chapterInfo.message || 'This chapter is only available on an external website',
+      };
+    }
+    
+    if (chapterInfo.type === 'mangaplus') {
+      // MangaPlus chapter - build proxy URLs
+      const mangaPlusPages = chapterInfo.pages as mediaSearch.MangaPlusPageInfo[];
+      const urls = mangaPlusPages.map(p => 
+        mediaSearch.getMangaPlusImageUrl(p.url, p.encryptionKey)
+      );
+      return {
+        urls,
+        headers: mangaPlusPages.map(() => undefined),
+        isMangaPlus: true,
+        isExternal: false,
+      };
+    }
+    
+    // Regular MangaDex chapter
+    const mangaDexPages = chapterInfo.pages as mediaSearch.MangaDexPageInfo[];
+    const urls = mangaDexPages.map(p => proxyImageUrl(p.img));
+    return {
+      urls,
+      headers: mangaDexPages.map(() => undefined),
+      isMangaPlus: false,
+      isExternal: false,
+    };
+  }
+  
+  // Other providers - use unified manga service
+  const chapterPages = await getChapterPages(chapterId, provider);
+  const urls = chapterPages.pages.map(p => proxyImageUrl(p.img));
+  const headers = chapterPages.pages.map(p => p.headerForImage);
+  
+  return {
+    urls,
+    headers,
+    isMangaPlus: false,
+    isExternal: false,
+  };
+}

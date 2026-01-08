@@ -53,6 +53,7 @@ interface OfflineContextType {
   isChapterDownloaded: (chapterId: string) => boolean;
   isMangaDownloaded: (mangaId: string) => boolean;
   getOfflinePageUrl: (chapterId: string, pageNumber: number) => Promise<string | null>;
+  getOfflineChapterPageUrls: (chapterId: string) => Promise<string[]>;
   getStorageInfo: () => Promise<offlineStorage.StorageInfo>;
   refreshDownloadedContent: () => Promise<void>;
 }
@@ -152,20 +153,22 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const manga = await offlineStorage.getAllOfflineManga();
       setDownloadedManga(manga);
       
-      // Build set of downloaded chapter IDs
+      // Build set of downloaded chapter IDs by checking actual page count
       const chapterIds = new Set<string>();
       for (const m of manga) {
         const chapters = await offlineStorage.getOfflineChaptersForManga(m.id);
         for (const chapter of chapters) {
-          const isDownloaded = await offlineStorage.isChapterDownloaded(chapter.id);
-          if (isDownloaded) {
+          // Check if pages exist for this chapter
+          const pageCount = await offlineStorage.getDownloadedPageCount(chapter.id);
+          if (pageCount > 0) {
             chapterIds.add(chapter.id);
           }
         }
       }
       setDownloadedChapterIds(chapterIds);
+      console.log('[Offline] Refreshed:', manga.length, 'manga,', chapterIds.size, 'chapters with pages');
     } catch (error) {
-      console.error('Failed to load downloaded content:', error);
+      console.error('[Offline] Failed to refresh:', error);
     }
   }, []);
   
@@ -211,6 +214,8 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     chapters: ChapterInfo[],
     provider: MangaProviderName = 'mangadex'
   ) => {
+    console.log('[Download] Queueing download:', { mangaId, mangaTitle, chapterCount: chapters.length, provider });
+    
     const task: DownloadTask = {
       mangaId,
       mangaTitle,
@@ -240,6 +245,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     const task = downloadQueue[0];
     const provider = task.provider || 'mangadex';
+    console.log('[Download] Starting:', task.mangaTitle, task.chapterIds.length, 'chapters');
     setActiveDownload({ ...task, status: 'downloading' });
     
     downloadAbortController.current = new AbortController();
@@ -249,6 +255,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (downloadAbortController.current.signal.aborted) break;
         
         const chapterId = task.chapterIds[i];
+        console.log(`[Download] Chapter ${i + 1}/${task.chapterIds.length}:`, chapterId);
         
         // Update progress to downloading
         setActiveDownload(prev => {
@@ -259,17 +266,30 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
         
         try {
-          // Get chapter pages using the new unified manga service
-          const chapterPages = await manga.getChapterPages(chapterId, provider);
-          const urls = manga.buildImageUrls(chapterPages.pages);
+          // Use the unified helper to get chapter page URLs
+          const result = await manga.getChapterPageUrls(chapterId, provider);
+          
+          if (result.isExternal) {
+            throw new Error(result.externalMessage || 'External chapters cannot be downloaded');
+          }
+          
+          const urls = result.urls;
+          const headers = result.headers;
+          
+          console.log(`[Download] ${result.isMangaPlus ? 'MangaPlus' : provider} chapter with ${urls.length} pages`);
+          
+          if (urls.length === 0) {
+            throw new Error('No pages found for this chapter');
+          }
+          
+          // Update the chapter's page count now that we know the actual value
+          await offlineStorage.updateChapterPageCount(chapterId, urls.length);
           
           // Download each page
           for (let pageNum = 0; pageNum < urls.length; pageNum++) {
             if (downloadAbortController.current.signal.aborted) break;
             
-            // Get headers for this page if any
-            const pageData = chapterPages.pages[pageNum];
-            const imageBlob = await manga.fetchImageAsBlob(urls[pageNum], pageData.headerForImage);
+            const imageBlob = await manga.fetchImageAsBlob(urls[pageNum], headers[pageNum]);
             await offlineStorage.savePageOffline(task.mangaId, chapterId, pageNum, imageBlob);
             
             // Update progress
@@ -285,6 +305,8 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
             });
           }
           
+          console.log(`[Download] Chapter ${chapterId} done, ${urls.length} pages saved`);
+          
           // Mark chapter as completed
           setActiveDownload(prev => {
             if (!prev) return null;
@@ -293,10 +315,13 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return { ...prev, progress: newProgress };
           });
           
+          // Update manga chapter count after each successful chapter download
+          await offlineStorage.updateMangaChapterCount(task.mangaId);
+          
           setDownloadedChapterIds(prev => new Set([...prev, chapterId]));
           
         } catch (error) {
-          console.error(`Failed to download chapter ${chapterId}:`, error);
+          console.error(`[Download] Failed chapter ${chapterId}:`, error);
           setActiveDownload(prev => {
             if (!prev) return null;
             const newProgress = [...prev.progress];
@@ -311,12 +336,13 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       
       // Task completed
+      console.log('[Download] Task completed for:', task.mangaTitle);
       setDownloadQueue(prev => prev.slice(1));
       setActiveDownload(null);
       await refreshDownloadedContent();
       
     } catch (error) {
-      console.error('Download failed:', error);
+      console.error('[Download] Task failed:', error);
       setActiveDownload(prev => prev ? { ...prev, status: 'error' } : null);
     }
   }, [downloadQueue, refreshDownloadedContent]);
@@ -421,6 +447,13 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return offlineStorage.getOfflinePageUrl(chapterId, pageNumber);
   }, []);
   
+  const getOfflineChapterPageUrls = useCallback(async (
+    chapterId: string
+  ): Promise<string[]> => {
+    const pages = await offlineStorage.getOfflinePagesForChapter(chapterId);
+    return pages.map(page => URL.createObjectURL(page.imageBlob));
+  }, []);
+  
   const getStorageInfo = useCallback(async () => {
     return offlineStorage.getStorageInfo();
   }, []);
@@ -448,6 +481,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     isChapterDownloaded,
     isMangaDownloaded,
     getOfflinePageUrl,
+    getOfflineChapterPageUrls,
     getStorageInfo,
     refreshDownloadedContent,
   };

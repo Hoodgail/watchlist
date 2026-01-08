@@ -41,6 +41,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     deleteOfflineChapter,
     getReadingProgress,
     downloadedManga,
+    activeDownload,
   } = useOffline();
 
   const [manga, setManga] = useState<MangaDetails | null>(null);
@@ -465,6 +466,43 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
         </div>
       </div>
 
+      {/* Download Progress */}
+      {activeDownload && activeDownload.mangaId === mangaId && (
+        <div className="mx-4 mb-4 bg-neutral-950 border border-neutral-800 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs uppercase tracking-wider text-neutral-500">
+              Downloading {activeDownload.chapterIds.length} chapters
+            </span>
+            <span className="text-xs text-neutral-400">
+              {activeDownload.progress.filter(p => p.status === 'completed').length} / {activeDownload.chapterIds.length}
+            </span>
+          </div>
+          
+          {/* Overall progress bar */}
+          <div className="w-full h-2 bg-neutral-800 mb-3">
+            <div
+              className="h-full bg-white transition-all"
+              style={{
+                width: `${(activeDownload.progress.filter(p => p.status === 'completed').length / activeDownload.chapterIds.length) * 100}%`,
+              }}
+            />
+          </div>
+          
+          {/* Current chapter progress */}
+          {activeDownload.progress.map((prog, idx) => {
+            if (prog.status !== 'downloading') return null;
+            const percent = prog.totalPages > 0 
+              ? Math.round((prog.currentPage / prog.totalPages) * 100)
+              : 0;
+            return (
+              <div key={prog.chapterId} className="text-xs text-neutral-400">
+                Chapter {idx + 1}: {prog.currentPage}/{prog.totalPages} pages ({percent}%)
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Chapters */}
       <div className="p-4">
         <div className="flex items-center justify-between mb-4 border-b border-neutral-900 pb-2">
@@ -572,6 +610,15 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                         const isUnavailable = fullChapter?.isUnavailable && !hasExternalUrl;
                         const canRead = !isUnavailable || downloaded;
                         
+                        // Check if this chapter is currently downloading
+                        const downloadProgress = activeDownload?.mangaId === mangaId 
+                          ? activeDownload.progress.find(p => p.chapterId === chapter.id)
+                          : null;
+                        const isDownloading = downloadProgress?.status === 'downloading';
+                        const downloadPercent = downloadProgress && downloadProgress.totalPages > 0
+                          ? Math.round((downloadProgress.currentPage / downloadProgress.totalPages) * 100)
+                          : 0;
+                        
                         return (
                           <div
                             key={chapter.id}
@@ -634,17 +681,29 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                             </div>
 
                             <div className="flex items-center gap-2">
-                              {downloaded && (
+                              {downloaded && !isDownloading && (
                                 <span className="text-xs text-green-500 uppercase">Offline</span>
                               )}
-                              {hasExternalUrl && !downloaded && (
+                              {isDownloading && (
+                                <div className="flex items-center gap-1.5">
+                                  <svg className="w-3.5 h-3.5 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span className="text-xs text-blue-400">{downloadPercent}%</span>
+                                </div>
+                              )}
+                              {downloadProgress?.status === 'pending' && (
+                                <span className="text-xs text-neutral-500 uppercase">Queued</span>
+                              )}
+                              {hasExternalUrl && !downloaded && !isDownloading && !downloadProgress && (
                                 <span className="text-xs text-orange-500 uppercase px-1.5 py-0.5 border border-orange-500/30">
                                   {isMangaPlus ? 'M+' : 'EXT'}
                                 </span>
                               )}
                               
                               {!isSelectionMode && (
-                                downloaded ? (
+                                downloaded && !isDownloading ? (
                                   <button
                                     onClick={() => handleDeleteChapter(chapter.id)}
                                     className="p-1 text-neutral-600 hover:text-red-500 transition-colors"
@@ -654,7 +713,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                   </button>
-                                ) : isOnline && !hasExternalUrl && !isUnavailable && (
+                                ) : isOnline && !hasExternalUrl && !isUnavailable && !downloadProgress && (
                                   <button
                                     onClick={() => fullChapter && downloadChapters(mangaId, manga.title, [fullChapter], provider)}
                                     className="p-1 text-neutral-600 hover:text-white transition-colors"
