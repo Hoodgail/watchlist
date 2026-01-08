@@ -329,7 +329,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
             </div>
           )}
 
-          <div className="grid gap-4">
+          <div className="flex flex-col gap-4 overflow-hidden">
             {results.map((item) => (
               <div
                 key={item.id}
