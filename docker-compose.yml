@@ -13,6 +13,11 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - CONSUMET_URL=http://consumet:3000
+    depends_on:
+      consumet:
+        condition: service_healthy
     networks:
       - dokploy-network
       - internal
@@ -79,6 +84,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+
+  consumet:
+    build:
+      context: ./consumet
+      dockerfile: Dockerfile
+    container_name: watchlist-consumet
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=PROD
+      - PORT=3000
+    networks:
+      - internal  # Only internal network - no public access
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   dokploy-network:

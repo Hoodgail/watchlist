@@ -5,6 +5,7 @@ import friendRoutes from './friends.js';
 import suggestionRoutes from './suggestions.js';
 import profileRoutes from './profile.js';
 import mangadexRoutes from './mangadex.js';
+import mediaRoutes from './media.js';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use('/friends', friendRoutes);
 router.use('/suggestions', suggestionRoutes);
 router.use('/profile', profileRoutes);
 router.use('/mangadex', mangadexRoutes);
+router.use('/media', mediaRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {
