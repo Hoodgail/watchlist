@@ -5,6 +5,12 @@ import { VideoEpisode, StreamingSources, StreamingSubtitle, VideoProviderName } 
 import * as video from '../services/video';
 import { getProxyUrl } from '../services/video';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
+import { getOfflineEpisode } from '../services/offlineVideoStorage';
+import { 
+  getOfflineM3U8Url, 
+  createOfflineHLSConfig, 
+  isHLSEpisodeOffline 
+} from '../services/hlsOfflineLoader';
 
 interface VideoPlayerProps {
   mediaId: string;
@@ -182,18 +188,47 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       const isDownloaded = isEpisodeDownloaded(currentEpisodeId);
       
       if (isDownloaded) {
-        const offlineUrl = await getOfflineVideoUrl(currentEpisodeId);
-        if (offlineUrl) {
-          // Create a simple sources object for offline playback
-          const offlineSources: StreamingSources = {
-            sources: [{ url: offlineUrl, quality: 'offline' }],
-            subtitles: [],
-          };
-          setSources(offlineSources);
-          setSubtitles([]);
-          await initializePlayer(offlineUrl, false, currentEpisodeId, currentMediaId);
-          setLoading(false);
-          return;
+        // Check if this is an HLS download
+        const offlineEpisode = await getOfflineEpisode(currentEpisodeId);
+        
+        if (offlineEpisode?.isHLS) {
+          // Check if HLS segments are available
+          const hlsReady = await isHLSEpisodeOffline(currentEpisodeId);
+          
+          if (hlsReady) {
+            console.log('[VideoPlayer] Playing offline HLS content');
+            
+            // Get virtual M3U8 URL pointing to offline segments
+            const offlineM3U8Url = await getOfflineM3U8Url(currentEpisodeId);
+            
+            // Create sources object for HLS playback
+            const offlineSources: StreamingSources = {
+              sources: [{ url: offlineM3U8Url, quality: 'offline', isM3U8: true }],
+              subtitles: [],
+            };
+            setSources(offlineSources);
+            setSubtitles([]);
+            
+            // Initialize player with HLS using custom offline loader
+            await initializePlayer(offlineM3U8Url, true, currentEpisodeId, currentMediaId, true);
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Regular blob-based offline playback
+          const offlineUrl = await getOfflineVideoUrl(currentEpisodeId);
+          if (offlineUrl) {
+            // Create a simple sources object for offline playback
+            const offlineSources: StreamingSources = {
+              sources: [{ url: offlineUrl, quality: 'offline' }],
+              subtitles: [],
+            };
+            setSources(offlineSources);
+            setSubtitles([]);
+            await initializePlayer(offlineUrl, false, currentEpisodeId, currentMediaId);
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -243,9 +278,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  const initializePlayer = async (url: string, isHLS: boolean, episodeIdForProgress: string, mediaIdForProgress: string) => {
+  const initializePlayer = async (url: string, isHLS: boolean, episodeIdForProgress: string, mediaIdForProgress: string, isOfflineHLS: boolean = false) => {
     const videoElement = videoRef.current;
-    console.log('[VideoPlayer] initializePlayer called:', { url: url.substring(0, 50), isHLS, hasVideoElement: !!videoElement });
+    console.log('[VideoPlayer] initializePlayer called:', { url: url.substring(0, 50), isHLS, isOfflineHLS, hasVideoElement: !!videoElement });
     
     if (!videoElement) {
       console.error('[VideoPlayer] Video element not found!');
@@ -270,11 +305,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
 
     if (isHLS && Hls.isSupported()) {
-      console.log('[VideoPlayer] Setting up HLS.js');
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-      });
+      console.log('[VideoPlayer] Setting up HLS.js', isOfflineHLS ? '(offline mode)' : '');
+      
+      // Use custom offline config if playing offline HLS content
+      const hlsConfig = isOfflineHLS 
+        ? { ...createOfflineHLSConfig(), enableWorker: true, lowLatencyMode: false }
+        : { enableWorker: true, lowLatencyMode: false };
+      
+      const hls = new Hls(hlsConfig);
 
       hls.loadSource(url);
       hls.attachMedia(videoElement);

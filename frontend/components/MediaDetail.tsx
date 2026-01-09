@@ -53,6 +53,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     downloadedMedia,
     activeDownload,
     downloadQueue,
+    selectQuality,
   } = useOfflineVideo();
 
   const [mediaInfo, setMediaInfo] = useState<VideoMediaInfo | null>(null);
@@ -765,24 +766,51 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
       </div>
 
       {/* Download Progress */}
-      {activeDownload && activeDownload.mediaId === mediaId && (
+      {activeDownload && activeDownload.mediaId === resolvedProviderId && (
         <div className="mx-4 mb-4 bg-neutral-950 border border-neutral-800 p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs uppercase tracking-wider text-neutral-500">
-              Downloading Episode {activeDownload.episode.number}
+              {activeDownload.status === 'awaiting_quality' 
+                ? `Select Quality - Episode ${activeDownload.episode.number}`
+                : `Downloading Episode ${activeDownload.episode.number}`
+              }
             </span>
-            <span className="text-xs text-neutral-400">
-              {activeDownload.progress}%
-            </span>
+            {activeDownload.status !== 'awaiting_quality' && (
+              <span className="text-xs text-neutral-400">
+                {activeDownload.progress}%
+              </span>
+            )}
           </div>
           
-          {/* Progress bar */}
-          <div className="w-full h-2 bg-neutral-800">
-            <div
-              className="h-full bg-white transition-all"
-              style={{ width: `${activeDownload.progress}%` }}
-            />
-          </div>
+          {/* Quality Selection for HLS */}
+          {activeDownload.status === 'awaiting_quality' && activeDownload.availableQualities && (
+            <div className="space-y-2">
+              {activeDownload.availableQualities.map((quality, index) => (
+                <button
+                  key={index}
+                  onClick={() => selectQuality(activeDownload.episode.id, quality)}
+                  className="w-full flex items-center justify-between p-3 border border-neutral-700 hover:border-white transition-colors text-left"
+                >
+                  <span className="font-medium">{quality.label}</span>
+                  <div className="text-xs text-neutral-500">
+                    {quality.bandwidth > 0 && (
+                      <span>{Math.round(quality.bandwidth / 1000)} kbps</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* Progress bar (when downloading) */}
+          {activeDownload.status !== 'awaiting_quality' && (
+            <div className="w-full h-2 bg-neutral-800">
+              <div
+                className="h-full bg-white transition-all"
+                style={{ width: `${activeDownload.progress}%` }}
+              />
+            </div>
+          )}
           
           {activeDownload.status === 'error' && (
             <p className="text-xs text-red-500 mt-2">{activeDownload.error}</p>

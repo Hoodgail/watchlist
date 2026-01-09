@@ -3,7 +3,7 @@
 // Implements chunked storage to prevent UI freezing on large video files
 
 const DB_NAME = 'watchlist-video';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Bumped for HLS segment storage
 
 // Chunk size: 5MB to prevent UI freezing during IDB writes
 const CHUNK_SIZE = 5 * 1024 * 1024;
@@ -14,6 +14,7 @@ const STORES = {
   EPISODES: 'episodes',
   BLOBS: 'blobs',
   CHUNKS: 'chunks', // Store for chunked video data (5MB each)
+  HLS_SEGMENTS: 'hls_segments', // Store for HLS TS segments
   WATCH_PROGRESS: 'watch_progress',
   SETTINGS: 'settings',
 } as const;
@@ -43,6 +44,20 @@ export interface OfflineVideoEpisode {
   subtitleBlobIds?: Record<string, string>; // lang -> blobId
   downloadedAt: Date;
   fileSize: number;
+  // HLS-specific fields
+  isHLS?: boolean;
+  hlsSegmentCount?: number;
+  hlsTotalDuration?: number;
+}
+
+// HLS segment stored in IndexedDB
+export interface StoredHLSSegment {
+  id: string; // Format: {episodeId}-seg-{index}
+  episodeId: string;
+  segmentIndex: number;
+  data: ArrayBuffer;
+  duration: number;
+  size: number;
 }
 
 export interface VideoStorageInfo {
@@ -183,6 +198,12 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORES.CHUNKS)) {
         const chunksStore = db.createObjectStore(STORES.CHUNKS, { keyPath: 'id' });
         chunksStore.createIndex('blobId', 'blobId', { unique: false });
+      }
+
+      // HLS segments store (for HLS TS segments)
+      if (!db.objectStoreNames.contains(STORES.HLS_SEGMENTS)) {
+        const hlsStore = db.createObjectStore(STORES.HLS_SEGMENTS, { keyPath: 'id' });
+        hlsStore.createIndex('episodeId', 'episodeId', { unique: false });
       }
 
       // Watch progress store
@@ -555,13 +576,20 @@ export async function deleteOfflineEpisode(episodeId: string): Promise<void> {
 
   const mediaId = episode.mediaId;
 
+  // Delete HLS segments if this is an HLS episode
+  if (episode.isHLS) {
+    await deleteHLSSegments(episodeId);
+  }
+
   // Delete video chunks if using chunked storage
   if (episode.videoChunkCount && episode.videoChunkCount > 0) {
     await deleteChunks(episode.videoBlobId);
   }
 
-  // Delete video blob metadata
-  await deleteFromStore(STORES.BLOBS, episode.videoBlobId);
+  // Delete video blob metadata (if not HLS)
+  if (episode.videoBlobId) {
+    await deleteFromStore(STORES.BLOBS, episode.videoBlobId);
+  }
 
   // Delete subtitle blobs
   if (episode.subtitleBlobIds) {
@@ -625,6 +653,7 @@ export async function getVideoStorageInfo(): Promise<VideoStorageInfo> {
   const episodes = await getAllFromStore<OfflineVideoEpisode>(STORES.EPISODES);
   const blobs = await getAllFromStore<StoredBlob>(STORES.BLOBS);
   const chunks = await getAllFromStore<StoredChunk>(STORES.CHUNKS);
+  const hlsSegments = await getAllFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS);
 
   // Calculate total blob size (non-chunked)
   let totalBlobSize = 0;
@@ -635,6 +664,11 @@ export async function getVideoStorageInfo(): Promise<VideoStorageInfo> {
   // Add chunk sizes
   for (const chunk of chunks) {
     totalBlobSize += chunk.size;
+  }
+
+  // Add HLS segment sizes
+  for (const seg of hlsSegments) {
+    totalBlobSize += seg.size;
   }
 
   // Add cover blobs from media
@@ -687,7 +721,7 @@ export function formatBytes(bytes: number): string {
 export async function clearAllVideoData(): Promise<void> {
   const db = await openDatabase();
 
-  const storeNames = [STORES.MEDIA, STORES.EPISODES, STORES.BLOBS, STORES.CHUNKS, STORES.WATCH_PROGRESS];
+  const storeNames = [STORES.MEDIA, STORES.EPISODES, STORES.BLOBS, STORES.CHUNKS, STORES.HLS_SEGMENTS, STORES.WATCH_PROGRESS];
   const transaction = db.transaction(storeNames, 'readwrite');
 
   await Promise.all(
@@ -759,3 +793,136 @@ export async function fetchSubtitleAsBlob(url: string): Promise<Blob> {
 
   return response.blob();
 }
+
+// ============ HLS Segment Storage ============
+
+/**
+ * Save an HLS segment to storage
+ */
+export async function saveHLSSegment(
+  episodeId: string,
+  segmentIndex: number,
+  data: Uint8Array,
+  duration: number
+): Promise<void> {
+  const segment: StoredHLSSegment = {
+    id: `${episodeId}-seg-${segmentIndex}`,
+    episodeId,
+    segmentIndex,
+    data: data.buffer as ArrayBuffer,
+    duration,
+    size: data.length,
+  };
+
+  await putToStore(STORES.HLS_SEGMENTS, segment);
+}
+
+/**
+ * Get a single HLS segment by index
+ */
+export async function getHLSSegment(
+  episodeId: string,
+  segmentIndex: number
+): Promise<Uint8Array | null> {
+  const id = `${episodeId}-seg-${segmentIndex}`;
+  const segment = await getFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS, id);
+  
+  if (!segment) return null;
+  
+  return new Uint8Array(segment.data);
+}
+
+/**
+ * Get all HLS segment metadata for an episode (without the data)
+ */
+export async function getHLSSegmentMetadata(
+  episodeId: string
+): Promise<Array<{ index: number; duration: number; size: number }>> {
+  const segments = await getByIndex<StoredHLSSegment>(STORES.HLS_SEGMENTS, 'episodeId', episodeId);
+  
+  return segments
+    .map((seg) => ({
+      index: seg.segmentIndex,
+      duration: seg.duration,
+      size: seg.size,
+    }))
+    .sort((a, b) => a.index - b.index);
+}
+
+/**
+ * Get all downloaded segment indices for an episode
+ */
+export async function getDownloadedSegmentIndices(episodeId: string): Promise<Set<number>> {
+  const metadata = await getHLSSegmentMetadata(episodeId);
+  return new Set(metadata.map((m) => m.index));
+}
+
+/**
+ * Delete all HLS segments for an episode
+ */
+export async function deleteHLSSegments(episodeId: string): Promise<void> {
+  const segments = await getByIndex<StoredHLSSegment>(STORES.HLS_SEGMENTS, 'episodeId', episodeId);
+  
+  for (const segment of segments) {
+    await deleteFromStore(STORES.HLS_SEGMENTS, segment.id);
+  }
+}
+
+/**
+ * Save an HLS episode with metadata
+ */
+export async function saveHLSEpisodeOffline(
+  mediaId: string,
+  episode: {
+    id: string;
+    episodeNumber: number;
+    title?: string;
+  },
+  segmentCount: number,
+  totalDuration: number,
+  totalSize: number,
+  subtitleBlobs?: Record<string, Blob>
+): Promise<void> {
+  // Save subtitle blobs if provided
+  const subtitleBlobIds: Record<string, string> = {};
+  if (subtitleBlobs) {
+    for (const [lang, subtitleBlob] of Object.entries(subtitleBlobs)) {
+      const subtitleBlobId = `subtitle-${episode.id}-${lang}`;
+      const subtitleStoredBlob: StoredBlob = {
+        id: subtitleBlobId,
+        blob: subtitleBlob,
+        type: 'subtitle' as const,
+        size: subtitleBlob.size,
+      };
+      await putToStore(STORES.BLOBS, subtitleStoredBlob);
+      subtitleBlobIds[lang] = subtitleBlobId;
+    }
+  }
+
+  // Save episode metadata
+  const offlineEpisode: OfflineVideoEpisode = {
+    id: episode.id,
+    mediaId,
+    episodeNumber: episode.episodeNumber,
+    title: episode.title,
+    duration: totalDuration,
+    videoBlobId: '', // Not used for HLS
+    isHLS: true,
+    hlsSegmentCount: segmentCount,
+    hlsTotalDuration: totalDuration,
+    subtitleBlobIds: Object.keys(subtitleBlobIds).length > 0 ? subtitleBlobIds : undefined,
+    downloadedAt: new Date(),
+    fileSize: totalSize,
+  };
+
+  await putToStore(STORES.EPISODES, offlineEpisode);
+
+  // Update media episode count
+  const media = await getFromStore<OfflineVideoMedia>(STORES.MEDIA, mediaId);
+  if (media) {
+    const downloadedEpisodes = await getByIndex<OfflineVideoEpisode>(STORES.EPISODES, 'mediaId', mediaId);
+    media.episodeCount = downloadedEpisodes.length;
+    await putToStore(STORES.MEDIA, media);
+  }
+}
+

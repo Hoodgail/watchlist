@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { formatBytes, VideoStorageInfo, requestPersistentStorage } from '../services/offlineVideoStorage';
+import { QualityOption } from '../services/hlsDownloader';
 
 interface VideoDownloadManagerProps {
   onMediaClick?: (mediaId: string) => void;
@@ -17,6 +18,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
     deleteOfflineMedia,
     deleteOfflineEpisode,
     getStorageInfo,
+    selectQuality,
   } = useOfflineVideo();
 
   const [storageInfo, setStorageInfo] = useState<VideoStorageInfo | null>(null);
@@ -206,31 +208,68 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
             </button>
           </div>
 
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-neutral-500">
-                {activeDownload.status === 'error' ? (
-                  <span className="text-red-500">Failed: {activeDownload.error}</span>
-                ) : (
-                  'Downloading...'
-                )}
-              </span>
-              <span className={
-                activeDownload.status === 'error' ? 'text-red-500' : 'text-neutral-500'
-              }>
-                {activeDownload.progress}%
-              </span>
+          {/* Quality Selection for HLS */}
+          {activeDownload.status === 'awaiting_quality' && activeDownload.availableQualities && (
+            <div className="space-y-3">
+              <p className="text-xs text-neutral-400 uppercase tracking-wider">Select Quality</p>
+              <div className="space-y-2">
+                {activeDownload.availableQualities.map((quality, index) => (
+                  <button
+                    key={index}
+                    onClick={() => selectQuality(activeDownload.episode.id, quality)}
+                    className="w-full flex items-center justify-between p-3 border border-neutral-700 hover:border-white transition-colors"
+                  >
+                    <span className="font-medium">{quality.label}</span>
+                    <div className="text-xs text-neutral-500">
+                      {quality.bandwidth > 0 && (
+                        <span>{Math.round(quality.bandwidth / 1000)} kbps</span>
+                      )}
+                      {(quality as QualityOption & { estimatedSize?: number }).estimatedSize && (
+                        <span className="ml-2">
+                          ~{formatBytes((quality as QualityOption & { estimatedSize?: number }).estimatedSize!)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="w-full h-1 bg-neutral-800">
-              <div
-                className={`h-full transition-all ${
-                  activeDownload.status === 'error' ? 'bg-red-500' : 'bg-white'
-                }`}
-                style={{ width: `${activeDownload.progress}%` }}
-              />
+          )}
+
+          {/* Progress Bar (when downloading) */}
+          {activeDownload.status !== 'awaiting_quality' && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-neutral-500">
+                  {activeDownload.status === 'error' ? (
+                    <span className="text-red-500">Failed: {activeDownload.error}</span>
+                  ) : activeDownload.isHLS ? (
+                    <span>
+                      Downloading segment {activeDownload.segmentsDownloaded || 0}/{activeDownload.totalSegments || '?'}
+                      {activeDownload.bytesDownloaded && (
+                        <span className="ml-2">({formatBytes(activeDownload.bytesDownloaded)})</span>
+                      )}
+                    </span>
+                  ) : (
+                    'Downloading...'
+                  )}
+                </span>
+                <span className={
+                  activeDownload.status === 'error' ? 'text-red-500' : 'text-neutral-500'
+                }>
+                  {activeDownload.progress}%
+                </span>
+              </div>
+              <div className="w-full h-1 bg-neutral-800">
+                <div
+                  className={`h-full transition-all ${
+                    activeDownload.status === 'error' ? 'bg-red-500' : 'bg-white'
+                  }`}
+                  style={{ width: `${activeDownload.progress}%` }}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

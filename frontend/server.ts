@@ -499,8 +499,9 @@ async function createServer() {
   }
   
   // Proxy M3U8 playlist - rewrites segment URLs to go through proxy
+  // Use ?raw=1 to get the original M3U8 content without URL rewriting (for downloads)
   app.get('/api/video/m3u8', async (req: Request, res: Response) => {
-    const { url, referer } = req.query;
+    const { url, referer, raw } = req.query;
     
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
@@ -508,6 +509,7 @@ async function createServer() {
     }
     
     const refererStr = typeof referer === 'string' ? referer : undefined;
+    const returnRaw = raw === '1' || raw === 'true';
     
     // Validate referer is from a trusted video platform
     if (!isAllowedReferer(refererStr)) {
@@ -522,7 +524,7 @@ async function createServer() {
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
       
-      console.log(`[Video] Proxying M3U8: ${url.substring(0, 80)}...`);
+      console.log(`[Video] Proxying M3U8${returnRaw ? ' (raw)' : ''}: ${url.substring(0, 80)}...`);
       
       const response = await fetch(url, {
         headers: {
@@ -541,6 +543,16 @@ async function createServer() {
       }
       
       let m3u8Content = await response.text();
+      
+      // If raw mode, return the original content without URL rewriting
+      // The client (HLS downloader) will handle URL resolution itself
+      if (returnRaw) {
+        res.set('Content-Type', 'application/vnd.apple.mpegurl');
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Cache-Control', 'no-cache');
+        res.send(m3u8Content);
+        return;
+      }
       
       // Rewrite URLs in M3U8 to go through our proxy
       // Handle both relative and absolute URLs
@@ -593,8 +605,10 @@ async function createServer() {
   });
   
   // Proxy video segments (TS files, encryption keys, etc.)
-  app.get('/api/video/segment', async (req: Request, res: Response) => {
+  // Support both GET and HEAD methods for size estimation
+  const handleSegmentProxy = async (req: Request, res: Response) => {
     const { url, referer } = req.query;
+    const isHead = req.method === 'HEAD';
     
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
@@ -615,6 +629,7 @@ async function createServer() {
       const refererOrigin = new URL(refererStr!).origin + '/';
       
       const response = await fetch(url, {
+        method: isHead ? 'HEAD' : 'GET',
         headers: {
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -630,18 +645,31 @@ async function createServer() {
         return;
       }
       
-      const buffer = await response.arrayBuffer();
       const contentType = response.headers.get('Content-Type') || 'video/mp2t';
+      const contentLength = response.headers.get('Content-Length');
       
       res.set('Content-Type', contentType);
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'public, max-age=3600'); // Cache segments for 1 hour
-      res.send(Buffer.from(buffer));
+      if (contentLength) {
+        res.set('Content-Length', contentLength);
+      }
+      
+      if (isHead) {
+        res.end();
+      } else {
+        const buffer = await response.arrayBuffer();
+        res.send(Buffer.from(buffer));
+      }
     } catch (error) {
       console.error('[Video] Segment proxy error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
-  });
+  };
+  
+  app.get('/api/video/segment', handleSegmentProxy);
+  app.head('/api/video/segment', handleSegmentProxy);
+ 
   
   // Proxy subtitles/VTT files
   app.get('/api/video/subtitle', async (req: Request, res: Response) => {

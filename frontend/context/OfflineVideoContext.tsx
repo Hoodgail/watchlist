@@ -20,9 +20,21 @@ import {
   fetchVideoAsBlob,
   requestPersistentStorage,
   initVideoDatabase,
+  saveHLSSegment,
+  saveHLSEpisodeOffline,
+  getDownloadedSegmentIndices,
+  formatBytes,
 } from '../services/offlineVideoStorage';
 import { updateWatchProgress as syncWatchProgressToBackend, getAccessToken } from '../services/api';
 import { getStreamingUrl } from '../services/video';
+import {
+  getQualityOptions,
+  downloadHLSStream,
+  estimateTotalSize,
+  parseM3U8,
+  QualityOption,
+  HLSDownloadProgress,
+} from '../services/hlsDownloader';
 
 // ============ Types ============
 
@@ -32,8 +44,16 @@ export interface VideoDownloadTask {
   episode: VideoEpisode;
   provider: VideoProviderName;
   progress: number; // 0-100
-  status: 'pending' | 'downloading' | 'completed' | 'error' | 'cancelled';
+  status: 'pending' | 'awaiting_quality' | 'downloading' | 'completed' | 'error' | 'cancelled';
   error?: string;
+  // HLS-specific fields
+  isHLS?: boolean;
+  selectedQuality?: QualityOption;
+  availableQualities?: QualityOption[];
+  estimatedSize?: number;
+  bytesDownloaded?: number;
+  segmentsDownloaded?: number;
+  totalSegments?: number;
 }
 
 interface OfflineVideoContextType {
@@ -57,6 +77,7 @@ interface OfflineVideoContextType {
   cancelDownload: (episodeId: string) => void;
   deleteOfflineMedia: (mediaId: string) => Promise<void>;
   deleteOfflineEpisode: (episodeId: string) => Promise<void>;
+  selectQuality: (episodeId: string, quality: QualityOption) => void;
   
   // Progress
   updateWatchProgress: (mediaId: string, episodeId: string, currentTime: number, duration: number, provider?: string) => Promise<void>;
@@ -235,12 +256,20 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (downloadQueue.length === 0) return;
     
     const task = downloadQueue[0];
+    
+    // If task is awaiting quality selection, don't start yet
+    if (task.status === 'awaiting_quality') {
+      setActiveDownload(task);
+      return;
+    }
+    
     console.log('[OfflineVideo] Starting download:', task.mediaTitle, 'Episode', task.episode.number);
     
     const updatedTask: VideoDownloadTask = { ...task, status: 'downloading' };
     setActiveDownload(updatedTask);
     
     downloadAbortController.current = new AbortController();
+    const signal = downloadAbortController.current.signal;
     
     try {
       // Fetch streaming sources using the same helper as VideoPlayer
@@ -254,18 +283,21 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
       
       // Check if download was cancelled while fetching sources
-      if (downloadAbortController.current.signal.aborted) {
+      if (signal.aborted) {
         console.log('[OfflineVideo] Download cancelled during source fetch:', task.episode.id);
         return;
       }
       
-      // For HLS streams, we can't directly download the video
-      // In the future, we could implement HLS segment downloading
+      // For HLS streams, use the HLS downloader
+      // IMPORTANT: Pass the ORIGINAL source URL, not the proxied URL
+      // The HLS downloader applies its own proxying internally
       if (streamingResult.isM3U8) {
-        throw new Error('HLS streams cannot be downloaded for offline playback yet. This feature is coming soon.');
+        const originalM3U8Url = streamingResult.sources.sources[0].url;
+        await processHLSDownload(task, originalM3U8Url, streamingResult.sources.headers?.Referer, signal);
+        return;
       }
       
-      // Download video with progress tracking
+      // For direct video files, download as blob
       const videoBlob = await fetchVideoAsBlob(
         streamingResult.url,
         undefined,
@@ -276,7 +308,7 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
       
       // Check if download was cancelled
-      if (downloadAbortController.current.signal.aborted) {
+      if (signal.aborted) {
         console.log('[OfflineVideo] Download cancelled:', task.episode.id);
         return;
       }
@@ -305,7 +337,7 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await refreshDownloadedContent();
       
     } catch (error) {
-      if (downloadAbortController.current?.signal.aborted) {
+      if (signal.aborted) {
         console.log('[OfflineVideo] Download cancelled:', task.episode.id);
         setDownloadQueue(prev => prev.slice(1));
         setActiveDownload(null);
@@ -328,6 +360,199 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }, 3000);
     }
   }, [downloadQueue, refreshDownloadedContent]);
+  
+  /**
+   * Process HLS download - handles quality selection and segment downloading
+   */
+  const processHLSDownload = async (
+    task: VideoDownloadTask,
+    m3u8Url: string,
+    referer: string | undefined,
+    signal: AbortSignal
+  ) => {
+    console.log('[OfflineVideo] Processing HLS download for:', task.episode.id, 'URL:', m3u8Url.substring(0, 60));
+    
+    // If we already have a selected quality, use it directly
+    let playlistUrl = m3u8Url;
+    
+    if (!task.selectedQuality) {
+      // Fetch quality options
+      console.log('[OfflineVideo] Fetching quality options...');
+      const qualities = await getQualityOptions(m3u8Url, referer);
+      console.log('[OfflineVideo] Got qualities:', qualities.length);
+      
+      if (signal.aborted) return;
+      
+      if (qualities.length > 1) {
+        // Multiple qualities - pause for user selection
+        console.log('[OfflineVideo] HLS has multiple qualities:', qualities.map(q => q.label));
+        
+        // Parse to estimate sizes for each quality (with timeout protection)
+        console.log('[OfflineVideo] Estimating sizes for each quality...');
+        const qualitiesWithSize = await Promise.all(
+          qualities.map(async (q) => {
+            try {
+              const parsed = await parseM3U8(q.url, referer);
+              if (parsed.segments && parsed.segments.length > 0) {
+                const size = await estimateTotalSize(parsed.segments, referer, 2);
+                console.log(`[OfflineVideo] Quality ${q.label}: ~${Math.round(size / 1024 / 1024)} MB`);
+                return { ...q, estimatedSize: size };
+              }
+            } catch (err) {
+              console.warn(`[OfflineVideo] Failed to estimate size for ${q.label}:`, err);
+            }
+            return q;
+          })
+        );
+        console.log('[OfflineVideo] Size estimation complete');
+        
+        if (signal.aborted) return;
+        
+        setDownloadQueue(prev => {
+          const updated = [...prev];
+          updated[0] = {
+            ...task,
+            status: 'awaiting_quality',
+            isHLS: true,
+            availableQualities: qualitiesWithSize as (QualityOption & { estimatedSize?: number })[],
+          };
+          return updated;
+        });
+        
+        setActiveDownload(prev => prev ? {
+          ...prev,
+          status: 'awaiting_quality',
+          isHLS: true,
+          availableQualities: qualitiesWithSize as (QualityOption & { estimatedSize?: number })[],
+        } : null);
+        
+        return; // Wait for user to select quality
+      }
+      
+      // Only one quality - use it directly
+      playlistUrl = qualities[0].url;
+    } else {
+      playlistUrl = task.selectedQuality.url;
+    }
+    
+    // Parse the media playlist
+    const parsed = await parseM3U8(playlistUrl, referer);
+    
+    if (!parsed.segments || parsed.segments.length === 0) {
+      throw new Error('No segments found in HLS playlist');
+    }
+    
+    if (signal.aborted) return;
+    
+    const totalSegments = parsed.segments.length;
+    const totalDuration = parsed.totalDuration || 0;
+    
+    // Estimate total size
+    const estimatedSize = await estimateTotalSize(parsed.segments, referer);
+    
+    // Check for size warning (> 500MB)
+    const SIZE_WARNING_THRESHOLD = 500 * 1024 * 1024; // 500MB
+    if (estimatedSize > SIZE_WARNING_THRESHOLD && !task.selectedQuality) {
+      console.log(`[OfflineVideo] Large download warning: ${formatBytes(estimatedSize)}`);
+      // For now, continue anyway - the UI can show a confirmation dialog
+    }
+    
+    // Check for previously downloaded segments (resumable)
+    const downloadedIndices = await getDownloadedSegmentIndices(task.episode.id);
+    
+    console.log('[OfflineVideo] Starting HLS segment download:', {
+      totalSegments,
+      alreadyDownloaded: downloadedIndices.size,
+      estimatedSize: formatBytes(estimatedSize),
+    });
+    
+    // Update state to show HLS-specific progress
+    setActiveDownload(prev => prev ? {
+      ...prev,
+      isHLS: true,
+      estimatedSize,
+      totalSegments,
+      segmentsDownloaded: downloadedIndices.size,
+      bytesDownloaded: 0,
+    } : null);
+    
+    let bytesDownloaded = 0;
+    
+    // Download segments
+    await downloadHLSStream(playlistUrl, {
+      signal,
+      referer,
+      downloadedSegments: downloadedIndices,
+      onSegmentDownloaded: async (index, data, duration, _totalSegments) => {
+        // Save segment to storage
+        await saveHLSSegment(task.episode.id, index, data, duration);
+        bytesDownloaded += data.length;
+      },
+      onProgress: (progress: HLSDownloadProgress) => {
+        setActiveDownload(prev => prev ? {
+          ...prev,
+          progress: progress.percentage,
+          bytesDownloaded: progress.bytesDownloaded,
+          segmentsDownloaded: progress.currentSegment + 1,
+          totalSegments: progress.totalSegments,
+          estimatedSize: progress.estimatedTotalBytes,
+        } : null);
+      },
+    });
+    
+    if (signal.aborted) {
+      console.log('[OfflineVideo] HLS download cancelled:', task.episode.id);
+      return;
+    }
+    
+    // Save HLS episode metadata
+    await saveHLSEpisodeOffline(
+      task.mediaId,
+      {
+        id: task.episode.id,
+        episodeNumber: task.episode.number,
+        title: task.episode.title,
+      },
+      totalSegments,
+      totalDuration,
+      bytesDownloaded
+    );
+    
+    console.log('[OfflineVideo] HLS Episode downloaded:', task.episode.id, formatBytes(bytesDownloaded));
+    
+    // Update downloaded episode IDs
+    setDownloadedEpisodeIds(prev => new Set([...prev, task.episode.id]));
+    
+    // Move to next task
+    setDownloadQueue(prev => prev.slice(1));
+    setActiveDownload(null);
+    
+    // Refresh content after successful download
+    await refreshDownloadedContent();
+  };
+  
+  /**
+   * User selected a quality for HLS download
+   */
+  const selectQuality = useCallback((episodeId: string, quality: QualityOption) => {
+    setDownloadQueue(prev => {
+      const updated = [...prev];
+      const taskIndex = updated.findIndex(t => t.episode.id === episodeId);
+      
+      if (taskIndex >= 0) {
+        updated[taskIndex] = {
+          ...updated[taskIndex],
+          status: 'pending',
+          selectedQuality: quality,
+        };
+      }
+      
+      return updated;
+    });
+    
+    // Trigger reprocessing
+    setActiveDownload(null);
+  }, []);
   
   const cancelDownload = useCallback((episodeId: string) => {
     // Cancel active download if it matches
@@ -449,6 +674,7 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     cancelDownload,
     deleteOfflineMedia: deleteOfflineMediaHandler,
     deleteOfflineEpisode: deleteOfflineEpisodeHandler,
+    selectQuality,
     updateWatchProgress: updateWatchProgressHandler,
     getWatchProgress: getWatchProgressHandler,
     isEpisodeDownloaded,
