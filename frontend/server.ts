@@ -349,7 +349,7 @@ async function createServer() {
   // Proxy images with browser-like headers to bypass hotlink protection
   
   app.get('/api/proxy/image', async (req: Request, res: Response) => {
-    const { url } = req.query;
+    const { url, referer } = req.query;
     
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
@@ -357,9 +357,9 @@ async function createServer() {
     }
     
     try {
-      // Parse URL to get origin for referer
+      // Use provided referer or fall back to image URL's origin
       const parsedUrl = new URL(url);
-      const origin = parsedUrl.origin;
+      const refererOrigin = typeof referer === 'string' ? referer : parsedUrl.origin;
       
       const response = await fetch(url, {
         headers: {
@@ -367,7 +367,7 @@ async function createServer() {
           'Accept-Encoding': 'gzip, deflate, br, zstd',
           'Accept-Language': 'en-US,en;q=0.9',
           'Priority': 'i',
-          'Referer': origin,
+          'Referer': refererOrigin,
           'Sec-Ch-Ua': '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
           'Sec-Ch-Ua-Mobile': '?0',
           'Sec-Ch-Ua-Platform': '"Windows"',

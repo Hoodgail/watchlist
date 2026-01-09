@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext';
 import { getWatchProgressForMedia, WatchProgressData, getAccessToken } from '../services/api';
 import { getOfflineEpisodesForMedia, OfflineVideoEpisode } from '../services/offlineVideoStorage';
 import ProviderMappingModal from './ProviderMappingModal';
+import { VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -23,14 +24,18 @@ interface MediaDetailProps {
   onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName, mediaTitle: string) => void;
 }
 
-// Helper to proxy image URLs through our server to bypass hotlink protection
-function proxyImageUrl(url: string | null): string | null {
+// Helper to proxy image URLs with provider referer
+function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
   if (!url) return null;
   // Don't proxy blob URLs or already-proxied URLs
   if (url.startsWith('blob:') || url.startsWith('/api/')) {
     return url;
   }
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  if (providerReferer) {
+    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
+  }
+  return proxyUrl;
 }
 
 export const MediaDetail: React.FC<MediaDetailProps> = ({
@@ -615,7 +620,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           <div className="flex-shrink-0 w-32">
             {mediaInfo.image || mediaInfo.cover ? (
               <img
-                src={proxyImageUrl(mediaInfo.image || mediaInfo.cover || null) || ''}
+                src={proxyImageUrl(mediaInfo.image || mediaInfo.cover || null, VIDEO_PROVIDER_BASE_URLS[provider]) || ''}
                 alt={mediaInfo.title}
                 className="w-full aspect-[2/3] object-cover bg-neutral-900 border border-neutral-800"
               />
@@ -1040,7 +1045,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                 {episode.image && (
                                   <div className="flex-shrink-0 w-20 h-12 bg-neutral-900 border border-neutral-800 overflow-hidden relative">
                                     <img
-                                      src={proxyImageUrl(episode.image) || ''}
+                                      src={proxyImageUrl(episode.image, VIDEO_PROVIDER_BASE_URLS[provider]) || ''}
                                       alt={`Episode ${episode.number}`}
                                       className="w-full h-full object-cover"
                                     />

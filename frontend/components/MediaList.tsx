@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress } from '../types';
+import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress, ProviderName } from '../types';
 import { STATUS_OPTIONS } from '../constants';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
 import type { GroupedListResponse, StatusGroupPagination } from '../services/api';
+import { extractProviderFromRefId } from '../services/mediaSearch';
 
 // ==================== Constants ====================
 
@@ -28,13 +29,48 @@ const FRIEND_ACTIVITY_OPTIONS: { value: FriendActivityFilter; label: string }[] 
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
+// Provider base URLs for referer headers
+const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
+  // Anime providers
+  'hianime': 'https://hianime.to',
+  'animepahe': 'https://animepahe.com',
+  'animekai': 'https://animekai.to',
+  'kickassanime': 'https://kickassanime.am',
+  // Movie/TV providers
+  'flixhq': 'https://flixhq.to',
+  'goku': 'https://goku.sx',
+  'sflix': 'https://sflix.to',
+  'himovies': 'https://himovies.to',
+  'dramacool': 'https://dramacool.ee',
+  // Manga providers
+  'mangadex': 'https://mangadex.org',
+  'mangahere': 'https://mangahere.cc',
+  'mangapill': 'https://mangapill.com',
+  'comick': 'https://comick.io',
+  'mangakakalot': 'https://mangakakalot.com',
+  'mangareader': 'https://mangareader.to',
+  'asurascans': 'https://asuracomic.net',
+  // Meta providers
+  'anilist': 'https://anilist.co',
+  'anilist-manga': 'https://anilist.co',
+  'tmdb': 'https://www.themoviedb.org',
+  // Other providers
+  'libgen': 'https://libgen.is',
+  'readlightnovels': 'https://readlightnovels.net',
+  'getcomics': 'https://getcomics.info',
+};
+
 // Helper to proxy image URLs through our server to bypass hotlink protection
-function proxyImageUrl(url: string): string {
+function proxyImageUrl(url: string, referer?: string): string {
   // Don't proxy blob URLs, already-proxied URLs, or TMDB images (they don't need proxying)
   if (url.startsWith('blob:') || url.startsWith('/api/') || url.includes('image.tmdb.org')) {
     return url;
   }
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  if (referer) {
+    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
+  }
+  return proxyUrl;
 }
 
 // Status group order and configuration
@@ -197,7 +233,7 @@ function StarIcon({ filled }: { filled: boolean }) {
 
 // ==================== Helper Functions ====================
 
-const getImageUrl = (imageUrl?: string): string | null => {
+const getImageUrl = (imageUrl?: string, refId?: string): string | null => {
   if (!imageUrl) return null;
   let url: string;
   if (imageUrl.startsWith('http')) {
@@ -207,8 +243,11 @@ const getImageUrl = (imageUrl?: string): string | null => {
   } else {
     url = imageUrl;
   }
+  // Get provider referer from refId if available
+  const provider = refId ? extractProviderFromRefId(refId) : null;
+  const referer = provider ? PROVIDER_BASE_URLS[provider] : undefined;
   // Proxy external images to bypass hotlink protection
-  return proxyImageUrl(url);
+  return proxyImageUrl(url, referer);
 };
 
 const getShortStatus = (status: MediaStatus): string => {
@@ -439,7 +478,7 @@ const CompactItemCard: React.FC<{
 }> = ({ item, onUpdate, onDelete, readonly, searchQuery }) => {
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   const config = getStatusConfig(item.status);
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = getImageUrl(item.imageUrl, item.refId);
   const [imageError, setImageError] = useState(false);
 
   const highlightText = (text: string, query: string) => {
@@ -547,7 +586,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
 
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = getImageUrl(item.imageUrl, item.refId);
   const config = getStatusConfig(item.status);
 
   const getStatusStyle = (status: MediaStatus) => {

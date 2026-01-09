@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { VideoProviderName, SearchResult } from '../types';
 import { searchWithProvider, PaginatedSearchResults } from '../services/mediaSearch';
 import { saveProviderMapping } from '../services/api';
-import { getWorkingProviders, getProviderDisplayName } from '../services/providerConfig';
+import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
 import { useToast } from '../context/ToastContext';
 
 interface ProviderMappingModalProps {
@@ -20,11 +20,15 @@ interface ProviderMappingModalProps {
   onClose: () => void;
 }
 
-// Helper to proxy image URLs
-function proxyImageUrl(url: string | null): string | null {
+// Helper to proxy image URLs with provider referer
+function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
   if (!url) return null;
   if (url.startsWith('blob:') || url.startsWith('/api/')) return url;
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  if (providerReferer) {
+    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
+  }
+  return proxyUrl;
 }
 
 export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
@@ -212,7 +216,7 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
                   <div className="flex-shrink-0 w-16">
                     {result.imageUrl ? (
                       <img
-                        src={proxyImageUrl(result.imageUrl) || ''}
+                        src={proxyImageUrl(result.imageUrl, VIDEO_PROVIDER_BASE_URLS[selectedProvider]) || ''}
                         alt={result.title}
                         className="w-full aspect-[2/3] object-cover border border-neutral-800 bg-neutral-900"
                         onError={(e) => {

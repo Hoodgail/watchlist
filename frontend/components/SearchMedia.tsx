@@ -3,13 +3,48 @@ import { MediaItem, SearchResult, ProviderInfo, ProviderName } from '../types';
 import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders } from '../services/mediaSearch';
 import { QuickAddModal } from './QuickAddModal';
 
+// Provider base URLs for referer headers
+const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
+  // Anime providers
+  'hianime': 'https://hianime.to',
+  'animepahe': 'https://animepahe.com',
+  'animekai': 'https://animekai.to',
+  'kickassanime': 'https://kickassanime.am',
+  // Movie/TV providers
+  'flixhq': 'https://flixhq.to',
+  'goku': 'https://goku.sx',
+  'sflix': 'https://sflix.to',
+  'himovies': 'https://himovies.to',
+  'dramacool': 'https://dramacool.ee',
+  // Manga providers
+  'mangadex': 'https://mangadex.org',
+  'mangahere': 'https://mangahere.cc',
+  'mangapill': 'https://mangapill.com',
+  'comick': 'https://comick.io',
+  'mangakakalot': 'https://mangakakalot.com',
+  'mangareader': 'https://mangareader.to',
+  'asurascans': 'https://asuracomic.net',
+  // Meta providers
+  'anilist': 'https://anilist.co',
+  'anilist-manga': 'https://anilist.co',
+  'tmdb': 'https://www.themoviedb.org',
+  // Other providers
+  'libgen': 'https://libgen.is',
+  'readlightnovels': 'https://readlightnovels.net',
+  'getcomics': 'https://getcomics.info',
+};
+
 // Helper to proxy image URLs through our server to bypass hotlink protection
-function proxyImageUrl(url: string): string {
+function proxyImageUrl(url: string, referer?: string): string {
   // Don't proxy blob URLs or already-proxied URLs
   if (url.startsWith('blob:') || url.startsWith('/api/')) {
     return url;
   }
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  if (referer) {
+    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
+  }
+  return proxyUrl;
 }
 
 interface SearchMediaProps {
@@ -345,7 +380,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                 {item.imageUrl && (
                   <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
                     <img
-                      src={proxyImageUrl(item.imageUrl)}
+                      src={proxyImageUrl(item.imageUrl, item.provider ? PROVIDER_BASE_URLS[item.provider] : undefined)}
                       alt={item.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {

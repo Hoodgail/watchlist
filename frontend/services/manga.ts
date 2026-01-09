@@ -15,6 +15,17 @@ export type MangaProviderName =
   | 'asurascans'
   | 'anilist-manga';
 
+// Provider base URLs for referer headers (mirrors backend providerRegistry.ts)
+export const MANGA_PROVIDER_BASE_URLS: Record<MangaProviderName, string> = {
+  'mangadex': 'https://mangadex.org',
+  'mangahere': 'https://mangahere.cc',
+  'mangapill': 'https://mangapill.com',
+  'comick': 'https://comick.io',
+  'mangareader': 'https://mangareader.to',
+  'asurascans': 'https://asuracomic.net',
+  'anilist-manga': 'https://anilist.co',
+};
+
 export interface MangaProvider {
   id: MangaProviderName;
   name: string;
@@ -480,13 +491,19 @@ export interface ChapterPageUrlsResult {
 
 /**
  * Helper to proxy image URLs through our server to bypass hotlink protection
+ * @param url - The image URL to proxy
+ * @param referer - Optional referer URL (e.g., provider's baseUrl) to use for the request
  */
-export function proxyImageUrl(url: string): string {
+export function proxyImageUrl(url: string, referer?: string): string {
   // Don't proxy blob URLs or already-proxied URLs
   if (url.startsWith('blob:') || url.startsWith('/api/')) {
     return url;
   }
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  if (referer) {
+    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
+  }
+  return proxyUrl;
 }
 
 /**
@@ -538,7 +555,7 @@ export async function getChapterPageUrls(
     
     // Regular MangaDex chapter
     const mangaDexPages = chapterInfo.pages as mediaSearch.MangaDexPageInfo[];
-    const urls = mangaDexPages.map(p => proxyImageUrl(p.img));
+    const urls = mangaDexPages.map(p => proxyImageUrl(p.img, MANGA_PROVIDER_BASE_URLS['mangadex']));
     return {
       urls,
       headers: mangaDexPages.map(() => undefined),
@@ -549,7 +566,8 @@ export async function getChapterPageUrls(
   
   // Other providers - use unified manga service
   const chapterPages = await getChapterPages(chapterId, provider);
-  const urls = chapterPages.pages.map(p => proxyImageUrl(p.img));
+  const providerBaseUrl = MANGA_PROVIDER_BASE_URLS[provider];
+  const urls = chapterPages.pages.map(p => proxyImageUrl(p.img, providerBaseUrl));
   const headers = chapterPages.pages.map(p => p.headerForImage);
   
   return {

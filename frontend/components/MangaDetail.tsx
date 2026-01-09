@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MangaDetails, ChapterInfo, VolumeWithChapters } from '../services/mangadexTypes';
 import * as mangaService from '../services/manga';
-import { MangaProviderName, MangaChapter } from '../services/manga';
+import { MangaProviderName, MangaChapter, MANGA_PROVIDER_BASE_URLS, proxyImageUrl as proxyImageUrlBase } from '../services/manga';
 import { isMangaPlusUrl } from '../services/mangaplus';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
@@ -14,14 +14,15 @@ interface MangaDetailProps {
   provider?: MangaProviderName;
 }
 
-// Helper to proxy image URLs through our server to bypass hotlink protection
-function proxyImageUrl(url: string | null): string | null {
+// Helper to proxy image URLs with provider referer
+function proxyImageUrl(url: string | null, provider: MangaProviderName = 'mangadex'): string | null {
   if (!url) return null;
   // Don't proxy blob URLs or already-proxied URLs
   if (url.startsWith('blob:') || url.startsWith('/api/')) {
     return url;
   }
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+  const referer = MANGA_PROVIDER_BASE_URLS[provider];
+  return proxyImageUrlBase(url, referer);
 }
 
 export const MangaDetail: React.FC<MangaDetailProps> = ({
@@ -393,7 +394,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
           <div className="flex-shrink-0 w-32">
             {offlineCoverUrl || manga.coverUrlSmall ? (
               <img
-                src={offlineCoverUrl || proxyImageUrl(manga.coverUrlSmall) || ''}
+                src={offlineCoverUrl || proxyImageUrl(manga.coverUrlSmall, provider) || ''}
                 alt={manga.title}
                 className="w-full aspect-[2/3] object-cover bg-neutral-900 border border-neutral-800"
               />

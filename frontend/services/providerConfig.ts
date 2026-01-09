@@ -234,3 +234,27 @@ export const ALL_VIDEO_PROVIDERS: VideoProviderName[] = [
   ...ANIME_PROVIDERS.map(p => p.name),
   ...MOVIE_PROVIDERS.map(p => p.name),
 ];
+
+// ============ Provider Base URLs ============
+// Used as referer headers for image proxying (mirrors backend providerRegistry.ts)
+
+export const VIDEO_PROVIDER_BASE_URLS: Record<VideoProviderName, string> = {
+  // Anime providers
+  'hianime': 'https://hianime.to',
+  'animepahe': 'https://animepahe.com',
+  'animekai': 'https://animekai.to',
+  'kickassanime': 'https://kickassanime.am',
+  // Movie/TV providers
+  'flixhq': 'https://flixhq.to',
+  'goku': 'https://goku.sx',
+  'sflix': 'https://sflix.to',
+  'himovies': 'https://himovies.to',
+  'dramacool': 'https://dramacool.ee',
+};
+
+/**
+ * Get the base URL for a video provider (for referer headers)
+ */
+export function getProviderBaseUrl(name: VideoProviderName): string {
+  return VIDEO_PROVIDER_BASE_URLS[name];
+}
