@@ -3,13 +3,15 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress } from '../types';
 import * as videoService from '../services/video';
 import { VideoMediaInfo } from '../services/video';
-import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD } from '../services/videoResolver';
+import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider } from '../services/videoResolver';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
 import { getWatchProgressForMedia, WatchProgressData, getAccessToken } from '../services/api';
 import { getOfflineEpisodesForMedia, OfflineVideoEpisode } from '../services/offlineVideoStorage';
 import ProviderMappingModal from './ProviderMappingModal';
+import MediaSelectionModal from './MediaSelectionModal';
 import { VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
+import { SearchResult } from '../types';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -82,6 +84,10 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const [isVerified, setIsVerified] = useState<boolean>(true);
   const [showLinkSourceModal, setShowLinkSourceModal] = useState(false);
   const [showConfidenceWarning, setShowConfidenceWarning] = useState(false);
+  
+  // Multi-match selection modal state
+  const [showSelectionModal, setShowSelectionModal] = useState(false);
+  const [selectionModalResults, setSelectionModalResults] = useState<SearchResult[]>([]);
 
   // Track if we've loaded for this mediaId to prevent duplicate loads
   const loadedForRef = useRef<string | null>(null);
@@ -169,6 +175,30 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         if (needsResolution(mediaId) && initialTitle) {
           console.log(`[MediaDetail] Resolving ${mediaId} via title search: "${initialTitle}"`);
           
+          // First, check if there are multiple matches with the same title
+          const multiMatchCheck = await checkForMultipleMatches(initialTitle, provider, mediaType);
+          
+          if (multiMatchCheck.multipleMatches) {
+            // Multiple sources found with same/similar name - show selection modal
+            console.log(`[MediaDetail] Multiple matches found (${multiMatchCheck.matches.length}), showing selection modal`);
+            
+            // Convert matches to SearchResult format for the modal
+            const searchResults: SearchResult[] = multiMatchCheck.matches.map(m => ({
+              id: `${provider}:${m.id}`,
+              title: m.title,
+              type: m.type || (mediaType === 'movie' ? 'MOVIE' : mediaType === 'tv' ? 'TV' : 'ANIME'),
+              year: m.year,
+              imageUrl: m.imageUrl,
+              description: m.description,
+            }));
+            
+            setSelectionModalResults(searchResults);
+            setShowSelectionModal(true);
+            setLoading(false);
+            return;
+          }
+          
+          // Single match or no exact matches - proceed with normal resolution
           const resolved = await resolveAndGetMediaInfo(
             mediaId,
             provider,
@@ -530,6 +560,44 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     loadMediaDetails();
   }, [showToast]);
 
+  // Handle when user selects from multiple matches modal
+  const handleMediaSelection = useCallback(async (result: SearchResult, selectedProvider: VideoProviderName) => {
+    setShowSelectionModal(false);
+    setLoading(true);
+    
+    try {
+      // Extract the provider ID from the result
+      let providerId = result.id;
+      const colonIndex = providerId.indexOf(':');
+      if (colonIndex !== -1) {
+        providerId = providerId.substring(colonIndex + 1);
+      }
+      
+      // Fetch media info for the selected result
+      const info = await videoService.getMediaInfo(selectedProvider, providerId);
+      
+      setResolvedProviderId(providerId);
+      setResolvedProvider(selectedProvider);
+      setMediaInfo(info);
+      setConfidence(1.0); // User-selected = high confidence
+      setIsVerified(true);
+      
+      // Expand first season by default
+      if (info.seasons && info.seasons.length > 0) {
+        setExpandedSeasons(new Set([info.seasons[0].season]));
+      } else if (info.episodes && info.episodes.length > 0) {
+        setExpandedSeasons(new Set([1]));
+      }
+      
+      showToast(`Selected "${result.title}"`, 'success');
+    } catch (err) {
+      console.error('[MediaDetail] Failed to load selected media:', err);
+      setError(`Failed to load "${result.title}"`);
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
   // Check if this is a movie (single content without episodes)
   const isMovie = mediaInfo?.type === 'Movie' || 
     (getAllEpisodes().length === 0 && !mediaInfo?.seasons?.length);
@@ -540,6 +608,30 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         <div className="text-neutral-600 uppercase tracking-wider text-sm animate-pulse">
           Loading media...
         </div>
+      </div>
+    );
+  }
+
+  // Show selection modal overlay if multiple matches were found
+  if (showSelectionModal) {
+    return (
+      <div className="fixed inset-0 bg-black z-50">
+        <MediaSelectionModal
+          title={initialTitle || ''}
+          initialResults={selectionModalResults}
+          currentProvider={provider}
+          mediaType={mediaType || 'tv'}
+          onSelect={handleMediaSelection}
+          onClose={() => {
+            setShowSelectionModal(false);
+            // If user cancels, proceed with the first result or close
+            if (selectionModalResults.length > 0) {
+              handleMediaSelection(selectionModalResults[0], provider);
+            } else {
+              onClose();
+            }
+          }}
+        />
       </div>
     );
   }

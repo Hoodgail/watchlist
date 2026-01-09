@@ -230,6 +230,72 @@ function findBestMatch(
   return null;
 }
 
+/**
+ * Find all results that have a high similarity match to the search title
+ * Used to detect when multiple sources have the same/similar name
+ */
+function findMatchingResults(
+  searchTitle: string,
+  results: PaginatedSearchResults,
+  mediaType?: 'movie' | 'tv' | 'anime'
+): { id: string; title: string; score: number; year?: number; type?: string; imageUrl?: string; description?: string }[] {
+  if (results.results.length === 0) return [];
+  
+  const normalizedSearchTitle = normalizeTitle(searchTitle);
+  const matches: { id: string; title: string; score: number; year?: number; type?: string; imageUrl?: string; description?: string }[] = [];
+  
+  for (const result of results.results) {
+    const normalizedResultTitle = normalizeTitle(result.title);
+    
+    // Check for exact or near-exact title match (after normalization)
+    const similarity = titleSimilarity(searchTitle, result.title);
+    
+    // Only include results with high similarity (exact or near-exact matches)
+    if (similarity >= 0.9 || normalizedSearchTitle === normalizedResultTitle) {
+      // Extract just the ID portion if it's in refId format (provider:id)
+      let id = result.id;
+      const colonIndex = id.indexOf(':');
+      if (colonIndex !== -1) {
+        const prefix = id.substring(0, colonIndex);
+        if (VIDEO_PROVIDER_SOURCES.includes(prefix as VideoProviderName)) {
+          id = id.substring(colonIndex + 1);
+        }
+      }
+      
+      matches.push({
+        id,
+        title: result.title,
+        score: similarity,
+        year: result.year,
+        type: result.type,
+        imageUrl: result.imageUrl,
+        description: result.description,
+      });
+    }
+  }
+  
+  return matches;
+}
+
+/**
+ * Check if there are multiple sources with the same or very similar title
+ * Returns the matching results if multiple found, null otherwise
+ */
+export async function checkForMultipleMatches(
+  title: string,
+  provider: VideoProviderName,
+  mediaType?: 'movie' | 'tv' | 'anime'
+): Promise<{ results: PaginatedSearchResults; multipleMatches: boolean; matches: ReturnType<typeof findMatchingResults> }> {
+  const searchResults = await searchWithProvider(title, provider);
+  const matches = findMatchingResults(title, searchResults, mediaType);
+  
+  return {
+    results: searchResults,
+    multipleMatches: matches.length > 1,
+    matches,
+  };
+}
+
 // ============ Resolution Functions ============
 
 /**
@@ -626,3 +692,6 @@ export {
   isProviderWorking,
   getProviderDisplayName,
 };
+
+// Re-export search function for components that need direct access
+export { searchWithProvider } from './mediaSearch';
