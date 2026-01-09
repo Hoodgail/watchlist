@@ -18,6 +18,8 @@ import {
   getAllWatchProgress,
   getVideoStorageInfo,
   fetchVideoAsBlob,
+  requestPersistentStorage,
+  initVideoDatabase,
 } from '../services/offlineVideoStorage';
 
 // ============ Types ============
@@ -106,6 +108,11 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // ============ Initialize ============
   
   useEffect(() => {
+    // Initialize database and request persistent storage
+    initVideoDatabase().then(() => {
+      console.log('[OfflineVideo] Database initialized with persistence request');
+    });
+    
     // Load downloaded content from IndexedDB
     refreshDownloadedContent();
     

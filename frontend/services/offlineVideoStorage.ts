@@ -1,14 +1,19 @@
 // IndexedDB Offline Video Storage Service
 // Manages offline storage for video media, episodes, and watch progress
+// Implements chunked storage to prevent UI freezing on large video files
 
 const DB_NAME = 'watchlist-video';
 const DB_VERSION = 1;
+
+// Chunk size: 5MB to prevent UI freezing during IDB writes
+const CHUNK_SIZE = 5 * 1024 * 1024;
 
 // Store names
 const STORES = {
   MEDIA: 'media',
   EPISODES: 'episodes',
   BLOBS: 'blobs',
+  CHUNKS: 'chunks', // Store for chunked video data (5MB each)
   WATCH_PROGRESS: 'watch_progress',
   SETTINGS: 'settings',
 } as const;
@@ -34,6 +39,7 @@ export interface OfflineVideoEpisode {
   title?: string;
   duration?: number;
   videoBlobId: string;
+  videoChunkCount?: number; // Number of chunks if using chunked storage
   subtitleBlobIds?: Record<string, string>; // lang -> blobId
   downloadedAt: Date;
   fileSize: number;
@@ -46,12 +52,22 @@ export interface VideoStorageInfo {
   estimatedSize: number;
   quota?: number;
   usage?: number;
+  isPersisted?: boolean; // Whether storage is persisted (won't be evicted)
 }
 
 interface StoredBlob {
   id: string;
   blob: Blob;
   type: 'video' | 'subtitle' | 'cover';
+  size: number;
+}
+
+// Chunk for storing large video blobs in smaller pieces
+interface StoredChunk {
+  id: string; // Format: {blobId}-chunk-{index}
+  blobId: string;
+  chunkIndex: number;
+  data: ArrayBuffer;
   size: number;
 }
 
@@ -71,6 +87,55 @@ interface VideoSetting {
 }
 
 let dbInstance: IDBDatabase | null = null;
+let persistenceRequested = false;
+
+// ============ Storage Persistence ============
+
+/**
+ * Request persistent storage to prevent browser from evicting data.
+ * Should be called on first load of the app.
+ * Returns true if persistence was granted, false otherwise.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (persistenceRequested) {
+    return checkPersistentStorage();
+  }
+
+  persistenceRequested = true;
+
+  if (!('storage' in navigator) || !('persist' in navigator.storage)) {
+    console.warn('[OfflineVideo] Storage persistence API not available');
+    return false;
+  }
+
+  try {
+    const isPersisted = await navigator.storage.persist();
+    if (isPersisted) {
+      console.log('[OfflineVideo] Storage persistence granted');
+    } else {
+      console.warn('[OfflineVideo] Storage persistence denied - data may be evicted');
+    }
+    return isPersisted;
+  } catch (error) {
+    console.error('[OfflineVideo] Failed to request persistent storage:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if storage is currently persisted.
+ */
+export async function checkPersistentStorage(): Promise<boolean> {
+  if (!('storage' in navigator) || !('persisted' in navigator.storage)) {
+    return false;
+  }
+
+  try {
+    return await navigator.storage.persisted();
+  } catch {
+    return false;
+  }
+}
 
 // ============ Database Initialization ============
 
@@ -108,10 +173,16 @@ function openDatabase(): Promise<IDBDatabase> {
         episodesStore.createIndex('downloadedAt', 'downloadedAt', { unique: false });
       }
 
-      // Blobs store (for video and subtitle data)
+      // Blobs store (for small blobs like subtitles and covers)
       if (!db.objectStoreNames.contains(STORES.BLOBS)) {
         const blobsStore = db.createObjectStore(STORES.BLOBS, { keyPath: 'id' });
         blobsStore.createIndex('type', 'type', { unique: false });
+      }
+
+      // Chunks store (for large video data stored in 5MB pieces)
+      if (!db.objectStoreNames.contains(STORES.CHUNKS)) {
+        const chunksStore = db.createObjectStore(STORES.CHUNKS, { keyPath: 'id' });
+        chunksStore.createIndex('blobId', 'blobId', { unique: false });
       }
 
       // Watch progress store
@@ -131,6 +202,8 @@ function openDatabase(): Promise<IDBDatabase> {
 
 export async function initVideoDatabase(): Promise<void> {
   await openDatabase();
+  // Request persistent storage on database init
+  await requestPersistentStorage();
 }
 
 // ============ Generic Store Operations ============
@@ -197,6 +270,108 @@ async function getByIndex<T>(
 
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(new Error(`Failed to get by index ${indexName}`));
+  });
+}
+
+// ============ Chunked Storage Operations ============
+
+/**
+ * Store a large blob as multiple 5MB chunks to prevent UI freezing.
+ * Uses requestIdleCallback/setTimeout to yield to the main thread between chunks.
+ */
+async function storeBlobAsChunks(
+  blobId: string,
+  blob: Blob,
+  contentType: string
+): Promise<number> {
+  const totalSize = blob.size;
+  const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
+
+  // Store metadata about the blob
+  const blobMetadata: StoredBlob = {
+    id: blobId,
+    blob: new Blob([], { type: contentType }), // Empty blob, actual data in chunks
+    type: 'video',
+    size: totalSize,
+  };
+  await putToStore(STORES.BLOBS, blobMetadata);
+
+  // Store each chunk with yielding to prevent UI freezing
+  for (let i = 0; i < chunkCount; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, totalSize);
+    const chunkBlob = blob.slice(start, end);
+
+    // Convert chunk to ArrayBuffer
+    const arrayBuffer = await chunkBlob.arrayBuffer();
+
+    const chunk: StoredChunk = {
+      id: `${blobId}-chunk-${i}`,
+      blobId,
+      chunkIndex: i,
+      data: arrayBuffer,
+      size: arrayBuffer.byteLength,
+    };
+
+    await putToStore(STORES.CHUNKS, chunk);
+
+    // Yield to main thread between chunks to prevent UI freezing
+    if (i < chunkCount - 1) {
+      await yieldToMainThread();
+    }
+  }
+
+  return chunkCount;
+}
+
+/**
+ * Retrieve and reassemble chunks back into a blob.
+ */
+async function getBlobFromChunks(blobId: string, chunkCount: number): Promise<Blob | null> {
+  const chunks = await getByIndex<StoredChunk>(STORES.CHUNKS, 'blobId', blobId);
+
+  if (chunks.length === 0) {
+    return null;
+  }
+
+  // Sort chunks by index
+  chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+
+  // Verify we have all chunks
+  if (chunks.length !== chunkCount) {
+    console.warn(`[OfflineVideo] Expected ${chunkCount} chunks but found ${chunks.length}`);
+  }
+
+  // Get content type from blob metadata
+  const blobMeta = await getFromStore<StoredBlob>(STORES.BLOBS, blobId);
+  const contentType = blobMeta?.blob?.type || 'video/mp4';
+
+  // Reassemble chunks into a single blob
+  const blobParts: ArrayBuffer[] = chunks.map((c) => c.data);
+  return new Blob(blobParts, { type: contentType });
+}
+
+/**
+ * Delete all chunks associated with a blob.
+ */
+async function deleteChunks(blobId: string): Promise<void> {
+  const chunks = await getByIndex<StoredChunk>(STORES.CHUNKS, 'blobId', blobId);
+
+  for (const chunk of chunks) {
+    await deleteFromStore(STORES.CHUNKS, chunk.id);
+  }
+}
+
+/**
+ * Yield to the main thread to prevent UI freezing during long operations.
+ */
+function yieldToMainThread(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(() => resolve(), { timeout: 50 });
+    } else {
+      setTimeout(resolve, 0);
+    }
   });
 }
 
@@ -274,17 +449,25 @@ export async function saveEpisodeOffline(
   videoBlob: Blob,
   subtitleBlobs?: Record<string, Blob>
 ): Promise<void> {
-  // Save video blob
   const videoBlobId = `video-${episode.id}`;
-  const videoStoredBlob: StoredBlob = {
-    id: videoBlobId,
-    blob: videoBlob,
-    type: 'video',
-    size: videoBlob.size,
-  };
-  await putToStore(STORES.BLOBS, videoStoredBlob);
+  let videoChunkCount: number | undefined;
 
-  // Save subtitle blobs if provided
+  // Use chunked storage for large videos (> CHUNK_SIZE) to prevent UI freezing
+  if (videoBlob.size > CHUNK_SIZE) {
+    console.log(`[OfflineVideo] Using chunked storage for ${formatBytes(videoBlob.size)} video`);
+    videoChunkCount = await storeBlobAsChunks(videoBlobId, videoBlob, videoBlob.type || 'video/mp4');
+  } else {
+    // Small video, store directly
+    const videoStoredBlob: StoredBlob = {
+      id: videoBlobId,
+      blob: videoBlob,
+      type: 'video',
+      size: videoBlob.size,
+    };
+    await putToStore(STORES.BLOBS, videoStoredBlob);
+  }
+
+  // Save subtitle blobs if provided (typically small, no chunking needed)
   const subtitleBlobIds: Record<string, string> = {};
   if (subtitleBlobs) {
     for (const [lang, subtitleBlob] of Object.entries(subtitleBlobs)) {
@@ -308,6 +491,7 @@ export async function saveEpisodeOffline(
     title: episode.title,
     duration: episode.duration,
     videoBlobId,
+    videoChunkCount,
     subtitleBlobIds: Object.keys(subtitleBlobIds).length > 0 ? subtitleBlobIds : undefined,
     downloadedAt: new Date(),
     fileSize: videoBlob.size,
@@ -337,10 +521,19 @@ export async function getOfflineVideoUrl(episodeId: string): Promise<string | nu
   const episode = await getOfflineEpisode(episodeId);
   if (!episode) return null;
 
-  const storedBlob = await getFromStore<StoredBlob>(STORES.BLOBS, episode.videoBlobId);
-  if (!storedBlob) return null;
+  let blob: Blob | null = null;
 
-  return URL.createObjectURL(storedBlob.blob);
+  // Check if video was stored in chunks
+  if (episode.videoChunkCount && episode.videoChunkCount > 0) {
+    blob = await getBlobFromChunks(episode.videoBlobId, episode.videoChunkCount);
+  } else {
+    const storedBlob = await getFromStore<StoredBlob>(STORES.BLOBS, episode.videoBlobId);
+    blob = storedBlob?.blob || null;
+  }
+
+  if (!blob) return null;
+
+  return URL.createObjectURL(blob);
 }
 
 export async function getOfflineSubtitleUrl(episodeId: string, lang: string): Promise<string | null> {
@@ -362,7 +555,12 @@ export async function deleteOfflineEpisode(episodeId: string): Promise<void> {
 
   const mediaId = episode.mediaId;
 
-  // Delete video blob
+  // Delete video chunks if using chunked storage
+  if (episode.videoChunkCount && episode.videoChunkCount > 0) {
+    await deleteChunks(episode.videoBlobId);
+  }
+
+  // Delete video blob metadata
   await deleteFromStore(STORES.BLOBS, episode.videoBlobId);
 
   // Delete subtitle blobs
@@ -426,11 +624,17 @@ export async function getVideoStorageInfo(): Promise<VideoStorageInfo> {
   const media = await getAllFromStore<OfflineVideoMedia>(STORES.MEDIA);
   const episodes = await getAllFromStore<OfflineVideoEpisode>(STORES.EPISODES);
   const blobs = await getAllFromStore<StoredBlob>(STORES.BLOBS);
+  const chunks = await getAllFromStore<StoredChunk>(STORES.CHUNKS);
 
-  // Calculate total blob size
+  // Calculate total blob size (non-chunked)
   let totalBlobSize = 0;
   for (const blob of blobs) {
     totalBlobSize += blob.size;
+  }
+
+  // Add chunk sizes
+  for (const chunk of chunks) {
+    totalBlobSize += chunk.size;
   }
 
   // Add cover blobs from media
@@ -444,6 +648,7 @@ export async function getVideoStorageInfo(): Promise<VideoStorageInfo> {
   // Get storage quota if available
   let quota: number | undefined;
   let usage: number | undefined;
+  let isPersisted: boolean | undefined;
 
   if ('storage' in navigator && 'estimate' in navigator.storage) {
     try {
@@ -455,6 +660,9 @@ export async function getVideoStorageInfo(): Promise<VideoStorageInfo> {
     }
   }
 
+  // Check persistence status
+  isPersisted = await checkPersistentStorage();
+
   return {
     mediaCount: media.length,
     episodeCount: episodes.length,
@@ -462,6 +670,7 @@ export async function getVideoStorageInfo(): Promise<VideoStorageInfo> {
     estimatedSize,
     quota,
     usage,
+    isPersisted,
   };
 }
 
@@ -478,25 +687,17 @@ export function formatBytes(bytes: number): string {
 export async function clearAllVideoData(): Promise<void> {
   const db = await openDatabase();
 
-  const transaction = db.transaction(
-    [STORES.MEDIA, STORES.EPISODES, STORES.BLOBS, STORES.WATCH_PROGRESS],
-    'readwrite'
-  );
+  const storeNames = [STORES.MEDIA, STORES.EPISODES, STORES.BLOBS, STORES.CHUNKS, STORES.WATCH_PROGRESS];
+  const transaction = db.transaction(storeNames, 'readwrite');
 
-  await Promise.all([
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.MEDIA).clear().onsuccess = () => resolve();
-    }),
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.EPISODES).clear().onsuccess = () => resolve();
-    }),
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.BLOBS).clear().onsuccess = () => resolve();
-    }),
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.WATCH_PROGRESS).clear().onsuccess = () => resolve();
-    }),
-  ]);
+  await Promise.all(
+    storeNames.map(
+      (storeName) =>
+        new Promise<void>((resolve) => {
+          transaction.objectStore(storeName).clear().onsuccess = () => resolve();
+        })
+    )
+  );
 }
 
 // ============ Video Download Utilities ============
