@@ -111,8 +111,11 @@ export interface GroupedListResponse {
   grandTotal: number;
 }
 
+export type MediaTypeFilter = 'video' | 'manga';
+
 export interface GroupedListFilters {
   type?: MediaType;
+  mediaTypeFilter?: MediaTypeFilter;
   search?: string;
   // Per-status pagination: { WATCHING: 1, COMPLETED: 2, ... }
   statusPages?: Partial<Record<MediaStatus, number>>;
@@ -442,6 +445,13 @@ export async function getGroupedUserList(
   const baseWhere: Prisma.MediaItemWhereInput = { userId };
   if (filters?.type) {
     baseWhere.type = filters.type;
+  } else if (filters?.mediaTypeFilter) {
+    // Filter by video (TV, MOVIE, ANIME) or manga (MANGA)
+    if (filters.mediaTypeFilter === 'video') {
+      baseWhere.type = { in: ['TV', 'MOVIE', 'ANIME'] };
+    } else if (filters.mediaTypeFilter === 'manga') {
+      baseWhere.type = 'MANGA';
+    }
   }
   if (filters?.search) {
     baseWhere.title = { contains: filters.search, mode: 'insensitive' };

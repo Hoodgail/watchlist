@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as listService from '../services/listService.js';
 import type { CreateMediaItemInput, UpdateMediaItemInput } from '../utils/schemas.js';
 import type { MediaType, MediaStatus } from '@prisma/client';
-import type { SortByOption } from '../services/listService.js';
+import type { SortByOption, MediaTypeFilter } from '../services/listService.js';
 
 export async function getList(
   req: Request<unknown, unknown, unknown, { 
@@ -41,6 +41,7 @@ export async function getList(
 export async function getGroupedList(
   req: Request<unknown, unknown, unknown, {
     type?: MediaType;
+    mediaTypeFilter?: MediaTypeFilter;
     search?: string;
     limit?: string;
     // Status pages as JSON string: {"WATCHING":1,"COMPLETED":2}
@@ -67,6 +68,7 @@ export async function getGroupedList(
     
     const filters: listService.GroupedListFilters = {
       type: req.query.type,
+      mediaTypeFilter: req.query.mediaTypeFilter,
       search: req.query.search,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
       statusPages,

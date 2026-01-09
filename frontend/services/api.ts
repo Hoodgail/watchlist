@@ -275,8 +275,11 @@ export interface GroupedListResponse {
   grandTotal: number;
 }
 
+export type MediaTypeFilter = 'video' | 'manga';
+
 interface GroupedListFilters {
   type?: MediaType;
+  mediaTypeFilter?: MediaTypeFilter;
   search?: string;
   statusPages?: Partial<Record<MediaStatus, number>>;
   limit?: number;
@@ -285,6 +288,7 @@ interface GroupedListFilters {
 export async function getMyGroupedList(filters?: GroupedListFilters): Promise<GroupedListResponse> {
   const params = new URLSearchParams();
   if (filters?.type) params.append('type', filters.type);
+  if (filters?.mediaTypeFilter) params.append('mediaTypeFilter', filters.mediaTypeFilter);
   if (filters?.search) params.append('search', filters.search);
   if (filters?.limit) params.append('limit', String(filters.limit));
   if (filters?.statusPages) params.append('statusPages', JSON.stringify(filters.statusPages));
