@@ -13,6 +13,7 @@ export const availableTables = {
   suggestions: false,
   oauthAccounts: false,
   avatarUrl: false,
+  watchProgress: false,
 };
 
 /**
@@ -55,6 +56,9 @@ async function cleanDatabase() {
   if (availableTables.oauthAccounts) {
     await safeDeleteMany(() => prisma.oAuthAccount.deleteMany());
   }
+  if (availableTables.watchProgress) {
+    await safeDeleteMany(() => prisma.watchProgress.deleteMany());
+  }
   
   await prisma.friendRequest.deleteMany();
   await prisma.friendship.deleteMany();
@@ -69,6 +73,7 @@ beforeAll(async () => {
   // Check which tables/columns are available
   availableTables.suggestions = await checkTableExists('suggestions');
   availableTables.oauthAccounts = await checkTableExists('oauth_accounts');
+  availableTables.watchProgress = await checkTableExists('watch_progress');
   
   // Check if avatar_url column exists on users table
   try {

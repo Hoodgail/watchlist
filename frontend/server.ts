@@ -469,6 +469,228 @@ async function createServer() {
     }
   });
 
+  // ============ Video Proxy Endpoints ============
+  // These bypass CORS/Referer restrictions for video streaming (M3U8, TS segments)
+  
+  // Allowed referer domains - these are the video embed sources we trust
+  // The actual video CDN domains (like sunburst93.live) change frequently,
+  // so we validate the referer instead
+  const ALLOWED_REFERER_DOMAINS = [
+    'megacloud.blog',
+    'megacloud.tv',
+    'rapid-cloud.co',
+    'rabbitstream.net',
+    'vidstream.pro',
+    'vidcloud.co',
+    'streameeeeee.site',
+  ];
+  
+  function isAllowedReferer(referer: string | undefined): boolean {
+    if (!referer) return false;
+    // try {
+    //   const parsed = new URL(referer);
+    //   return ALLOWED_REFERER_DOMAINS.some(domain => 
+    //     parsed.hostname === domain || parsed.hostname.endsWith('.' + domain)
+    //   );
+    // } catch {
+    //   return false;
+    // }
+    return true;
+  }
+  
+  // Proxy M3U8 playlist - rewrites segment URLs to go through proxy
+  app.get('/api/video/m3u8', async (req: Request, res: Response) => {
+    const { url, referer } = req.query;
+    
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'Missing url parameter' });
+      return;
+    }
+    
+    const refererStr = typeof referer === 'string' ? referer : undefined;
+    
+    // Validate referer is from a trusted video platform
+    if (!isAllowedReferer(refererStr)) {
+      console.warn('[Video] Blocked - invalid or missing referer:', refererStr);
+      res.status(403).json({ error: 'Invalid referer' });
+      return;
+    }
+    
+    try {
+      const parsedUrl = new URL(url);
+      const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
+      // Strip referer to just origin with trailing slash - CDNs expect this format
+      const refererOrigin = new URL(refererStr!).origin + '/';
+      
+      console.log(`[Video] Proxying M3U8: ${url.substring(0, 80)}...`);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': refererOrigin,
+          'Origin': new URL(refererStr!).origin,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`[Video] M3U8 fetch failed: ${response.status}`);
+        res.status(response.status).json({ error: 'Failed to fetch M3U8' });
+        return;
+      }
+      
+      let m3u8Content = await response.text();
+      
+      // Rewrite URLs in M3U8 to go through our proxy
+      // Handle both relative and absolute URLs
+      const lines = m3u8Content.split('\n');
+      const rewrittenLines = lines.map(line => {
+        const trimmedLine = line.trim();
+        
+        // Skip comments and empty lines
+        if (trimmedLine.startsWith('#') || trimmedLine === '') {
+          // But check for URI= in EXT-X-KEY and EXT-X-MAP tags
+          if (trimmedLine.includes('URI="')) {
+            return line.replace(/URI="([^"]+)"/g, (match, uri) => {
+              const absoluteUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl).href;
+              const proxyUri = `/api/video/segment?url=${encodeURIComponent(absoluteUri)}&referer=${encodeURIComponent(refererOrigin)}`;
+              return `URI="${proxyUri}"`;
+            });
+          }
+          return line;
+        }
+        
+        // If it's a URL line (segment or sub-playlist)
+        if (trimmedLine.startsWith('http')) {
+          // Absolute URL
+          if (trimmedLine.endsWith('.m3u8')) {
+            return `/api/video/m3u8?url=${encodeURIComponent(trimmedLine)}&referer=${encodeURIComponent(refererOrigin)}`;
+          }
+          return `/api/video/segment?url=${encodeURIComponent(trimmedLine)}&referer=${encodeURIComponent(refererOrigin)}`;
+        } else if (!trimmedLine.startsWith('#')) {
+          // Relative URL - convert to absolute then proxy
+          const absoluteUrl = new URL(trimmedLine, baseUrl).href;
+          if (trimmedLine.endsWith('.m3u8')) {
+            return `/api/video/m3u8?url=${encodeURIComponent(absoluteUrl)}&referer=${encodeURIComponent(refererOrigin)}`;
+          }
+          return `/api/video/segment?url=${encodeURIComponent(absoluteUrl)}&referer=${encodeURIComponent(refererOrigin)}`;
+        }
+        
+        return line;
+      });
+      
+      const rewrittenContent = rewrittenLines.join('\n');
+      
+      res.set('Content-Type', 'application/vnd.apple.mpegurl');
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Cache-Control', 'no-cache');
+      res.send(rewrittenContent);
+    } catch (error) {
+      console.error('[Video] M3U8 proxy error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Proxy video segments (TS files, encryption keys, etc.)
+  app.get('/api/video/segment', async (req: Request, res: Response) => {
+    const { url, referer } = req.query;
+    
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'Missing url parameter' });
+      return;
+    }
+    
+    const refererStr = typeof referer === 'string' ? referer : undefined;
+    
+    // Validate referer is from a trusted video platform
+    if (!isAllowedReferer(refererStr)) {
+      console.warn('[Video] Segment blocked - invalid referer:', refererStr);
+      res.status(403).json({ error: 'Invalid referer' });
+      return;
+    }
+    
+    try {
+      // Strip referer to just origin with trailing slash - CDNs expect this format
+      const refererOrigin = new URL(refererStr!).origin + '/';
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': refererOrigin,
+          'Origin': new URL(refererStr!).origin,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`[Video] Segment fetch failed: ${response.status} for ${url.substring(0, 60)}...`);
+        res.status(response.status).json({ error: 'Failed to fetch segment' });
+        return;
+      }
+      
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get('Content-Type') || 'video/mp2t';
+      
+      res.set('Content-Type', contentType);
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Cache-Control', 'public, max-age=3600'); // Cache segments for 1 hour
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('[Video] Segment proxy error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+  
+  // Proxy subtitles/VTT files
+  app.get('/api/video/subtitle', async (req: Request, res: Response) => {
+    const { url, referer } = req.query;
+    
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'Missing url parameter' });
+      return;
+    }
+    
+    const refererStr = typeof referer === 'string' ? referer : undefined;
+    
+    // Validate referer is from a trusted video platform
+    if (!isAllowedReferer(refererStr)) {
+      console.warn('[Video] Subtitle blocked - invalid referer:', refererStr);
+      res.status(403).json({ error: 'Invalid referer' });
+      return;
+    }
+    
+    try {
+      // Strip referer to just origin with trailing slash - CDNs expect this format
+      const refererOrigin = new URL(refererStr!).origin + '/';
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': '*/*',
+          'Referer': refererOrigin,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch subtitle' });
+        return;
+      }
+      
+      const content = await response.text();
+      const contentType = response.headers.get('Content-Type') || 'text/vtt';
+      
+      res.set('Content-Type', contentType);
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      res.send(content);
+    } catch (error) {
+      console.error('[Video] Subtitle proxy error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   let vite: any;
   let template: string;
 

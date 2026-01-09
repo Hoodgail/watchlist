@@ -13,14 +13,18 @@ import { PublicProfile } from './components/PublicProfile';
 import { MangaDetail } from './components/MangaDetail';
 import { ChapterReader } from './components/ChapterReader';
 import { DownloadManager } from './components/DownloadManager';
+import MediaDetail from './components/MediaDetail';
+import VideoPlayer from './components/VideoPlayer';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { useOffline } from './context/OfflineContext';
-import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter } from './types';
+import { OfflineVideoProvider } from './context/OfflineVideoContext';
+import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter, VideoProviderName, VideoEpisode, ProviderName } from './types';
 import { ChapterInfo } from './services/mangadexTypes';
 import * as api from './services/api';
 import * as manga from './services/manga';
 import { parseMangaRefId, MangaProviderName } from './services/manga';
+import { parseVideoRefId, DEFAULT_ANIME_PROVIDER, DEFAULT_MOVIE_PROVIDER } from './services/video';
 
 // Check if current path is OAuth callback
 const isOAuthCallbackPath = (path: string, search: string): boolean => {
@@ -69,6 +73,23 @@ const MainApp: React.FC = () => {
     chapterId: string;
     chapters: ChapterInfo[];
     provider: MangaProviderName;
+  } | null>(null);
+
+  // Video media detail state
+  const [selectedMedia, setSelectedMedia] = useState<{
+    id: string;
+    provider: VideoProviderName;
+    title?: string;
+    mediaType?: 'movie' | 'tv' | 'anime';
+  } | null>(null);
+
+  // Video player state
+  const [playerState, setPlayerState] = useState<{
+    mediaId: string;
+    episodeId: string;
+    episodes: VideoEpisode[];
+    provider: VideoProviderName;
+    mediaTitle: string;
   } | null>(null);
 
   // Load user's list when authenticated
@@ -300,6 +321,44 @@ const MainApp: React.FC = () => {
     }
   }, [readerState]);
 
+  // Video media handlers
+  const handleOpenMedia = useCallback((
+    mediaId: string,
+    provider: ProviderName,
+    title?: string,
+    mediaType?: 'movie' | 'tv' | 'anime'
+  ) => {
+    // Only handle video providers (anime, movie, tv types)
+    const videoProviders: VideoProviderName[] = ['hianime', 'animepahe', 'animekai', 'kickassanime', 'flixhq', 'goku', 'sflix', 'himovies', 'dramacool'];
+    if (videoProviders.includes(provider as VideoProviderName)) {
+      setSelectedMedia({ id: mediaId, provider: provider as VideoProviderName, title, mediaType });
+    }
+  }, []);
+
+  const handleCloseMedia = useCallback(() => {
+    setSelectedMedia(null);
+  }, []);
+
+  const handleWatchEpisode = useCallback((
+    mediaId: string,
+    episodeId: string,
+    episodes: VideoEpisode[],
+    provider: VideoProviderName,
+    mediaTitle: string
+  ) => {
+    setPlayerState({ mediaId, episodeId, episodes, provider, mediaTitle });
+  }, []);
+
+  const handleClosePlayer = useCallback(() => {
+    setPlayerState(null);
+  }, []);
+
+  const handleEpisodeChange = useCallback((episodeId: string) => {
+    if (playerState) {
+      setPlayerState({ ...playerState, episodeId });
+    }
+  }, [playerState]);
+
   // Open manga from list item (click on manga in readlist)
   const handleMangaItemClick = useCallback((item: MediaItem) => {
     if (item.type === 'MANGA' && item.refId) {
@@ -312,6 +371,26 @@ const MainApp: React.FC = () => {
       }
     }
   }, [handleOpenManga]);
+
+  // Open video media from list item (click on tv/movie/anime in watchlist)
+  const handleVideoItemClick = useCallback((item: MediaItem) => {
+    if ((item.type === 'TV' || item.type === 'MOVIE' || item.type === 'ANIME') && item.refId) {
+      // Determine media type for resolution
+      const mediaType: 'movie' | 'tv' | 'anime' = 
+        item.type === 'ANIME' ? 'anime' : 
+        item.type === 'MOVIE' ? 'movie' : 'tv';
+      
+      const parsed = parseVideoRefId(item.refId);
+      if (parsed) {
+        // Already a video provider ID - pass title for fallback
+        handleOpenMedia(parsed.mediaId, parsed.provider, item.title, mediaType);
+      } else {
+        // External ID (tmdb, anilist, etc.) - need title for resolution
+        const defaultProvider = item.type === 'ANIME' ? DEFAULT_ANIME_PROVIDER : DEFAULT_MOVIE_PROVIDER;
+        handleOpenMedia(item.refId, defaultProvider, item.title, mediaType);
+      }
+    }
+  }, [handleOpenMedia]);
 
   // Handle OAuth callback
   if (isOAuthCallback) {
@@ -363,6 +442,7 @@ const MainApp: React.FC = () => {
             items={myList.filter((i) => i.type !== 'MANGA')}
             onUpdate={handleUpdateMedia}
             onDelete={handleDeleteMedia}
+            onItemClick={handleVideoItemClick}
             readonly={false}
             filterStatus={watchlistFilter}
             friendActivityFilter={watchlistFriendFilter}
@@ -398,7 +478,7 @@ const MainApp: React.FC = () => {
           />
         );
       case 'SEARCH':
-        return <SearchMedia onAdd={handleAddMedia} />;
+        return <SearchMedia onAdd={handleAddMedia} onOpenMedia={handleOpenMedia} />;
       case 'TRENDING':
         return <TrendingPage onAdd={handleAddMedia} />;
       case 'FRIENDS':
@@ -474,6 +554,23 @@ const MainApp: React.FC = () => {
     );
   }
 
+  // Render video player overlay (check before MediaDetail since it's opened from MediaDetail)
+  if (playerState) {
+    return (
+      <OfflineVideoProvider>
+        <VideoPlayer
+          mediaId={playerState.mediaId}
+          episodeId={playerState.episodeId}
+          episodes={playerState.episodes}
+          onClose={handleClosePlayer}
+          onEpisodeChange={handleEpisodeChange}
+          provider={playerState.provider}
+          mediaTitle={playerState.mediaTitle}
+        />
+      </OfflineVideoProvider>
+    );
+  }
+
   // Render manga detail overlay
   if (selectedManga) {
     return (
@@ -483,6 +580,22 @@ const MainApp: React.FC = () => {
         onReadChapter={handleReadChapter}
         provider={selectedManga.provider}
       />
+    );
+  }
+
+  // Render video media detail overlay
+  if (selectedMedia) {
+    return (
+      <OfflineVideoProvider>
+        <MediaDetail
+          mediaId={selectedMedia.id}
+          provider={selectedMedia.provider}
+          title={selectedMedia.title}
+          mediaType={selectedMedia.mediaType}
+          onClose={handleCloseMedia}
+          onWatchEpisode={handleWatchEpisode}
+        />
+      </OfflineVideoProvider>
     );
   }
 

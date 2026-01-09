@@ -1,0 +1,845 @@
+// MediaDetail Component - Shows TV/Movie/Anime details with episode listing
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { VideoProviderName, VideoEpisode, VideoSeason } from '../types';
+import * as videoService from '../services/video';
+import { VideoMediaInfo } from '../services/video';
+import { resolveAndGetMediaInfo, needsResolution } from '../services/videoResolver';
+import { useOfflineVideo } from '../context/OfflineVideoContext';
+import { useToast } from '../context/ToastContext';
+
+interface MediaDetailProps {
+  /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
+  mediaId: string;
+  /** The video provider to use for playback */
+  provider: VideoProviderName;
+  /** Title for search-based resolution when mediaId is from external source */
+  title?: string;
+  /** Media type hint for better resolution */
+  mediaType?: 'movie' | 'tv' | 'anime';
+  onClose: () => void;
+  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName) => void;
+}
+
+// Helper to proxy image URLs through our server to bypass hotlink protection
+function proxyImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  // Don't proxy blob URLs or already-proxied URLs
+  if (url.startsWith('blob:') || url.startsWith('/api/')) {
+    return url;
+  }
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`;
+}
+
+export const MediaDetail: React.FC<MediaDetailProps> = ({
+  mediaId,
+  provider,
+  title: initialTitle,
+  mediaType,
+  onClose,
+  onWatchEpisode,
+}) => {
+  const { showToast } = useToast();
+  const {
+    isOnline,
+    downloadEpisode,
+    downloadEpisodes,
+    isEpisodeDownloaded,
+    isMediaDownloaded,
+    deleteOfflineMedia,
+    deleteOfflineEpisode,
+    getWatchProgress,
+    downloadedMedia,
+    activeDownload,
+    downloadQueue,
+  } = useOfflineVideo();
+
+  const [mediaInfo, setMediaInfo] = useState<VideoMediaInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedSeasons, setExpandedSeasons] = useState<Set<number>>(new Set());
+  const [selectedEpisodes, setSelectedEpisodes] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  
+  // Resolved provider ID - may differ from mediaId if resolution was needed
+  const resolvedProviderIdRef = useRef<string>(mediaId);
+  const resolvedProviderRef = useRef<VideoProviderName>(provider);
+
+  // Track if we've loaded for this mediaId to prevent duplicate loads
+  const loadedForRef = useRef<string | null>(null);
+
+  // Load media details
+  useEffect(() => {
+    // Avoid duplicate loads for the same mediaId
+    if (loadedForRef.current === `${mediaId}:${provider}`) return;
+    loadedForRef.current = `${mediaId}:${provider}`;
+    loadMediaDetails();
+  }, [mediaId, provider]);
+
+  const loadMediaDetails = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Try to load from offline storage first
+      const offlineMedia = downloadedMedia.find(m => m.id === mediaId);
+      
+      if (offlineMedia) {
+        // We have offline metadata but need full info
+        // If online, fetch fresh data; otherwise show limited info
+        if (!isOnline) {
+          // Create minimal media info from offline data
+          setMediaInfo({
+            id: offlineMedia.id,
+            title: offlineMedia.title,
+            totalEpisodes: offlineMedia.episodeCount,
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // If online, fetch fresh data
+      if (isOnline) {
+        // Check if the mediaId needs resolution (e.g., tmdb:12345 -> hianime ID)
+        if (needsResolution(mediaId) && initialTitle) {
+          console.log(`[MediaDetail] Resolving ${mediaId} via title search: "${initialTitle}"`);
+          
+          const resolved = await resolveAndGetMediaInfo(
+            mediaId,
+            provider,
+            initialTitle,
+            mediaType
+          );
+          
+          if (resolved) {
+            resolvedProviderIdRef.current = resolved.providerId;
+            resolvedProviderRef.current = resolved.provider;
+            setMediaInfo(resolved.mediaInfo);
+            
+            // Expand first season by default
+            if (resolved.mediaInfo.seasons && resolved.mediaInfo.seasons.length > 0) {
+              setExpandedSeasons(new Set([resolved.mediaInfo.seasons[0].season]));
+            } else if (resolved.mediaInfo.episodes && resolved.mediaInfo.episodes.length > 0) {
+              setExpandedSeasons(new Set([1]));
+            }
+          } else {
+            setError(`Could not find "${initialTitle}" on ${provider}. Try a different provider.`);
+          }
+        } else {
+          // Direct fetch - mediaId is already a provider-specific ID
+          try {
+            const info = await videoService.getMediaInfo(provider, mediaId);
+            resolvedProviderIdRef.current = mediaId;
+            resolvedProviderRef.current = provider;
+            setMediaInfo(info);
+            
+            // Expand first season by default
+            if (info.seasons && info.seasons.length > 0) {
+              setExpandedSeasons(new Set([info.seasons[0].season]));
+            } else if (info.episodes && info.episodes.length > 0) {
+              setExpandedSeasons(new Set([1]));
+            }
+          } catch (directErr) {
+            // Direct fetch failed - try resolution if we have a title
+            if (initialTitle) {
+              console.log(`[MediaDetail] Direct fetch failed, trying title search: "${initialTitle}"`);
+              const resolved = await resolveAndGetMediaInfo(
+                `fallback:${mediaId}`,
+                provider,
+                initialTitle,
+                mediaType
+              );
+              
+              if (resolved) {
+                resolvedProviderIdRef.current = resolved.providerId;
+                resolvedProviderRef.current = resolved.provider;
+                setMediaInfo(resolved.mediaInfo);
+                
+                if (resolved.mediaInfo.seasons && resolved.mediaInfo.seasons.length > 0) {
+                  setExpandedSeasons(new Set([resolved.mediaInfo.seasons[0].season]));
+                } else if (resolved.mediaInfo.episodes && resolved.mediaInfo.episodes.length > 0) {
+                  setExpandedSeasons(new Set([1]));
+                }
+              } else {
+                throw directErr; // Re-throw if resolution also failed
+              }
+            } else {
+              throw directErr;
+            }
+          }
+        }
+      } else if (!offlineMedia) {
+        setError('This media is not available offline');
+      }
+    } catch (err) {
+      console.error('Failed to load media:', err);
+      setError('Failed to load media details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getAllEpisodes = useCallback((): VideoEpisode[] => {
+    if (!mediaInfo) return [];
+    return videoService.getAllEpisodes(mediaInfo);
+  }, [mediaInfo]);
+
+  const getSeasons = useCallback((): VideoSeason[] => {
+    if (!mediaInfo) return [];
+    
+    // If seasons are provided, use them
+    if (mediaInfo.seasons && mediaInfo.seasons.length > 0) {
+      return mediaInfo.seasons;
+    }
+    
+    // If only episodes are provided, group them into a single "season"
+    if (mediaInfo.episodes && mediaInfo.episodes.length > 0) {
+      return [{
+        season: 1,
+        episodes: mediaInfo.episodes,
+      }];
+    }
+    
+    return [];
+  }, [mediaInfo]);
+
+  const toggleSeason = (season: number) => {
+    setExpandedSeasons(prev => {
+      const next = new Set(prev);
+      if (next.has(season)) {
+        next.delete(season);
+      } else {
+        next.add(season);
+      }
+      return next;
+    });
+  };
+
+  const toggleEpisodeSelection = (episodeId: string) => {
+    setSelectedEpisodes(prev => {
+      const next = new Set(prev);
+      if (next.has(episodeId)) {
+        next.delete(episodeId);
+      } else {
+        next.add(episodeId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllInSeason = (season: VideoSeason) => {
+    setSelectedEpisodes(prev => {
+      const next = new Set(prev);
+      season.episodes.forEach(ep => next.add(ep.id));
+      return next;
+    });
+  };
+
+  const deselectAllInSeason = (season: VideoSeason) => {
+    setSelectedEpisodes(prev => {
+      const next = new Set(prev);
+      season.episodes.forEach(ep => next.delete(ep.id));
+      return next;
+    });
+  };
+
+  const handleDownloadEpisode = async (episode: VideoEpisode) => {
+    if (!mediaInfo) return;
+
+    try {
+      // Use resolved provider ID for downloads
+      await downloadEpisode(resolvedProviderIdRef.current, mediaInfo.title, episode, resolvedProviderRef.current);
+      showToast('Episode queued for download', 'success');
+    } catch (err) {
+      showToast('Failed to start download', 'error');
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    if (!mediaInfo || selectedEpisodes.size === 0) return;
+
+    const allEpisodes = getAllEpisodes();
+    const episodesToDownload = allEpisodes.filter(ep => selectedEpisodes.has(ep.id));
+    
+    try {
+      // Use resolved provider ID for downloads
+      await downloadEpisodes(resolvedProviderIdRef.current, mediaInfo.title, episodesToDownload, resolvedProviderRef.current);
+      showToast(`Downloading ${episodesToDownload.length} episodes...`, 'success');
+      setSelectedEpisodes(new Set());
+      setIsSelectionMode(false);
+    } catch (err) {
+      showToast('Failed to start download', 'error');
+    }
+  };
+
+  const handleDownloadSeason = async (season: VideoSeason) => {
+    if (!mediaInfo) return;
+
+    try {
+      // Use resolved provider ID for downloads
+      await downloadEpisodes(resolvedProviderIdRef.current, mediaInfo.title, season.episodes, resolvedProviderRef.current);
+      showToast(`Downloading ${season.episodes.length} episodes...`, 'success');
+    } catch (err) {
+      showToast('Failed to start download', 'error');
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (!mediaInfo) return;
+
+    const allEpisodes = getAllEpisodes();
+    if (allEpisodes.length === 0) return;
+
+    setDownloadingAll(true);
+    try {
+      // Use resolved provider ID for downloads
+      await downloadEpisodes(resolvedProviderIdRef.current, mediaInfo.title, allEpisodes, resolvedProviderRef.current);
+      showToast(`Downloading all ${allEpisodes.length} episodes...`, 'success');
+    } catch (err) {
+      showToast('Failed to start download', 'error');
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
+  const handleDeleteMedia = async () => {
+    if (!confirm('Delete this media and all downloaded episodes?')) return;
+
+    try {
+      await deleteOfflineMedia(mediaId);
+      showToast('Media deleted from offline storage', 'success');
+    } catch (err) {
+      showToast('Failed to delete media', 'error');
+    }
+  };
+
+  const handleDeleteEpisode = async (episodeId: string) => {
+    try {
+      await deleteOfflineEpisode(episodeId);
+      showToast('Episode deleted', 'success');
+    } catch (err) {
+      showToast('Failed to delete episode', 'error');
+    }
+  };
+
+  const getEpisodeProgress = (episodeId: string): number | null => {
+    const progress = getWatchProgress(mediaId, episodeId);
+    if (!progress || progress.duration === 0) return null;
+    return (progress.currentTime / progress.duration) * 100;
+  };
+
+  const isEpisodeInQueue = (episodeId: string): boolean => {
+    return downloadQueue.some(task => task.episode.id === episodeId);
+  };
+
+  const isEpisodeDownloading = (episodeId: string): boolean => {
+    return activeDownload?.episode.id === episodeId;
+  };
+
+  const getDownloadProgress = (episodeId: string): number => {
+    if (activeDownload?.episode.id === episodeId) {
+      return activeDownload.progress;
+    }
+    return 0;
+  };
+
+  // Check if this is a movie (single content without episodes)
+  const isMovie = mediaInfo?.type === 'Movie' || 
+    (getAllEpisodes().length === 0 && !mediaInfo?.seasons?.length);
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+        <div className="text-neutral-600 uppercase tracking-wider text-sm animate-pulse">
+          Loading media...
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !mediaInfo) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center gap-4">
+        <div className="text-red-500 uppercase tracking-wider text-sm">{error || 'Media not found'}</div>
+        <button
+          onClick={onClose}
+          className="px-4 py-2 border border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-white transition-colors text-xs uppercase tracking-wider"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  const allEpisodes = getAllEpisodes();
+  const seasons = getSeasons();
+
+  return (
+    <div className="min-h-screen bg-black">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-black/95 backdrop-blur-sm border-b border-neutral-800 p-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onClose}
+            className="text-neutral-500 hover:text-white flex items-center gap-2 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="text-xs uppercase tracking-wider">Back</span>
+          </button>
+          
+          {!isOnline && (
+            <div className="flex items-center gap-2 text-red-500 text-xs uppercase tracking-wider">
+              <div className="w-2 h-2 bg-red-500 rounded-full" />
+              Offline
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Media Info */}
+      <div className="p-4 border-b border-neutral-800">
+        <div className="flex gap-4">
+          {/* Cover/Poster */}
+          <div className="flex-shrink-0 w-32">
+            {mediaInfo.image || mediaInfo.cover ? (
+              <img
+                src={proxyImageUrl(mediaInfo.image || mediaInfo.cover || null) || ''}
+                alt={mediaInfo.title}
+                className="w-full aspect-[2/3] object-cover bg-neutral-900 border border-neutral-800"
+              />
+            ) : (
+              <div className="w-full aspect-[2/3] bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-700 text-xs uppercase">
+                No Cover
+              </div>
+            )}
+          </div>
+
+          {/* Details */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold uppercase tracking-tight text-white mb-2 line-clamp-2">
+              {mediaInfo.title}
+            </h1>
+
+            {mediaInfo.production && (
+              <p className="text-sm text-neutral-500 mb-1">
+                By <span className="text-neutral-300">{mediaInfo.production}</span>
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-2 mt-2">
+              {mediaInfo.type && (
+                <span className="px-2 py-0.5 text-xs uppercase border border-neutral-700 text-neutral-400">
+                  {mediaInfo.type}
+                </span>
+              )}
+              
+              {mediaInfo.status && (
+                <span className={`px-2 py-0.5 text-xs uppercase border ${
+                  mediaInfo.status.toLowerCase() === 'completed' || mediaInfo.status.toLowerCase() === 'ended' 
+                    ? 'border-green-700 text-green-500' :
+                  mediaInfo.status.toLowerCase() === 'ongoing' || mediaInfo.status.toLowerCase() === 'returning series'
+                    ? 'border-blue-700 text-blue-400' :
+                  'border-neutral-800 text-neutral-500'
+                }`}>
+                  {mediaInfo.status}
+                </span>
+              )}
+              
+              {mediaInfo.releaseDate && (
+                <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500">
+                  {mediaInfo.releaseDate}
+                </span>
+              )}
+              
+              {mediaInfo.duration && (
+                <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500">
+                  {mediaInfo.duration}
+                </span>
+              )}
+              
+              <span className="px-2 py-0.5 text-xs border border-neutral-700 text-neutral-400 uppercase">
+                {videoService.getProviderDisplayName(provider)}
+              </span>
+            </div>
+
+            {/* Rating */}
+            {mediaInfo.rating && (
+              <div className="flex gap-4 mt-3 text-sm">
+                <div className="flex items-center gap-1 text-neutral-300">
+                  <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <span>{mediaInfo.rating.toFixed(1)}</span>
+                </div>
+                {mediaInfo.totalEpisodes && (
+                  <div className="flex items-center gap-1 text-neutral-500">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                    </svg>
+                    <span>{mediaInfo.totalEpisodes} episodes</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Country */}
+            {mediaInfo.country && (
+              <div className="mt-2 text-xs text-neutral-600 uppercase">
+                {mediaInfo.country}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Description */}
+        {mediaInfo.description && (
+          <div className="mt-4">
+            <p className="text-sm text-neutral-500 line-clamp-4">{mediaInfo.description}</p>
+          </div>
+        )}
+
+        {/* Genres */}
+        {mediaInfo.genres && mediaInfo.genres.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-4">
+            {mediaInfo.genres.slice(0, 10).map((genre, idx) => (
+              <span
+                key={idx}
+                className="px-2 py-0.5 text-xs bg-neutral-950 text-neutral-600 border border-neutral-800"
+              >
+                {genre}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Cast */}
+        {mediaInfo.casts && mediaInfo.casts.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs text-neutral-600 uppercase tracking-wider mb-1">Cast</p>
+            <p className="text-sm text-neutral-500 line-clamp-2">
+              {mediaInfo.casts.slice(0, 5).join(', ')}
+            </p>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {isMediaDownloaded(mediaId) ? (
+            <button
+              onClick={handleDeleteMedia}
+              className="px-4 py-2 text-xs uppercase tracking-wider border border-red-900 text-red-500 hover:bg-red-900/20 transition-colors"
+            >
+              Delete Offline
+            </button>
+          ) : null}
+          
+          {isMovie ? (
+            // Movie: Single watch button
+            <button
+              onClick={() => {
+                // For movies, create a single "episode" to watch using resolved provider ID
+                const movieEpisode: VideoEpisode = {
+                  id: resolvedProviderIdRef.current,
+                  number: 1,
+                  title: mediaInfo.title,
+                };
+                onWatchEpisode(resolvedProviderIdRef.current, resolvedProviderIdRef.current, [movieEpisode], resolvedProviderRef.current);
+              }}
+              className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
+            >
+              Watch Now
+            </button>
+          ) : (
+            <>
+              {isOnline && allEpisodes.length > 0 && (
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={downloadingAll}
+                  className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 disabled:opacity-50 transition-colors"
+                >
+                  {downloadingAll ? 'Starting...' : `Download All (${allEpisodes.length})`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Download Progress */}
+      {activeDownload && activeDownload.mediaId === mediaId && (
+        <div className="mx-4 mb-4 bg-neutral-950 border border-neutral-800 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs uppercase tracking-wider text-neutral-500">
+              Downloading Episode {activeDownload.episode.number}
+            </span>
+            <span className="text-xs text-neutral-400">
+              {activeDownload.progress}%
+            </span>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full h-2 bg-neutral-800">
+            <div
+              className="h-full bg-white transition-all"
+              style={{ width: `${activeDownload.progress}%` }}
+            />
+          </div>
+          
+          {activeDownload.status === 'error' && (
+            <p className="text-xs text-red-500 mt-2">{activeDownload.error}</p>
+          )}
+        </div>
+      )}
+
+      {/* Episodes/Seasons */}
+      {!isMovie && (
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4 border-b border-neutral-900 pb-2">
+            <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
+              Episodes {allEpisodes.length > 0 && `(${allEpisodes.length})`}
+            </h2>
+            
+            {allEpisodes.length > 0 && (
+              <button
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  if (isSelectionMode) setSelectedEpisodes(new Set());
+                }}
+                className="text-xs uppercase tracking-wider text-neutral-500 hover:text-white transition-colors"
+              >
+                {isSelectionMode ? 'Cancel' : 'Select'}
+              </button>
+            )}
+          </div>
+
+          {isSelectionMode && selectedEpisodes.size > 0 && (
+            <div className="sticky top-16 z-30 bg-neutral-950 border border-neutral-800 p-3 mb-4 flex items-center justify-between">
+              <span className="text-sm text-neutral-400">{selectedEpisodes.size} selected</span>
+              <button
+                onClick={handleDownloadSelected}
+                className="px-4 py-1 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
+              >
+                Download Selected
+              </button>
+            </div>
+          )}
+
+          {seasons.length === 0 ? (
+            <div className="text-neutral-600 text-center py-8 text-sm uppercase tracking-wider">
+              No episodes available
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {seasons.map(season => {
+                const isExpanded = expandedSeasons.has(season.season);
+                const allDownloaded = season.episodes.every(ep => isEpisodeDownloaded(ep.id));
+                const someDownloaded = season.episodes.some(ep => isEpisodeDownloaded(ep.id));
+                
+                return (
+                  <div key={season.season} className="border border-neutral-800">
+                    {/* Season Header */}
+                    <button
+                      onClick={() => toggleSeason(season.season)}
+                      className="w-full px-4 py-3 flex items-center justify-between bg-neutral-950 hover:bg-neutral-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold uppercase tracking-tight text-white">
+                          {seasons.length === 1 && !mediaInfo.seasons?.length
+                            ? 'Episodes'
+                            : `Season ${season.season}`}
+                        </span>
+                        <span className="text-sm text-neutral-600">
+                          {season.episodes.length} episodes
+                        </span>
+                        {allDownloaded && (
+                          <span className="text-xs text-green-500 uppercase">All Offline</span>
+                        )}
+                        {someDownloaded && !allDownloaded && (
+                          <span className="text-xs text-yellow-600 uppercase">Partial</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isOnline && !isSelectionMode && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadSeason(season);
+                            }}
+                            className="p-1 text-neutral-600 hover:text-white transition-colors"
+                            title="Download season"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </button>
+                        )}
+                        <svg
+                          className={`w-4 h-4 text-neutral-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Episode List */}
+                    {isExpanded && (
+                      <div className="divide-y divide-neutral-800">
+                        {isSelectionMode && (
+                          <div className="px-4 py-2 bg-black flex gap-4">
+                            <button
+                              onClick={() => selectAllInSeason(season)}
+                              className="text-xs text-neutral-500 hover:text-white transition-colors"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              onClick={() => deselectAllInSeason(season)}
+                              className="text-xs text-neutral-500 hover:text-white transition-colors"
+                            >
+                              Deselect All
+                            </button>
+                          </div>
+                        )}
+                        
+                        {season.episodes.map(episode => {
+                          const downloaded = isEpisodeDownloaded(episode.id);
+                          const isSelected = selectedEpisodes.has(episode.id);
+                          const progress = getEpisodeProgress(episode.id);
+                          const inQueue = isEpisodeInQueue(episode.id);
+                          const downloading = isEpisodeDownloading(episode.id);
+                          const downloadProgress = getDownloadProgress(episode.id);
+                          
+                          return (
+                            <div
+                              key={episode.id}
+                              className={`px-4 py-3 flex items-center justify-between transition-colors ${
+                                isSelected ? 'bg-neutral-900' : 'bg-black hover:bg-neutral-900'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                {isSelectionMode && (
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleEpisodeSelection(episode.id)}
+                                    className="w-4 h-4 bg-neutral-800 border-neutral-700"
+                                  />
+                                )}
+                                
+                                {/* Episode thumbnail */}
+                                {episode.image && (
+                                  <div className="flex-shrink-0 w-20 h-12 bg-neutral-900 border border-neutral-800 overflow-hidden">
+                                    <img
+                                      src={proxyImageUrl(episode.image) || ''}
+                                      alt={`Episode ${episode.number}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                )}
+                                
+                                <button
+                                  onClick={() => {
+                                    if (isSelectionMode) {
+                                      toggleEpisodeSelection(episode.id);
+                                    } else {
+                                      // Use resolved provider ID and provider for watching
+                                      onWatchEpisode(resolvedProviderIdRef.current, episode.id, allEpisodes, resolvedProviderRef.current);
+                                    }
+                                  }}
+                                  className="flex-1 text-left min-w-0"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-white">
+                                      E{episode.number}
+                                    </span>
+                                    {episode.title && (
+                                      <span className="text-neutral-500 truncate">
+                                        - {episode.title}
+                                      </span>
+                                    )}
+                                    {episode.isFiller && (
+                                      <span className="text-xs text-orange-500 uppercase">Filler</span>
+                                    )}
+                                  </div>
+                                  {episode.releaseDate && (
+                                    <div className="text-xs text-neutral-600 mt-1">
+                                      {episode.releaseDate}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Watch progress bar */}
+                                  {progress !== null && progress > 0 && (
+                                    <div className="w-full h-1 bg-neutral-800 mt-2">
+                                      <div
+                                        className="h-full bg-blue-500"
+                                        style={{ width: `${Math.min(progress, 100)}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {downloaded && !downloading && (
+                                  <span className="text-xs text-green-500 uppercase">Offline</span>
+                                )}
+                                {downloading && (
+                                  <div className="flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span className="text-xs text-blue-400">{downloadProgress}%</span>
+                                  </div>
+                                )}
+                                {inQueue && !downloading && (
+                                  <span className="text-xs text-neutral-500 uppercase">Queued</span>
+                                )}
+                                
+                                {!isSelectionMode && (
+                                  downloaded && !downloading ? (
+                                    <button
+                                      onClick={() => handleDeleteEpisode(episode.id)}
+                                      className="p-1 text-neutral-600 hover:text-red-500 transition-colors"
+                                      title="Delete offline"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  ) : isOnline && !inQueue && !downloading && (
+                                    <button
+                                      onClick={() => handleDownloadEpisode(episode)}
+                                      className="p-1 text-neutral-600 hover:text-white transition-colors"
+                                      title="Download"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                      </svg>
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MediaDetail;

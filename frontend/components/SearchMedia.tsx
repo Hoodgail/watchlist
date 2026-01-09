@@ -14,6 +14,7 @@ function proxyImageUrl(url: string): string {
 
 interface SearchMediaProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
+  onOpenMedia?: (mediaId: string, provider: ProviderName, title?: string, mediaType?: 'movie' | 'tv' | 'anime') => void;
 }
 
 const CATEGORIES: { value: SearchCategory; label: string }[] = [
@@ -65,7 +66,7 @@ const PROVIDER_NAMES: Record<ProviderName, string> = {
   'getcomics': 'GetComics',
 };
 
-export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
+export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) => {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('all');
   const [provider, setProvider] = useState<ProviderName | ''>('');
@@ -189,6 +190,11 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
       default:
         return 'EP';
     }
+  };
+
+  // Check if media type is video content (can be watched)
+  const isVideoType = (type: string) => {
+    return type === 'TV' || type === 'MOVIE' || type === 'ANIME';
   };
 
   return (
@@ -379,6 +385,24 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd }) => {
                   </span>
                 ) : (
                   <div className="flex-shrink-0 flex gap-2">
+                    {onOpenMedia && isVideoType(item.type) && item.provider && (
+                      <button
+                        onClick={() => {
+                          // Determine media type for resolution
+                          const mediaType: 'movie' | 'tv' | 'anime' | undefined = 
+                            item.type === 'ANIME' ? 'anime' : 
+                            item.type === 'MOVIE' ? 'movie' : 
+                            item.type === 'TV' ? 'tv' : undefined;
+                          onOpenMedia(item.id, item.provider!, item.title, mediaType);
+                        }}
+                        className="text-sm border border-blue-700 text-blue-400 px-3 py-2 hover:border-blue-500 hover:text-blue-300 transition-all uppercase rounded-none font-bold flex items-center gap-1"
+                      >
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                        Watch
+                      </button>
+                    )}
                     <button
                       onClick={() => handleQuickAdd(item)}
                       disabled={addingItems.has(item.id)}

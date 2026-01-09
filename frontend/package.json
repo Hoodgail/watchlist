@@ -14,8 +14,10 @@
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:vite --external:express --external:compression"
   },
   "dependencies": {
+    "@vidstack/react": "^1.12.13",
     "compression": "^1.8.1",
     "express": "^5.2.1",
+    "hls.js": "^1.6.15",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-helmet-async": "^2.0.5",

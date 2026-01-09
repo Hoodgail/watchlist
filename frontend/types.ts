@@ -14,6 +14,11 @@ export type ProviderName =
   | 'anilist' | 'anilist-manga' | 'tmdb'
   | 'libgen' | 'readlightnovels' | 'getcomics';
 
+// Video-specific provider types
+export type AnimeProviderName = 'hianime' | 'animepahe' | 'animekai' | 'kickassanime';
+export type MovieProviderName = 'flixhq' | 'goku' | 'sflix' | 'himovies' | 'dramacool';
+export type VideoProviderName = AnimeProviderName | MovieProviderName;
+
 export type MediaCategory = 'anime' | 'movie' | 'tv' | 'manga' | 'book' | 'lightnovel' | 'comic';
 
 export interface ProviderInfo {
@@ -121,6 +126,8 @@ export interface StreamingSource {
   url: string;
   quality?: string;
   isM3U8?: boolean;
+  isDASH?: boolean;
+  size?: number;
 }
 
 export interface StreamingSubtitle {
@@ -128,10 +135,52 @@ export interface StreamingSubtitle {
   lang: string;
 }
 
+export interface StreamingIntroOutro {
+  start: number;
+  end: number;
+}
+
 export interface StreamingSources {
   sources: StreamingSource[];
   subtitles?: StreamingSubtitle[];
   headers?: Record<string, string>;
+  intro?: StreamingIntroOutro;
+  outro?: StreamingIntroOutro;
+  download?: string;
+}
+
+// Video episode types
+export interface VideoEpisode {
+  id: string;
+  number: number;
+  title?: string;
+  description?: string;
+  image?: string;
+  releaseDate?: string;
+  isFiller?: boolean;
+  url?: string;
+  season?: number;
+}
+
+export interface VideoSeason {
+  season: number;
+  image?: string;
+  episodes: VideoEpisode[];
+}
+
+export interface VideoServer {
+  name: string;
+  url: string;
+}
+
+// Watch progress types
+export interface WatchProgress {
+  mediaId: string;
+  episodeId: string;
+  currentTime: number;
+  duration: number;
+  completed: boolean;
+  updatedAt: string;
 }
 
 // Chapter page types (for manga reading)

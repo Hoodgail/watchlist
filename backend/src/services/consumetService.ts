@@ -18,6 +18,14 @@ import * as bookProviders from './consumet/bookProviders.js';
 import * as lightNovelProviders from './consumet/lightNovelProviders.js';
 import * as comicProviders from './consumet/comicProviders.js';
 
+// Import custom extractors
+import {
+  extractorRegistry,
+  hasCustomExtractor,
+  extractWithCustom,
+  ExtractorContext,
+} from './consumet/extractors/index.js';
+
 import { 
   ProviderName,
   AnimeProviderName,
@@ -163,12 +171,41 @@ export async function getInfo(
 
 /**
  * Get streaming sources for an episode
+ * 
+ * This function first tries custom extractors (for providers like HiAnime
+ * that need special handling), then falls back to the Consumet library.
  */
 export async function getEpisodeSources(
   episodeId: string,
   provider: ProviderName,
   mediaId?: string
 ): Promise<UnifiedSourceResult | null> {
+  // Try custom extractor first if available
+  if (hasCustomExtractor(provider)) {
+    console.log(`[consumetService] Using custom extractor for ${provider}`);
+    
+    const context: ExtractorContext = {
+      episodeId,
+      mediaId,
+    };
+    
+    const result = await extractWithCustom(provider, context);
+    
+    if (result.success && result.sources) {
+      console.log(`[consumetService] Custom extractor succeeded for ${provider}`);
+      return result.sources;
+    }
+    
+    // If custom extractor says don't fallback, return null
+    if (result.shouldFallback === false) {
+      console.warn(`[consumetService] Custom extractor failed, no fallback: ${result.error}`);
+      return null;
+    }
+    
+    console.log(`[consumetService] Custom extractor failed, trying Consumet fallback: ${result.error}`);
+  }
+  
+  // Fallback to Consumet library
   // Anime providers
   if (ANIME_PROVIDERS.includes(provider as AnimeProviderName)) {
     return animeProviders.getEpisodeSources(episodeId, provider as AnimeProviderName);

@@ -86,6 +86,15 @@ export const suggestionQuerySchema = z.object({
   status: suggestionStatusEnum.optional(),
 });
 
+// Watch progress schemas
+export const updateWatchProgressSchema = z.object({
+  mediaId: z.string().min(1, 'Media ID is required'),
+  episodeId: z.string().optional(),
+  currentTime: z.number().min(0, 'Current time must be non-negative'),
+  duration: z.number().min(0, 'Duration must be non-negative'),
+  provider: z.string().min(1, 'Provider is required'),
+});
+
 // Types
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -93,3 +102,4 @@ export type CreateMediaItemInput = z.infer<typeof createMediaItemSchema>;
 export type UpdateMediaItemInput = z.infer<typeof updateMediaItemSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type CreateSuggestionInput = z.infer<typeof createSuggestionSchema>;
+export type UpdateWatchProgressInput = z.infer<typeof updateWatchProgressSchema>;
