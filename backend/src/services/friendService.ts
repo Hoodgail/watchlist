@@ -1,5 +1,7 @@
 import { prisma } from '../config/database.js';
 import { NotFoundError, ConflictError, ForbiddenError } from '../utils/errors.js';
+import type { ActiveProgress } from './listService.js';
+import { parseEpisodeNumber } from './listService.js';
 
 export interface FriendResponse {
   id: string;
@@ -211,6 +213,7 @@ export interface StatusGroupPagination {
     rating: number | null;
     imageUrl: string | null;
     refId: string | null;
+    activeProgress?: ActiveProgress | null;
   }[];
   total: number;
   hasMore: boolean;
@@ -338,13 +341,101 @@ export async function getGroupedFriendList(
   
   const statusResults = await Promise.all(statusQueries);
   
+  // Collect all items for active progress fetching
+  const allItems = statusResults.flatMap(r => r.data.items);
+  
+  // Get watch progress for video content (not MANGA)
+  const videoItems = allItems.filter(item => item.type !== 'MANGA');
+  const videoRefIds = videoItems.map(item => item.refId).filter((refId): refId is string => refId !== null);
+  const watchProgressMap = new Map<string, ActiveProgress>();
+  
+  if (videoRefIds.length > 0) {
+    // Look up provider mappings for all refIds to get provider-specific IDs
+    const providerMappings = await prisma.providerMapping.findMany({
+      where: { refId: { in: videoRefIds } },
+      select: { refId: true, providerId: true },
+    });
+    
+    const refIdToProviderIds = new Map<string, string[]>();
+    for (const mapping of providerMappings) {
+      const existing = refIdToProviderIds.get(mapping.refId) || [];
+      existing.push(mapping.providerId);
+      refIdToProviderIds.set(mapping.refId, existing);
+    }
+    
+    const allPossibleMediaIds = new Set<string>(videoRefIds);
+    for (const providerIds of refIdToProviderIds.values()) {
+      for (const providerId of providerIds) {
+        allPossibleMediaIds.add(providerId);
+      }
+    }
+    
+    // Get watch progress for the FRIEND, not the current user
+    const allProgress = await prisma.watchProgress.findMany({
+      where: {
+        userId: friendId,
+        mediaId: { in: Array.from(allPossibleMediaIds) },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    
+    const providerIdToRefId = new Map<string, string>();
+    for (const [refId, providerIds] of refIdToProviderIds) {
+      for (const providerId of providerIds) {
+        providerIdToRefId.set(providerId, refId);
+      }
+    }
+    
+    const progressByRefId = new Map<string, typeof allProgress>();
+    for (const progress of allProgress) {
+      const refId = providerIdToRefId.get(progress.mediaId) || progress.mediaId;
+      const existing = progressByRefId.get(refId) || [];
+      existing.push(progress);
+      progressByRefId.set(refId, existing);
+    }
+    
+    for (const [refId, progressEntries] of progressByRefId) {
+      const item = videoItems.find(i => i.refId === refId);
+      if (!item) continue;
+      
+      const incompleteProgress = progressEntries.find(p => !p.completed && p.currentTime > 0);
+      const activeEntry = incompleteProgress || progressEntries[0];
+      
+      if (activeEntry) {
+        const episodeNumber = parseEpisodeNumber(activeEntry.episodeId);
+        const percentComplete = activeEntry.duration > 0
+          ? (activeEntry.currentTime / activeEntry.duration) * 100
+          : 0;
+        
+        watchProgressMap.set(refId, {
+          episodeId: activeEntry.episodeId,
+          episodeNumber,
+          currentTime: activeEntry.currentTime,
+          duration: activeEntry.duration,
+          percentComplete: Math.round(percentComplete * 10) / 10,
+          completed: activeEntry.completed,
+          updatedAt: activeEntry.updatedAt,
+          provider: activeEntry.provider,
+        });
+      }
+    }
+  }
+  
+  // Helper to attach activeProgress to items
+  const attachActiveProgress = (item: typeof allItems[0]) => {
+    const activeProgress = item.type !== 'MANGA' && item.refId 
+      ? watchProgressMap.get(item.refId) || null 
+      : null;
+    return { ...item, activeProgress };
+  };
+  
   // Build groups object
   const groups = {} as GroupedFriendListResponse['groups'];
   let grandTotal = 0;
   
   for (const result of statusResults) {
     groups[result.status] = {
-      items: result.data.items,
+      items: result.data.items.map(attachActiveProgress),
       total: result.data.total,
       hasMore: result.data.hasMore,
       page: result.data.page,

@@ -25,6 +25,7 @@ export interface ActiveProgress {
   percentComplete: number;
   completed: boolean;
   updatedAt: Date;
+  provider: string;
 }
 
 export interface MediaItemResponse {
@@ -307,6 +308,7 @@ export async function getUserList(
           percentComplete: Math.round(percentComplete * 10) / 10, // Round to 1 decimal
           completed: activeEntry.completed,
           updatedAt: activeEntry.updatedAt,
+          provider: activeEntry.provider,
         });
       }
     }
@@ -558,6 +560,7 @@ export async function getGroupedUserList(
           percentComplete: Math.round(percentComplete * 10) / 10,
           completed: activeEntry.completed,
           updatedAt: activeEntry.updatedAt,
+          provider: activeEntry.provider,
         });
       }
     }
@@ -653,7 +656,7 @@ export async function getGroupedUserList(
 /**
  * Parse episode number from various episodeId formats
  */
-function parseEpisodeNumber(episodeId: string | undefined | null): number | null {
+export function parseEpisodeNumber(episodeId: string | undefined | null): number | null {
   if (!episodeId) return null;
   
   // Try direct number parse
