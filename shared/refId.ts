@@ -77,17 +77,6 @@ export function createRefId(source: string, id: string | number): string {
   return `${source}:${id}`;
 }
 
-/**
- * Create a local refId for items without external references
- * Uses a unique identifier to avoid collisions
- * 
- * @param uniqueId - A unique identifier (e.g., UUID, timestamp-based ID)
- * @returns A local refId (e.g., "local:abc123")
- */
-export function createLocalRefId(uniqueId: string): string {
-  return createRefId('local', uniqueId);
-}
-
 // ============ Parsing ============
 
 export interface ParsedRefId {

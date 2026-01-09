@@ -1,10 +1,8 @@
 import { prisma } from '../config/database.js';
-import { NotFoundError, ForbiddenError, ConflictError } from '../utils/errors.js';
+import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../utils/errors.js';
 import type { CreateMediaItemInput, UpdateMediaItemInput } from '../utils/schemas.js';
 import type { MediaType, MediaStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'crypto';
-import { createLocalRefId } from '@shared/refId.js';
 
 export interface FriendStatus {
   id: string;
@@ -689,10 +687,12 @@ export async function createMediaItem(
   userId: string,
   input: CreateMediaItemInput
 ): Promise<MediaItemResponse> {
+  // refId is required - it must be provided by the API caller
+  if (!input.refId) {
+    throw new BadRequestError('refId is required');
+  }
+
   try {
-    // Generate a unique local refId if none provided to avoid collisions
-    const refId = input.refId || createLocalRefId(randomUUID());
-    
     return await prisma.mediaItem.create({
       data: {
         userId,
@@ -704,7 +704,7 @@ export async function createMediaItem(
         notes: input.notes,
         rating: input.rating ?? null,
         imageUrl: input.imageUrl,
-        refId,
+        refId: input.refId,
       },
       select: mediaItemSelect,
     });
