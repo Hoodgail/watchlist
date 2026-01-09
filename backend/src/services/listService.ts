@@ -15,6 +15,20 @@ export interface FriendStatus {
   rating: number | null;
 }
 
+/**
+ * Active watch progress for video content
+ * Represents the most relevant playback state for resuming
+ */
+export interface ActiveProgress {
+  episodeId: string;
+  episodeNumber: number | null;
+  currentTime: number;
+  duration: number;
+  percentComplete: number;
+  completed: boolean;
+  updatedAt: Date;
+}
+
 export interface MediaItemResponse {
   id: string;
   title: string;
@@ -29,6 +43,7 @@ export interface MediaItemResponse {
   createdAt: Date;
   updatedAt: Date;
   friendsStatuses?: FriendStatus[];
+  activeProgress?: ActiveProgress | null;
 }
 
 const mediaItemSelect = {
@@ -109,6 +124,63 @@ export async function getUserList(
     });
   }
 
+  // Get watch progress for video content (not MANGA)
+  const videoItems = items.filter(item => item.type !== 'MANGA');
+  const videoRefIds = videoItems.map(item => item.refId);
+  
+  // Fetch watch progress for all video items
+  // We get all progress entries and then find the most relevant one for each media
+  const watchProgressMap = new Map<string, ActiveProgress>();
+  
+  if (videoRefIds.length > 0) {
+    // Get all watch progress for this user that might match our items
+    const allProgress = await prisma.watchProgress.findMany({
+      where: {
+        userId,
+        mediaId: { in: videoRefIds },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // Group progress by mediaId and find the active one
+    const progressByMedia = new Map<string, typeof allProgress>();
+    for (const progress of allProgress) {
+      const existing = progressByMedia.get(progress.mediaId) || [];
+      existing.push(progress);
+      progressByMedia.set(progress.mediaId, existing);
+    }
+
+    // For each media, determine the "active" progress
+    for (const [mediaId, progressEntries] of progressByMedia) {
+      // Find the item to get current episode count
+      const item = videoItems.find(i => i.refId === mediaId);
+      if (!item) continue;
+
+      // Find the most relevant progress entry:
+      // 1. If there's an incomplete episode, use that
+      // 2. Otherwise, use the most recently updated entry
+      const incompleteProgress = progressEntries.find(p => !p.completed && p.currentTime > 0);
+      const activeEntry = incompleteProgress || progressEntries[0];
+
+      if (activeEntry) {
+        const episodeNumber = parseEpisodeNumber(activeEntry.episodeId);
+        const percentComplete = activeEntry.duration > 0 
+          ? (activeEntry.currentTime / activeEntry.duration) * 100 
+          : 0;
+
+        watchProgressMap.set(mediaId, {
+          episodeId: activeEntry.episodeId,
+          episodeNumber,
+          currentTime: activeEntry.currentTime,
+          duration: activeEntry.duration,
+          percentComplete: Math.round(percentComplete * 10) / 10, // Round to 1 decimal
+          completed: activeEntry.completed,
+          updatedAt: activeEntry.updatedAt,
+        });
+      }
+    }
+  }
+
   // Get friends (users the current user is following)
   const friendships = await prisma.friendship.findMany({
     where: { followerId: userId },
@@ -117,8 +189,12 @@ export async function getUserList(
   
   const friendIds = friendships.map(f => f.followingId);
   
+  // If no friends, just attach watch progress and return
   if (friendIds.length === 0) {
-    return items;
+    return items.map(item => ({
+      ...item,
+      activeProgress: item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null,
+    }));
   }
 
   // Get refIds from user's items to find matching items in friends' lists
@@ -177,8 +253,8 @@ export async function getUserList(
     friendsMapByTitle.set(titleKey, existingByTitle);
   }
 
-  // Attach friends' statuses to each item
-  const itemsWithFriends: MediaItemResponse[] = items.map(item => {
+  // Attach friends' statuses and watch progress to each item
+  const itemsWithExtras: MediaItemResponse[] = items.map(item => {
     // First try to match by refId
     let friendsStatuses = item.refId ? friendsMapByRefId.get(item.refId) : undefined;
     
@@ -187,10 +263,50 @@ export async function getUserList(
       friendsStatuses = friendsMapByTitle.get(item.title.toLowerCase());
     }
     
-    return { ...item, friendsStatuses: friendsStatuses || [] };
+    // Get active progress for video content
+    const activeProgress = item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null;
+    
+    return { 
+      ...item, 
+      friendsStatuses: friendsStatuses || [],
+      activeProgress,
+    };
   });
 
-  return itemsWithFriends;
+  return itemsWithExtras;
+}
+
+/**
+ * Parse episode number from various episodeId formats
+ */
+function parseEpisodeNumber(episodeId: string | undefined | null): number | null {
+  if (!episodeId) return null;
+  
+  // Try direct number parse
+  const direct = parseInt(episodeId, 10);
+  if (!isNaN(direct) && direct > 0) {
+    return direct;
+  }
+
+  // Try patterns like "episode-5", "ep-5", "ep5"
+  const episodeMatch = episodeId.match(/(?:episode|ep)[-_]?(\d+)/i);
+  if (episodeMatch) {
+    return parseInt(episodeMatch[1], 10);
+  }
+
+  // Try pattern like "s1e5" or "s01e05"
+  const seasonEpMatch = episodeId.match(/s\d+e(\d+)/i);
+  if (seasonEpMatch) {
+    return parseInt(seasonEpMatch[1], 10);
+  }
+
+  // Try to find any number in the string as last resort
+  const anyNumber = episodeId.match(/(\d+)/);
+  if (anyNumber) {
+    return parseInt(anyNumber[1], 10);
+  }
+
+  return null;
 }
 
 export async function createMediaItem(

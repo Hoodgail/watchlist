@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus } from '../types';
+import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress } from '../types';
 import { STATUS_OPTIONS } from '../constants';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
 
@@ -91,6 +91,22 @@ const STATUS_GROUP_CONFIG: {
 // Local storage keys
 const COLLAPSE_STATE_KEY = 'medialist-collapse-state';
 const VIEW_MODE_KEY = 'medialist-view-mode';
+
+// ==================== Helpers ====================
+
+// Format time as "H:MM:SS" or "MM:SS"
+function formatTime(seconds: number): string {
+  if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
+  
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 // ==================== Icons ====================
 
@@ -627,13 +643,22 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
         <div className="flex gap-4">
           {/* Poster Image */}
           {imageUrl && !imageError && (
-            <div className="flex-shrink-0 w-16 sm:w-20">
+            <div className="flex-shrink-0 w-16 sm:w-20 relative">
               <img
                 src={imageUrl}
                 alt={item.title}
                 onError={() => setImageError(true)}
                 className="w-full aspect-[2/3] object-cover border border-neutral-800"
               />
+              {/* Playback progress bar overlay on poster */}
+              {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-800/80">
+                  <div
+                    className="h-full bg-red-500 transition-all duration-300"
+                    style={{ width: `${item.activeProgress.percentComplete}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -687,6 +712,18 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                 {item.notes && (
                   <span className="text-neutral-600 py-0.5" title="Has notes">
                     [NOTE]
+                  </span>
+                )}
+                {/* Resume indicator for video content with active progress */}
+                {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
+                  <span 
+                    className="text-red-400 py-0.5 flex items-center gap-1"
+                    title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
+                  >
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                    </svg>
+                    RESUME E{item.activeProgress.episodeNumber || '?'}
                   </span>
                 )}
               </div>

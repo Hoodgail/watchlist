@@ -52,6 +52,7 @@ export interface MediaItem {
   imageUrl?: string; // For TMDB/MangaHook images
   refId: string; // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
   friendsStatuses?: FriendStatus[]; // Friends who have this item
+  activeProgress?: ActiveProgress | null; // Current playback progress for video content
 }
 
 // User type for friends list display
@@ -179,6 +180,20 @@ export interface WatchProgress {
   episodeId: string;
   currentTime: number;
   duration: number;
+  completed: boolean;
+  updatedAt: string;
+}
+
+/**
+ * Active watch progress for video content returned with MediaItem
+ * Represents the most relevant playback state for resuming
+ */
+export interface ActiveProgress {
+  episodeId: string;
+  episodeNumber: number | null;
+  currentTime: number;
+  duration: number;
+  percentComplete: number;
   completed: boolean;
   updatedAt: string;
 }

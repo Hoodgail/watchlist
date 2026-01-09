@@ -329,6 +329,11 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     return (progress.currentTime / progress.duration) * 100;
   };
 
+  const isEpisodeCompleted = (episodeId: string): boolean => {
+    const progress = getWatchProgress(mediaId, episodeId);
+    return progress?.completed === true;
+  };
+
   const isEpisodeInQueue = (episodeId: string): boolean => {
     return downloadQueue.some(task => task.episode.id === episodeId);
   };
@@ -711,6 +716,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                           const downloaded = isEpisodeDownloaded(episode.id);
                           const isSelected = selectedEpisodes.has(episode.id);
                           const progress = getEpisodeProgress(episode.id);
+                          const completed = isEpisodeCompleted(episode.id);
                           const inQueue = isEpisodeInQueue(episode.id);
                           const downloading = isEpisodeDownloading(episode.id);
                           const downloadProgress = getDownloadProgress(episode.id);
@@ -732,14 +738,45 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                   />
                                 )}
                                 
+                                {/* Watched indicator (eye icon) */}
+                                {!isSelectionMode && (
+                                  <div className="flex-shrink-0 w-5">
+                                    {completed ? (
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                      </svg>
+                                    ) : progress !== null && progress > 0 ? (
+                                      <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 20 20" stroke="currentColor">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path strokeWidth="1.5" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" />
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-4 h-4 text-neutral-700" fill="none" viewBox="0 0 20 20" stroke="currentColor">
+                                        <path strokeWidth="1.5" d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path strokeWidth="1.5" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                )}
+                                
                                 {/* Episode thumbnail */}
                                 {episode.image && (
-                                  <div className="flex-shrink-0 w-20 h-12 bg-neutral-900 border border-neutral-800 overflow-hidden">
+                                  <div className="flex-shrink-0 w-20 h-12 bg-neutral-900 border border-neutral-800 overflow-hidden relative">
                                     <img
                                       src={proxyImageUrl(episode.image) || ''}
                                       alt={`Episode ${episode.number}`}
                                       className="w-full h-full object-cover"
                                     />
+                                    {/* Progress bar overlay on thumbnail */}
+                                    {progress !== null && progress > 0 && !completed && (
+                                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-800/80">
+                                        <div
+                                          className="h-full bg-red-500"
+                                          style={{ width: `${Math.min(progress, 100)}%` }}
+                                        />
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 
@@ -774,13 +811,16 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                   )}
                                   
                                   {/* Watch progress bar */}
-                                  {progress !== null && progress > 0 && (
+                                  {progress !== null && progress > 0 && !completed && (
                                     <div className="w-full h-1 bg-neutral-800 mt-2">
                                       <div
-                                        className="h-full bg-blue-500"
+                                        className="h-full bg-red-500"
                                         style={{ width: `${Math.min(progress, 100)}%` }}
                                       />
                                     </div>
+                                  )}
+                                  {completed && (
+                                    <div className="text-xs text-green-500 mt-1 uppercase">Watched</div>
                                   )}
                                 </button>
                               </div>
