@@ -196,27 +196,66 @@ export async function getUserList(
   const watchProgressMap = new Map<string, ActiveProgress>();
   
   if (videoRefIds.length > 0) {
+    // Look up provider mappings for all refIds to get provider-specific IDs
+    // WatchProgress uses provider-specific IDs (e.g., "jujutsu-kaisen-tv-534")
+    // while MediaItem uses external IDs (e.g., "tmdb:95479")
+    const providerMappings = await prisma.providerMapping.findMany({
+      where: {
+        refId: { in: videoRefIds },
+      },
+      select: {
+        refId: true,
+        providerId: true,
+      },
+    });
+
+    // Create a map from refId to all possible providerIds
+    const refIdToProviderIds = new Map<string, string[]>();
+    for (const mapping of providerMappings) {
+      const existing = refIdToProviderIds.get(mapping.refId) || [];
+      existing.push(mapping.providerId);
+      refIdToProviderIds.set(mapping.refId, existing);
+    }
+
+    // Collect all possible mediaIds to query (both refIds and providerIds)
+    const allPossibleMediaIds = new Set<string>(videoRefIds);
+    for (const providerIds of refIdToProviderIds.values()) {
+      for (const providerId of providerIds) {
+        allPossibleMediaIds.add(providerId);
+      }
+    }
+
     // Get all watch progress for this user that might match our items
     const allProgress = await prisma.watchProgress.findMany({
       where: {
         userId,
-        mediaId: { in: videoRefIds },
+        mediaId: { in: Array.from(allPossibleMediaIds) },
       },
       orderBy: { updatedAt: 'desc' },
     });
 
-    // Group progress by mediaId and find the active one
-    const progressByMedia = new Map<string, typeof allProgress>();
+    // Create a reverse lookup: providerId -> refId (for items that have mappings)
+    const providerIdToRefId = new Map<string, string>();
+    for (const [refId, providerIds] of refIdToProviderIds) {
+      for (const providerId of providerIds) {
+        providerIdToRefId.set(providerId, refId);
+      }
+    }
+
+    // Group progress by refId (normalize provider-specific IDs to refIds)
+    const progressByRefId = new Map<string, typeof allProgress>();
     for (const progress of allProgress) {
-      const existing = progressByMedia.get(progress.mediaId) || [];
+      // Check if this mediaId is a provider-specific ID that maps to a refId
+      const refId = providerIdToRefId.get(progress.mediaId) || progress.mediaId;
+      const existing = progressByRefId.get(refId) || [];
       existing.push(progress);
-      progressByMedia.set(progress.mediaId, existing);
+      progressByRefId.set(refId, existing);
     }
 
     // For each media, determine the "active" progress
-    for (const [mediaId, progressEntries] of progressByMedia) {
-      // Find the item to get current episode count
-      const item = videoItems.find(i => i.refId === mediaId);
+    for (const [refId, progressEntries] of progressByRefId) {
+      // Find the item by refId
+      const item = videoItems.find(i => i.refId === refId);
       if (!item) continue;
 
       // Find the most relevant progress entry:
@@ -231,7 +270,7 @@ export async function getUserList(
           ? (activeEntry.currentTime / activeEntry.duration) * 100 
           : 0;
 
-        watchProgressMap.set(mediaId, {
+        watchProgressMap.set(refId, {
           episodeId: activeEntry.episodeId,
           episodeNumber,
           currentTime: activeEntry.currentTime,
