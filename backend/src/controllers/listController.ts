@@ -38,6 +38,47 @@ export async function getList(
   }
 }
 
+export async function getGroupedList(
+  req: Request<unknown, unknown, unknown, {
+    type?: MediaType;
+    search?: string;
+    limit?: string;
+    // Status pages as JSON string: {"WATCHING":1,"COMPLETED":2}
+    statusPages?: string;
+  }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    
+    let statusPages: Partial<Record<MediaStatus, number>> | undefined;
+    if (req.query.statusPages) {
+      try {
+        statusPages = JSON.parse(req.query.statusPages);
+      } catch {
+        res.status(400).json({ error: 'Invalid statusPages format' });
+        return;
+      }
+    }
+    
+    const filters: listService.GroupedListFilters = {
+      type: req.query.type,
+      search: req.query.search,
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
+      statusPages,
+    };
+    
+    const result = await listService.getGroupedUserList(req.user.id, filters);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getItem(
   req: Request<{ id: string }>,
   res: Response,

@@ -91,6 +91,34 @@ export interface ListFilters {
   limit?: number;
 }
 
+// Grouped list types
+export interface StatusGroupPagination {
+  items: MediaItemResponse[];
+  total: number;
+  hasMore: boolean;
+  page: number;
+}
+
+export interface GroupedListResponse {
+  groups: {
+    WATCHING: StatusGroupPagination;
+    READING: StatusGroupPagination;
+    PAUSED: StatusGroupPagination;
+    PLAN_TO_WATCH: StatusGroupPagination;
+    COMPLETED: StatusGroupPagination;
+    DROPPED: StatusGroupPagination;
+  };
+  grandTotal: number;
+}
+
+export interface GroupedListFilters {
+  type?: MediaType;
+  search?: string;
+  // Per-status pagination: { WATCHING: 1, COMPLETED: 2, ... }
+  statusPages?: Partial<Record<MediaStatus, number>>;
+  limit?: number;
+}
+
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
@@ -393,6 +421,225 @@ export async function getUserList(
     totalPages,
     hasMore: page < totalPages,
   };
+}
+
+/**
+ * Get user's list grouped by status with per-group pagination.
+ * This is the preferred method for the main list view as it allows
+ * independent pagination of each status group.
+ */
+export async function getGroupedUserList(
+  userId: string,
+  filters?: GroupedListFilters
+): Promise<GroupedListResponse> {
+  const limit = Math.min(MAX_LIMIT, Math.max(1, filters?.limit ?? DEFAULT_LIMIT));
+  const statusPages = filters?.statusPages ?? {};
+  
+  // All statuses we need to fetch
+  const allStatuses: MediaStatus[] = ['WATCHING', 'READING', 'PAUSED', 'PLAN_TO_WATCH', 'COMPLETED', 'DROPPED'];
+  
+  // Build base where clause (without status)
+  const baseWhere: Prisma.MediaItemWhereInput = { userId };
+  if (filters?.type) {
+    baseWhere.type = filters.type;
+  }
+  if (filters?.search) {
+    baseWhere.title = { contains: filters.search, mode: 'insensitive' };
+  }
+  
+  // Fetch counts and items for each status in parallel
+  const statusQueries = allStatuses.map(async (status) => {
+    const page = Math.max(1, statusPages[status] ?? 1);
+    const skip = (page - 1) * limit;
+    
+    const where: Prisma.MediaItemWhereInput = { ...baseWhere, status };
+    
+    const [total, items] = await Promise.all([
+      prisma.mediaItem.count({ where }),
+      prisma.mediaItem.findMany({
+        where,
+        orderBy: [{ title: 'asc' }],
+        select: mediaItemSelect,
+        skip,
+        take: limit,
+      }),
+    ]);
+    
+    return {
+      status,
+      data: {
+        items,
+        total,
+        hasMore: skip + items.length < total,
+        page,
+      },
+    };
+  });
+  
+  const statusResults = await Promise.all(statusQueries);
+  
+  // Collect all items for additional data fetching
+  const allItems = statusResults.flatMap(r => r.data.items);
+  
+  // Get watch progress for video content
+  const videoItems = allItems.filter(item => item.type !== 'MANGA');
+  const videoRefIds = videoItems.map(item => item.refId);
+  const watchProgressMap = new Map<string, ActiveProgress>();
+  
+  if (videoRefIds.length > 0) {
+    const providerMappings = await prisma.providerMapping.findMany({
+      where: { refId: { in: videoRefIds } },
+      select: { refId: true, providerId: true },
+    });
+    
+    const refIdToProviderIds = new Map<string, string[]>();
+    for (const mapping of providerMappings) {
+      const existing = refIdToProviderIds.get(mapping.refId) || [];
+      existing.push(mapping.providerId);
+      refIdToProviderIds.set(mapping.refId, existing);
+    }
+    
+    const allPossibleMediaIds = new Set<string>(videoRefIds);
+    for (const providerIds of refIdToProviderIds.values()) {
+      for (const providerId of providerIds) {
+        allPossibleMediaIds.add(providerId);
+      }
+    }
+    
+    const allProgress = await prisma.watchProgress.findMany({
+      where: {
+        userId,
+        mediaId: { in: Array.from(allPossibleMediaIds) },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    
+    const providerIdToRefId = new Map<string, string>();
+    for (const [refId, providerIds] of refIdToProviderIds) {
+      for (const providerId of providerIds) {
+        providerIdToRefId.set(providerId, refId);
+      }
+    }
+    
+    const progressByRefId = new Map<string, typeof allProgress>();
+    for (const progress of allProgress) {
+      const refId = providerIdToRefId.get(progress.mediaId) || progress.mediaId;
+      const existing = progressByRefId.get(refId) || [];
+      existing.push(progress);
+      progressByRefId.set(refId, existing);
+    }
+    
+    for (const [refId, progressEntries] of progressByRefId) {
+      const item = videoItems.find(i => i.refId === refId);
+      if (!item) continue;
+      
+      const incompleteProgress = progressEntries.find(p => !p.completed && p.currentTime > 0);
+      const activeEntry = incompleteProgress || progressEntries[0];
+      
+      if (activeEntry) {
+        const episodeNumber = parseEpisodeNumber(activeEntry.episodeId);
+        const percentComplete = activeEntry.duration > 0
+          ? (activeEntry.currentTime / activeEntry.duration) * 100
+          : 0;
+        
+        watchProgressMap.set(refId, {
+          episodeId: activeEntry.episodeId,
+          episodeNumber,
+          currentTime: activeEntry.currentTime,
+          duration: activeEntry.duration,
+          percentComplete: Math.round(percentComplete * 10) / 10,
+          completed: activeEntry.completed,
+          updatedAt: activeEntry.updatedAt,
+        });
+      }
+    }
+  }
+  
+  // Get friends' statuses
+  const friendships = await prisma.friendship.findMany({
+    where: { followerId: userId },
+    select: { followingId: true },
+  });
+  const friendIds = friendships.map(f => f.followingId);
+  
+  let friendsMapByRefId = new Map<string, FriendStatus[]>();
+  let friendsMapByTitle = new Map<string, FriendStatus[]>();
+  
+  if (friendIds.length > 0) {
+    const refIds = allItems.filter(item => item.refId).map(item => item.refId as string);
+    
+    const friendsItems = await prisma.mediaItem.findMany({
+      where: {
+        userId: { in: friendIds },
+        OR: [
+          ...(refIds.length > 0 ? [{ refId: { in: refIds } }] : []),
+          { title: { in: allItems.map(i => i.title), mode: 'insensitive' as const } },
+        ],
+      },
+      select: {
+        title: true,
+        refId: true,
+        status: true,
+        current: true,
+        rating: true,
+        user: {
+          select: { id: true, username: true, displayName: true },
+        },
+      },
+    });
+    
+    for (const friendItem of friendsItems) {
+      const friendStatus: FriendStatus = {
+        id: friendItem.user.id,
+        username: friendItem.user.username,
+        displayName: friendItem.user.displayName,
+        status: friendItem.status,
+        current: friendItem.current,
+        rating: friendItem.rating,
+      };
+      
+      if (friendItem.refId) {
+        const existing = friendsMapByRefId.get(friendItem.refId) || [];
+        existing.push(friendStatus);
+        friendsMapByRefId.set(friendItem.refId, existing);
+      }
+      
+      const titleKey = friendItem.title.toLowerCase();
+      const existingByTitle = friendsMapByTitle.get(titleKey) || [];
+      existingByTitle.push(friendStatus);
+      friendsMapByTitle.set(titleKey, existingByTitle);
+    }
+  }
+  
+  // Attach extras to items and build response
+  const attachExtras = (item: typeof allItems[0]): MediaItemResponse => {
+    let friendsStatuses = item.refId ? friendsMapByRefId.get(item.refId) : undefined;
+    if (!friendsStatuses || friendsStatuses.length === 0) {
+      friendsStatuses = friendsMapByTitle.get(item.title.toLowerCase());
+    }
+    const activeProgress = item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null;
+    return {
+      ...item,
+      friendsStatuses: friendsStatuses || [],
+      activeProgress,
+    };
+  };
+  
+  // Build groups object
+  const groups = {} as GroupedListResponse['groups'];
+  let grandTotal = 0;
+  
+  for (const result of statusResults) {
+    groups[result.status] = {
+      items: result.data.items.map(attachExtras),
+      total: result.data.total,
+      hasMore: result.data.hasMore,
+      page: result.data.page,
+    };
+    grandTotal += result.data.total;
+  }
+  
+  return { groups, grandTotal };
 }
 
 /**

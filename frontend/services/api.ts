@@ -255,6 +255,71 @@ export async function getMyList(filters?: ListFilters): Promise<PaginatedListRes
   };
 }
 
+// Grouped list types for per-status pagination
+export interface StatusGroupPagination {
+  items: MediaItem[];
+  total: number;
+  hasMore: boolean;
+  page: number;
+}
+
+export interface GroupedListResponse {
+  groups: {
+    WATCHING: StatusGroupPagination;
+    READING: StatusGroupPagination;
+    PAUSED: StatusGroupPagination;
+    PLAN_TO_WATCH: StatusGroupPagination;
+    COMPLETED: StatusGroupPagination;
+    DROPPED: StatusGroupPagination;
+  };
+  grandTotal: number;
+}
+
+interface GroupedListFilters {
+  type?: MediaType;
+  search?: string;
+  statusPages?: Partial<Record<MediaStatus, number>>;
+  limit?: number;
+}
+
+export async function getMyGroupedList(filters?: GroupedListFilters): Promise<GroupedListResponse> {
+  const params = new URLSearchParams();
+  if (filters?.type) params.append('type', filters.type);
+  if (filters?.search) params.append('search', filters.search);
+  if (filters?.limit) params.append('limit', String(filters.limit));
+  if (filters?.statusPages) params.append('statusPages', JSON.stringify(filters.statusPages));
+
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetchWithAuth(`/list/grouped${query}`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch grouped list');
+  }
+
+  const data = await response.json();
+  
+  // Transform items in each group
+  const transformGroup = (group: any): StatusGroupPagination => ({
+    items: group.items.map(transformBackendItem),
+    total: group.total,
+    hasMore: group.hasMore,
+    page: group.page,
+  });
+
+  return {
+    groups: {
+      WATCHING: transformGroup(data.groups.WATCHING),
+      READING: transformGroup(data.groups.READING),
+      PAUSED: transformGroup(data.groups.PAUSED),
+      PLAN_TO_WATCH: transformGroup(data.groups.PLAN_TO_WATCH),
+      COMPLETED: transformGroup(data.groups.COMPLETED),
+      DROPPED: transformGroup(data.groups.DROPPED),
+    },
+    grandTotal: data.grandTotal,
+  };
+}
+
 export async function addToList(item: Omit<MediaItem, 'id'>): Promise<MediaItem> {
   // Backend expects: { title, type, status, current, total?, notes?, rating?, imageUrl?, refId? }
   const payload = {

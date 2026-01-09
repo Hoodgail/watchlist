@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { MediaList } from './components/MediaList';
@@ -53,15 +53,10 @@ const MainApp: React.FC = () => {
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
 
-  // User's own list
-  const [myList, setMyList] = useState<MediaItem[]>([]);
+  // User's own list - grouped by status for proper pagination
+  const [groupedList, setGroupedList] = useState<api.GroupedListResponse | null>(null);
   const [listLoading, setListLoading] = useState(false);
-  const [listPagination, setListPagination] = useState<{
-    total: number;
-    hasMore: boolean;
-    page: number;
-  }>({ total: 0, hasMore: false, page: 1 });
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadingStatuses, setLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
 
   // Filter and sort state
   const [watchlistFilter, setWatchlistFilter] = useState<MediaStatus | ''>('');
@@ -70,6 +65,16 @@ const MainApp: React.FC = () => {
   const [readlistFilter, setReadlistFilter] = useState<MediaStatus | ''>('');
   const [readlistSort, setReadlistSort] = useState<SortBy>('status');
   const [readlistFriendFilter, setReadlistFriendFilter] = useState<FriendActivityFilter>('');
+
+  // Derived flat list for components that need it
+  const myList = useMemo(() => {
+    if (!groupedList) return [];
+    const allItems: MediaItem[] = [];
+    for (const status of Object.keys(groupedList.groups) as MediaStatus[]) {
+      allItems.push(...groupedList.groups[status].items);
+    }
+    return allItems;
+  }, [groupedList]);
 
   // Followed friends
   const [friends, setFriends] = useState<User[]>([]);
@@ -119,25 +124,17 @@ const MainApp: React.FC = () => {
       console.log('[App] Offline mode - skipping API calls');
       setCurrentView('DOWNLOADS');
     } else {
-      setMyList([]);
+      setGroupedList(null);
       setFriends([]);
       setPendingSuggestionsCount(0);
     }
   }, [user, isOfflineAuthenticated]);
 
-  const loadMyList = useCallback(async (sortBy: SortBy = 'status', reset: boolean = true) => {
-    if (reset) {
-      setListLoading(true);
-      setListPagination({ total: 0, hasMore: false, page: 1 });
-    }
+  const loadMyList = useCallback(async () => {
+    setListLoading(true);
     try {
-      const result = await api.getMyList({ sortBy, page: 1, limit: 50 });
-      setMyList(result.items);
-      setListPagination({
-        total: result.total,
-        hasMore: result.hasMore,
-        page: result.page,
-      });
+      const result = await api.getMyGroupedList({ limit: 50 });
+      setGroupedList(result);
     } catch (error) {
       console.error('Failed to load list:', error);
     } finally {
@@ -145,29 +142,41 @@ const MainApp: React.FC = () => {
     }
   }, []);
 
-  const loadMoreItems = useCallback(async () => {
-    if (isLoadingMore || !listPagination.hasMore) return;
+  const loadPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
+    if (!groupedList || loadingStatuses.has(status)) return;
     
-    setIsLoadingMore(true);
+    setLoadingStatuses(prev => new Set(prev).add(status));
     try {
-      const nextPage = listPagination.page + 1;
-      const result = await api.getMyList({ 
-        sortBy: watchlistSort, // Use current sort
-        page: nextPage, 
-        limit: 50 
-      });
-      setMyList(prev => [...prev, ...result.items]);
-      setListPagination({
-        total: result.total,
-        hasMore: result.hasMore,
-        page: result.page,
+      // Build statusPages with this status at the requested page
+      const statusPages: Partial<Record<MediaStatus, number>> = {};
+      // Keep existing pages for all other statuses
+      for (const s of Object.keys(groupedList.groups) as MediaStatus[]) {
+        statusPages[s] = s === status ? page : groupedList.groups[s].page;
+      }
+      
+      const result = await api.getMyGroupedList({ limit: 50, statusPages });
+      
+      // Replace the items for this status with the new page
+      setGroupedList(prev => {
+        if (!prev) return result;
+        return {
+          ...prev,
+          groups: {
+            ...prev.groups,
+            [status]: result.groups[status],
+          },
+        };
       });
     } catch (error) {
-      console.error('Failed to load more items:', error);
+      console.error(`Failed to load page ${page} for ${status}:`, error);
     } finally {
-      setIsLoadingMore(false);
+      setLoadingStatuses(prev => {
+        const next = new Set(prev);
+        next.delete(status);
+        return next;
+      });
     }
-  }, [isLoadingMore, listPagination, watchlistSort]);
+  }, [groupedList, loadingStatuses]);
 
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true);
@@ -193,7 +202,23 @@ const MainApp: React.FC = () => {
   const handleAddMedia = async (newItem: Omit<MediaItem, 'id'>) => {
     try {
       const created = await api.addToList(newItem);
-      setMyList((prev) => [...prev, created]);
+      // Add to the appropriate status group
+      setGroupedList(prev => {
+        if (!prev) return prev;
+        const status = created.status;
+        return {
+          ...prev,
+          grandTotal: prev.grandTotal + 1,
+          groups: {
+            ...prev.groups,
+            [status]: {
+              ...prev.groups[status],
+              items: [...prev.groups[status].items, created],
+              total: prev.groups[status].total + 1,
+            },
+          },
+        };
+      });
       // Don't navigate away - let user continue adding items
       showToast(`Added "${newItem.title}" to your list`, 'success');
     } catch (error: any) {
@@ -217,7 +242,21 @@ const MainApp: React.FC = () => {
     
     try {
       const created = await api.addToList(newItem);
-      setMyList((prev) => [...prev, created]);
+      setGroupedList(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          grandTotal: prev.grandTotal + 1,
+          groups: {
+            ...prev.groups,
+            PLAN_TO_WATCH: {
+              ...prev.groups.PLAN_TO_WATCH,
+              items: [...prev.groups.PLAN_TO_WATCH.items, created],
+              total: prev.groups.PLAN_TO_WATCH.total + 1,
+            },
+          },
+        };
+      });
       showToast(`Added "${item.title}" to your list`, 'success');
     } catch (error: any) {
       console.error('Failed to add item:', error);
@@ -227,10 +266,62 @@ const MainApp: React.FC = () => {
   };
 
   const handleUpdateMedia = async (id: string, updates: Partial<MediaItem>) => {
+    // Find the item and its current status
+    let oldStatus: MediaStatus | null = null;
+    let foundItem: MediaItem | null = null;
+    
+    if (groupedList) {
+      for (const status of Object.keys(groupedList.groups) as MediaStatus[]) {
+        const item = groupedList.groups[status].items.find(i => i.id === id);
+        if (item) {
+          oldStatus = status;
+          foundItem = item;
+          break;
+        }
+      }
+    }
+    
+    if (!foundItem || !oldStatus) return;
+    
+    const newStatus = updates.status || oldStatus;
+    const updatedItem = { ...foundItem, ...updates };
+    
     // Optimistic update
-    setMyList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
-    );
+    setGroupedList(prev => {
+      if (!prev) return prev;
+      
+      // If status changed, move item between groups
+      if (newStatus !== oldStatus) {
+        return {
+          ...prev,
+          groups: {
+            ...prev.groups,
+            [oldStatus]: {
+              ...prev.groups[oldStatus],
+              items: prev.groups[oldStatus].items.filter(i => i.id !== id),
+              total: prev.groups[oldStatus].total - 1,
+            },
+            [newStatus]: {
+              ...prev.groups[newStatus],
+              items: [...prev.groups[newStatus].items, updatedItem],
+              total: prev.groups[newStatus].total + 1,
+            },
+          },
+        };
+      }
+      
+      // Same status, just update in place
+      return {
+        ...prev,
+        groups: {
+          ...prev.groups,
+          [oldStatus]: {
+            ...prev.groups[oldStatus],
+            items: prev.groups[oldStatus].items.map(i => i.id === id ? updatedItem : i),
+          },
+        },
+      };
+    });
 
     try {
       await api.updateListItem(id, updates);
@@ -243,8 +334,35 @@ const MainApp: React.FC = () => {
   };
 
   const handleDeleteMedia = async (id: string) => {
+    // Find which group contains this item
+    let itemStatus: MediaStatus | null = null;
+    if (groupedList) {
+      for (const status of Object.keys(groupedList.groups) as MediaStatus[]) {
+        if (groupedList.groups[status].items.some(i => i.id === id)) {
+          itemStatus = status;
+          break;
+        }
+      }
+    }
+    
     // Optimistic update
-    setMyList((prev) => prev.filter((item) => item.id !== id));
+    if (itemStatus) {
+      setGroupedList(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          grandTotal: prev.grandTotal - 1,
+          groups: {
+            ...prev.groups,
+            [itemStatus]: {
+              ...prev.groups[itemStatus],
+              items: prev.groups[itemStatus].items.filter(i => i.id !== id),
+              total: prev.groups[itemStatus].total - 1,
+            },
+          },
+        };
+      });
+    }
 
     try {
       await api.deleteListItem(id);
@@ -492,6 +610,8 @@ const MainApp: React.FC = () => {
           <MediaList
             title="MY WATCHLIST"
             items={myList.filter((i) => i.type !== 'MANGA')}
+            groupedData={groupedList}
+            mediaTypeFilter="video"
             onUpdate={handleUpdateMedia}
             onDelete={handleDeleteMedia}
             onItemClick={handleVideoItemClick}
@@ -503,13 +623,10 @@ const MainApp: React.FC = () => {
             onFriendActivityFilterChange={setWatchlistFriendFilter}
             onSortChange={(sort) => {
               setWatchlistSort(sort);
-              loadMyList(sort);
             }}
             showSuggestButton={true}
-            total={listPagination.total}
-            hasMore={listPagination.hasMore}
-            isLoadingMore={isLoadingMore}
-            onLoadMore={loadMoreItems}
+            onPageChange={loadPageForStatus}
+            loadingStatuses={loadingStatuses}
           />
         );
       case 'READLIST':
@@ -517,6 +634,8 @@ const MainApp: React.FC = () => {
           <MediaList
             title="MY READLIST"
             items={myList.filter((i) => i.type === 'MANGA')}
+            groupedData={groupedList}
+            mediaTypeFilter="manga"
             onUpdate={handleUpdateMedia}
             onDelete={handleDeleteMedia}
             onItemClick={handleMangaItemClick}
@@ -528,13 +647,10 @@ const MainApp: React.FC = () => {
             onFriendActivityFilterChange={setReadlistFriendFilter}
             onSortChange={(sort) => {
               setReadlistSort(sort);
-              loadMyList(sort);
             }}
             showSuggestButton={true}
-            total={listPagination.total}
-            hasMore={listPagination.hasMore}
-            isLoadingMore={isLoadingMore}
-            onLoadMore={loadMoreItems}
+            onPageChange={loadPageForStatus}
+            loadingStatuses={loadingStatuses}
           />
         );
       case 'SEARCH':

@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', validate(listQuerySchema, 'query'), listController.getList);
+router.get('/grouped', listController.getGroupedList);
 router.post('/', validate(createMediaItemSchema), listController.createItem);
 router.post('/statuses', listController.getStatusesByRefIds);
 router.get('/:id', listController.getItem);
