@@ -161,10 +161,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     return () => {
       if (videoRef.current && duration > 0) {
-        updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration);
+        updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider);
       }
     };
-  }, [mediaId, episodeId, duration]);
+  }, [mediaId, episodeId, duration, provider]);
 
   const loadEpisodeSources = async (currentEpisodeId: string, currentMediaId: string, currentProvider: VideoProviderName) => {
     // Destroy existing HLS instance first before resetting state
@@ -384,7 +384,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying) {
       progressIntervalRef.current = setInterval(() => {
         if (videoRef.current && duration > 0) {
-          updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration);
+          updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider);
         }
       }, 10000);
     }
@@ -394,7 +394,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [isPlaying, mediaId, episodeId, duration, updateWatchProgress]);
+  }, [isPlaying, mediaId, episodeId, duration, provider, updateWatchProgress]);
 
   // ============ Keyboard Shortcuts ============
   useEffect(() => {
@@ -497,9 +497,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsPlaying(false);
     // Save progress on pause
     if (videoRef.current && duration > 0) {
-      updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration);
+      updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider);
     }
-  }, [mediaId, episodeId, duration, updateWatchProgress]);
+  }, [mediaId, episodeId, duration, provider, updateWatchProgress]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);

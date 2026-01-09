@@ -1,11 +1,12 @@
 // MediaDetail Component - Shows TV/Movie/Anime details with episode listing
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { VideoProviderName, VideoEpisode, VideoSeason } from '../types';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress } from '../types';
 import * as videoService from '../services/video';
 import { VideoMediaInfo } from '../services/video';
 import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD } from '../services/videoResolver';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
+import { getWatchProgressForMedia, WatchProgressData, getAccessToken } from '../services/api';
 import ProviderMappingModal from './ProviderMappingModal';
 
 interface MediaDetailProps {
@@ -62,15 +63,18 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
   
+  // Backend watch progress (synced across devices)
+  const [backendProgress, setBackendProgress] = useState<Map<string, WatchProgressData>>(new Map());
+  
+  // Resolved provider ID - may differ from mediaId if resolution was needed
+  const [resolvedProviderId, setResolvedProviderId] = useState<string>(mediaId);
+  const [resolvedProvider, setResolvedProvider] = useState<VideoProviderName>(provider);
+  
   // Resolution confidence tracking
   const [confidence, setConfidence] = useState<number>(1.0);
   const [isVerified, setIsVerified] = useState<boolean>(true);
   const [showLinkSourceModal, setShowLinkSourceModal] = useState(false);
   const [showConfidenceWarning, setShowConfidenceWarning] = useState(false);
-  
-  // Resolved provider ID - may differ from mediaId if resolution was needed
-  const resolvedProviderIdRef = useRef<string>(mediaId);
-  const resolvedProviderRef = useRef<VideoProviderName>(provider);
 
   // Track if we've loaded for this mediaId to prevent duplicate loads
   const loadedForRef = useRef<string | null>(null);
@@ -80,8 +84,33 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     // Avoid duplicate loads for the same mediaId
     if (loadedForRef.current === `${mediaId}:${provider}`) return;
     loadedForRef.current = `${mediaId}:${provider}`;
+    // Reset resolved IDs when mediaId changes
+    setResolvedProviderId(mediaId);
+    setResolvedProvider(provider);
     loadMediaDetails();
   }, [mediaId, provider]);
+
+  // Fetch watch progress from backend when online, authenticated, and resolved ID is available
+  useEffect(() => {
+    const fetchBackendProgress = async () => {
+      if (!isOnline || !getAccessToken() || !resolvedProviderId) return;
+      
+      try {
+        const progressData = await getWatchProgressForMedia(resolvedProviderId);
+        const progressMap = new Map<string, WatchProgressData>();
+        for (const p of progressData) {
+          // Key by episodeId for easy lookup
+          progressMap.set(p.episodeId, p);
+        }
+        setBackendProgress(progressMap);
+      } catch (err) {
+        // Non-critical - local progress still works
+        console.error('[MediaDetail] Failed to fetch backend progress:', err);
+      }
+    };
+    
+    fetchBackendProgress();
+  }, [resolvedProviderId, isOnline]);
 
   const loadMediaDetails = async () => {
     setLoading(true);
@@ -120,8 +149,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           );
           
           if (resolved) {
-            resolvedProviderIdRef.current = resolved.providerId;
-            resolvedProviderRef.current = resolved.provider;
+            setResolvedProviderId(resolved.providerId);
+            setResolvedProvider(resolved.provider);
             setMediaInfo(resolved.mediaInfo);
             setConfidence(resolved.confidence);
             setIsVerified(resolved.isVerified);
@@ -144,8 +173,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           // Direct fetch - mediaId is already a provider-specific ID
           try {
             const info = await videoService.getMediaInfo(provider, mediaId);
-            resolvedProviderIdRef.current = mediaId;
-            resolvedProviderRef.current = provider;
+            setResolvedProviderId(mediaId);
+            setResolvedProvider(provider);
             setMediaInfo(info);
             
             // Expand first season by default
@@ -166,8 +195,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               );
               
               if (resolved) {
-                resolvedProviderIdRef.current = resolved.providerId;
-                resolvedProviderRef.current = resolved.provider;
+                setResolvedProviderId(resolved.providerId);
+                setResolvedProvider(resolved.provider);
                 setMediaInfo(resolved.mediaInfo);
                 setConfidence(resolved.confidence);
                 setIsVerified(resolved.isVerified);
@@ -270,7 +299,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
     try {
       // Use resolved provider ID for downloads
-      await downloadEpisode(resolvedProviderIdRef.current, mediaInfo.title, episode, resolvedProviderRef.current);
+      await downloadEpisode(resolvedProviderId, mediaInfo.title, episode, resolvedProvider);
       showToast('Episode queued for download', 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');
@@ -285,7 +314,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     
     try {
       // Use resolved provider ID for downloads
-      await downloadEpisodes(resolvedProviderIdRef.current, mediaInfo.title, episodesToDownload, resolvedProviderRef.current);
+      await downloadEpisodes(resolvedProviderId, mediaInfo.title, episodesToDownload, resolvedProvider);
       showToast(`Downloading ${episodesToDownload.length} episodes...`, 'success');
       setSelectedEpisodes(new Set());
       setIsSelectionMode(false);
@@ -299,7 +328,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
     try {
       // Use resolved provider ID for downloads
-      await downloadEpisodes(resolvedProviderIdRef.current, mediaInfo.title, season.episodes, resolvedProviderRef.current);
+      await downloadEpisodes(resolvedProviderId, mediaInfo.title, season.episodes, resolvedProvider);
       showToast(`Downloading ${season.episodes.length} episodes...`, 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');
@@ -315,7 +344,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     setDownloadingAll(true);
     try {
       // Use resolved provider ID for downloads
-      await downloadEpisodes(resolvedProviderIdRef.current, mediaInfo.title, allEpisodes, resolvedProviderRef.current);
+      await downloadEpisodes(resolvedProviderId, mediaInfo.title, allEpisodes, resolvedProvider);
       showToast(`Downloading all ${allEpisodes.length} episodes...`, 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');
@@ -344,16 +373,99 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     }
   };
 
-  const getEpisodeProgress = (episodeId: string): number | null => {
-    const progress = getWatchProgress(mediaId, episodeId);
+  // Get merged progress from local (IndexedDB) and backend sources
+  // Prefers the most recent update between the two
+  const getMergedProgress = useCallback((episodeId: string): { currentTime: number; duration: number; completed: boolean } | null => {
+    const localProgress = getWatchProgress(mediaId, episodeId);
+    const backendProgressItem = backendProgress.get(episodeId);
+    
+    if (!localProgress && !backendProgressItem) return null;
+    
+    // If only one source exists, use it
+    if (!localProgress && backendProgressItem) {
+      return {
+        currentTime: backendProgressItem.currentTime,
+        duration: backendProgressItem.duration,
+        completed: backendProgressItem.completed,
+      };
+    }
+    if (localProgress && !backendProgressItem) {
+      return {
+        currentTime: localProgress.currentTime,
+        duration: localProgress.duration,
+        completed: localProgress.completed,
+      };
+    }
+    
+    // Both exist - use the one with more progress (higher currentTime)
+    // This handles the case where local might be ahead of backend sync
+    if (localProgress && backendProgressItem) {
+      if (localProgress.currentTime >= backendProgressItem.currentTime) {
+        return {
+          currentTime: localProgress.currentTime,
+          duration: localProgress.duration,
+          completed: localProgress.completed,
+        };
+      }
+      return {
+        currentTime: backendProgressItem.currentTime,
+        duration: backendProgressItem.duration,
+        completed: backendProgressItem.completed,
+      };
+    }
+    
+    return null;
+  }, [mediaId, getWatchProgress, backendProgress]);
+
+  const getEpisodeProgress = useCallback((episodeId: string): number | null => {
+    const progress = getMergedProgress(episodeId);
     if (!progress || progress.duration === 0) return null;
     return (progress.currentTime / progress.duration) * 100;
-  };
+  }, [getMergedProgress]);
 
-  const isEpisodeCompleted = (episodeId: string): boolean => {
-    const progress = getWatchProgress(mediaId, episodeId);
+  const isEpisodeCompleted = useCallback((episodeId: string): boolean => {
+    const progress = getMergedProgress(episodeId);
     return progress?.completed === true;
-  };
+  }, [getMergedProgress]);
+
+  // Get season progress stats
+  const getSeasonProgress = useCallback((season: VideoSeason): { watched: number; inProgress: number; total: number } => {
+    let watched = 0;
+    let inProgress = 0;
+    
+    for (const episode of season.episodes) {
+      if (isEpisodeCompleted(episode.id)) {
+        watched++;
+      } else {
+        const progress = getEpisodeProgress(episode.id);
+        if (progress !== null && progress > 0) {
+          inProgress++;
+        }
+      }
+    }
+    
+    return { watched, inProgress, total: season.episodes.length };
+  }, [isEpisodeCompleted, getEpisodeProgress]);
+
+  // Get overall media progress stats
+  const getOverallProgress = useMemo(() => {
+    const allEps = getAllEpisodes();
+    let watched = 0;
+    let inProgress = 0;
+    
+    for (const episode of allEps) {
+      if (isEpisodeCompleted(episode.id)) {
+        watched++;
+      } else {
+        const progress = getEpisodeProgress(episode.id);
+        if (progress !== null && progress > 0) {
+          inProgress++;
+        }
+      }
+    }
+    
+    return { watched, inProgress, total: allEps.length };
+  }, [getAllEpisodes, isEpisodeCompleted, getEpisodeProgress]);
 
   const isEpisodeInQueue = (episodeId: string): boolean => {
     return downloadQueue.some(task => task.episode.id === episodeId);
@@ -372,8 +484,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
   // Handle when user manually links a source
   const handleMappingSaved = useCallback((providerId: string, providerTitle: string) => {
-    // Update resolved refs with the new mapping
-    resolvedProviderIdRef.current = providerId;
+    // Update resolved state with the new mapping
+    setResolvedProviderId(providerId);
     
     // Clear confidence warning since this is now verified
     setShowConfidenceWarning(false);
@@ -616,11 +728,11 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               onClick={() => {
                 // For movies, create a single "episode" to watch using resolved provider ID
                 const movieEpisode: VideoEpisode = {
-                  id: resolvedProviderIdRef.current,
+                  id: resolvedProviderId,
                   number: 1,
                   title: mediaInfo.title,
                 };
-                onWatchEpisode(resolvedProviderIdRef.current, resolvedProviderIdRef.current, [movieEpisode], resolvedProviderRef.current, mediaInfo.title);
+                onWatchEpisode(resolvedProviderId, resolvedProviderId, [movieEpisode], resolvedProvider, mediaInfo.title);
               }}
               className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
             >
@@ -682,9 +794,18 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
       {!isMovie && (
         <div className="p-4">
           <div className="flex items-center justify-between mb-4 border-b border-neutral-900 pb-2">
-            <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
-              Episodes {allEpisodes.length > 0 && `(${allEpisodes.length})`}
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
+                Episodes {allEpisodes.length > 0 && `(${allEpisodes.length})`}
+              </h2>
+              {/* Overall progress summary */}
+              {getOverallProgress.total > 0 && (getOverallProgress.watched > 0 || getOverallProgress.inProgress > 0) && (
+                <span className="text-xs text-neutral-600">
+                  {getOverallProgress.watched}/{getOverallProgress.total} watched
+                  {getOverallProgress.inProgress > 0 && `, ${getOverallProgress.inProgress} in progress`}
+                </span>
+              )}
+            </div>
             
             {allEpisodes.length > 0 && (
               <button
@@ -721,6 +842,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 const isExpanded = expandedSeasons.has(season.season);
                 const allDownloaded = season.episodes.every(ep => isEpisodeDownloaded(ep.id));
                 const someDownloaded = season.episodes.some(ep => isEpisodeDownloaded(ep.id));
+                const seasonProgress = getSeasonProgress(season);
                 
                 return (
                   <div key={season.season} className="border border-neutral-800">
@@ -735,36 +857,43 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                           toggleSeason(season.season);
                         }
                       }}
-                      className="w-full px-4 py-3 flex items-center justify-between bg-neutral-950 hover:bg-neutral-900 transition-colors cursor-pointer"
+                      className="w-full px-4 py-3 flex flex-col gap-2 bg-neutral-950 hover:bg-neutral-900 transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold uppercase tracking-tight text-white">
-                          {seasons.length === 1 && !mediaInfo.seasons?.length
-                            ? 'Episodes'
-                            : `Season ${season.season}`}
-                        </span>
-                        <span className="text-sm text-neutral-600">
-                          {season.episodes.length} episodes
-                        </span>
-                        {allDownloaded && (
-                          <span className="text-xs text-green-500 uppercase">All Offline</span>
-                        )}
-                        {someDownloaded && !allDownloaded && (
-                          <span className="text-xs text-yellow-600 uppercase">Partial</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isOnline && !isSelectionMode && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadSeason(season);
-                            }}
-                            className="p-1 text-neutral-600 hover:text-white transition-colors"
-                            title="Download season"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold uppercase tracking-tight text-white">
+                            {seasons.length === 1 && !mediaInfo.seasons?.length
+                              ? 'Episodes'
+                              : `Season ${season.season}`}
+                          </span>
+                          <span className="text-sm text-neutral-600">
+                            {season.episodes.length} episodes
+                          </span>
+                          {allDownloaded && (
+                            <span className="text-xs text-green-500 uppercase">All Offline</span>
+                          )}
+                          {someDownloaded && !allDownloaded && (
+                            <span className="text-xs text-yellow-600 uppercase">Partial</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Season watch progress */}
+                          {seasonProgress.watched > 0 && (
+                            <span className={`text-xs ${seasonProgress.watched === seasonProgress.total ? 'text-green-500' : 'text-neutral-500'}`}>
+                              {seasonProgress.watched}/{seasonProgress.total}
+                            </span>
+                          )}
+                          {isOnline && !isSelectionMode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadSeason(season);
+                              }}
+                              className="p-1 text-neutral-600 hover:text-white transition-colors"
+                              title="Download season"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                           </button>
                         )}
@@ -776,7 +905,17 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
+                        </div>
                       </div>
+                      {/* Season progress bar */}
+                      {seasonProgress.total > 0 && (seasonProgress.watched > 0 || seasonProgress.inProgress > 0) && (
+                        <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-600 transition-all"
+                            style={{ width: `${(seasonProgress.watched / seasonProgress.total) * 100}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Episode List */}
@@ -873,7 +1012,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                       toggleEpisodeSelection(episode.id);
                                     } else {
                                       // Use resolved provider ID and provider for watching
-                                      onWatchEpisode(resolvedProviderIdRef.current, episode.id, allEpisodes, resolvedProviderRef.current, mediaInfo.title);
+                                      onWatchEpisode(resolvedProviderId, episode.id, allEpisodes, resolvedProvider, mediaInfo.title);
                                     }
                                   }}
                                   className="flex-1 text-left min-w-0"

@@ -21,6 +21,7 @@ import {
   requestPersistentStorage,
   initVideoDatabase,
 } from '../services/offlineVideoStorage';
+import { updateWatchProgress as syncWatchProgressToBackend, getAccessToken } from '../services/api';
 
 // ============ Types ============
 
@@ -57,7 +58,7 @@ interface OfflineVideoContextType {
   deleteOfflineEpisode: (episodeId: string) => Promise<void>;
   
   // Progress
-  updateWatchProgress: (mediaId: string, episodeId: string, currentTime: number, duration: number) => Promise<void>;
+  updateWatchProgress: (mediaId: string, episodeId: string, currentTime: number, duration: number, provider?: string) => Promise<void>;
   getWatchProgress: (mediaId: string, episodeId?: string) => WatchProgress | null;
   
   // Utilities
@@ -347,7 +348,8 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     mediaId: string,
     episodeId: string,
     currentTime: number,
-    duration: number
+    duration: number,
+    provider?: string
   ) => {
     const key = `${mediaId}-${episodeId}`;
     const now = Date.now();
@@ -360,7 +362,7 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     lastProgressUpdate.current.set(key, now);
     
-    // Save to IndexedDB
+    // Save to IndexedDB (always, for offline support)
     await saveWatchProgress(mediaId, episodeId, currentTime, duration);
     
     // Update local state
@@ -378,7 +380,23 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
       return next;
     });
-  }, []);
+    
+    // Sync to backend if online and authenticated
+    if (isOnline && provider && getAccessToken()) {
+      try {
+        await syncWatchProgressToBackend({
+          mediaId,
+          episodeId: episodeId || undefined,
+          currentTime,
+          duration,
+          provider,
+        });
+      } catch (error) {
+        // Non-critical: log but don't throw - local storage is the fallback
+        console.error('[OfflineVideo] Failed to sync progress to backend:', error);
+      }
+    }
+  }, [isOnline]);
   
   const getWatchProgressHandler = useCallback((mediaId: string, episodeId?: string): WatchProgress | null => {
     const key = episodeId ? `${mediaId}-${episodeId}` : mediaId;
