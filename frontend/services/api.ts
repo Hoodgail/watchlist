@@ -175,6 +175,18 @@ interface ListFilters {
   type?: MediaType;
   status?: MediaStatus;
   sortBy?: SortBy;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedListResponse {
+  items: MediaItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
 }
 
 // Backend uses same field names as frontend for list items
@@ -189,6 +201,15 @@ interface BackendMediaItem {
   rating: number | null;
   imageUrl?: string | null;
   refId?: string | null;
+}
+
+interface BackendPaginatedResponse {
+  items: BackendMediaItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
 }
 
 function transformBackendItem(item: BackendMediaItem): MediaItem {
@@ -206,11 +227,14 @@ function transformBackendItem(item: BackendMediaItem): MediaItem {
   };
 }
 
-export async function getMyList(filters?: ListFilters): Promise<MediaItem[]> {
+export async function getMyList(filters?: ListFilters): Promise<PaginatedListResponse> {
   const params = new URLSearchParams();
   if (filters?.type) params.append('type', filters.type);
   if (filters?.status) params.append('status', filters.status);
   if (filters?.sortBy) params.append('sortBy', filters.sortBy);
+  if (filters?.search) params.append('search', filters.search);
+  if (filters?.page) params.append('page', String(filters.page));
+  if (filters?.limit) params.append('limit', String(filters.limit));
 
   const query = params.toString() ? `?${params.toString()}` : '';
   const response = await fetchWithAuth(`/list${query}`);
@@ -220,8 +244,15 @@ export async function getMyList(filters?: ListFilters): Promise<MediaItem[]> {
     throw new Error(error.error || 'Failed to fetch list');
   }
 
-  const items: BackendMediaItem[] = await response.json();
-  return items.map(transformBackendItem);
+  const data: BackendPaginatedResponse = await response.json();
+  return {
+    items: data.items.map(transformBackendItem),
+    total: data.total,
+    page: data.page,
+    limit: data.limit,
+    totalPages: data.totalPages,
+    hasMore: data.hasMore,
+  };
 }
 
 export async function addToList(item: Omit<MediaItem, 'id'>): Promise<MediaItem> {

@@ -47,6 +47,12 @@ const MainApp: React.FC = () => {
   // User's own list
   const [myList, setMyList] = useState<MediaItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  const [listPagination, setListPagination] = useState<{
+    total: number;
+    hasMore: boolean;
+    page: number;
+  }>({ total: 0, hasMore: false, page: 1 });
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Filter and sort state
   const [watchlistFilter, setWatchlistFilter] = useState<MediaStatus | ''>('');
@@ -105,17 +111,49 @@ const MainApp: React.FC = () => {
     }
   }, [user]);
 
-  const loadMyList = useCallback(async (sortBy: SortBy = 'status') => {
-    setListLoading(true);
+  const loadMyList = useCallback(async (sortBy: SortBy = 'status', reset: boolean = true) => {
+    if (reset) {
+      setListLoading(true);
+      setListPagination({ total: 0, hasMore: false, page: 1 });
+    }
     try {
-      const items = await api.getMyList({ sortBy });
-      setMyList(items);
+      const result = await api.getMyList({ sortBy, page: 1, limit: 50 });
+      setMyList(result.items);
+      setListPagination({
+        total: result.total,
+        hasMore: result.hasMore,
+        page: result.page,
+      });
     } catch (error) {
       console.error('Failed to load list:', error);
     } finally {
       setListLoading(false);
     }
   }, []);
+
+  const loadMoreItems = useCallback(async () => {
+    if (isLoadingMore || !listPagination.hasMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const nextPage = listPagination.page + 1;
+      const result = await api.getMyList({ 
+        sortBy: watchlistSort, // Use current sort
+        page: nextPage, 
+        limit: 50 
+      });
+      setMyList(prev => [...prev, ...result.items]);
+      setListPagination({
+        total: result.total,
+        hasMore: result.hasMore,
+        page: result.page,
+      });
+    } catch (error) {
+      console.error('Failed to load more items:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, listPagination, watchlistSort]);
 
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true);
@@ -454,6 +492,10 @@ const MainApp: React.FC = () => {
               loadMyList(sort);
             }}
             showSuggestButton={true}
+            total={listPagination.total}
+            hasMore={listPagination.hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={loadMoreItems}
           />
         );
       case 'READLIST':
@@ -475,6 +517,10 @@ const MainApp: React.FC = () => {
               loadMyList(sort);
             }}
             showSuggestButton={true}
+            total={listPagination.total}
+            hasMore={listPagination.hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={loadMoreItems}
           />
         );
       case 'SEARCH':

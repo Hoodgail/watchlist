@@ -249,6 +249,11 @@ interface MediaListProps {
   onFriendActivityFilterChange?: (filter: FriendActivityFilter) => void;
   onSortChange?: (sortBy: SortBy) => void;
   showSuggestButton?: boolean;
+  // Pagination props
+  total?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 interface MediaItemCardProps {
@@ -1020,6 +1025,56 @@ const StatusGroup: React.FC<{
     );
   };
 
+// ==================== Infinite Scroll Trigger Component ====================
+
+const InfiniteScrollTrigger: React.FC<{
+  onLoadMore: () => void;
+  hasMore: boolean;
+  isLoading: boolean;
+}> = ({ onLoadMore, hasMore, isLoading }) => {
+  const triggerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!trigger || !hasMore || isLoading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, onLoadMore]);
+
+  if (!hasMore) return null;
+
+  return (
+    <div ref={triggerRef} className="py-8 flex justify-center">
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-neutral-500">
+          <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-xs uppercase tracking-wider">Loading more...</span>
+        </div>
+      ) : (
+        <button
+          onClick={onLoadMore}
+          className="text-xs px-4 py-2 border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors"
+        >
+          Load More
+        </button>
+      )}
+    </div>
+  );
+};
+
 // ==================== Main MediaList Component ====================
 
 export const MediaList: React.FC<MediaListProps> = ({
@@ -1037,6 +1092,11 @@ export const MediaList: React.FC<MediaListProps> = ({
   onFriendActivityFilterChange,
   onSortChange,
   showSuggestButton = false,
+  // Pagination props
+  total,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }) => {
   // State for collapse
   const [collapseState, setCollapseState] = useState<Record<string, boolean>>(() => {
@@ -1251,7 +1311,7 @@ export const MediaList: React.FC<MediaListProps> = ({
       {/* Items count when filtered */}
       {(filterStatus || friendActivityFilter || searchQuery) && (
         <div className="text-xs text-neutral-600 uppercase flex items-center gap-2">
-          <span>Showing {filteredItems.length} of {items.length} items</span>
+          <span>Showing {filteredItems.length} of {total ?? items.length} items</span>
           {(filterStatus || searchQuery) && (
             <button
               onClick={() => {
@@ -1301,6 +1361,15 @@ export const MediaList: React.FC<MediaListProps> = ({
             />
           ))}
         </div>
+      )}
+
+      {/* Infinite Scroll Trigger */}
+      {onLoadMore && (
+        <InfiniteScrollTrigger
+          onLoadMore={onLoadMore}
+          hasMore={hasMore}
+          isLoading={isLoadingMore}
+        />
       )}
 
       {/* Mobile hint for swipe */}

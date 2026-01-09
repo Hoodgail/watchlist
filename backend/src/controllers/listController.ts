@@ -5,7 +5,14 @@ import type { MediaType, MediaStatus } from '@prisma/client';
 import type { SortByOption } from '../services/listService.js';
 
 export async function getList(
-  req: Request<unknown, unknown, unknown, { type?: MediaType; status?: MediaStatus; sortBy?: SortByOption }>,
+  req: Request<unknown, unknown, unknown, { 
+    type?: MediaType; 
+    status?: MediaStatus; 
+    sortBy?: SortByOption;
+    search?: string;
+    page?: string;
+    limit?: string;
+  }>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -14,8 +21,18 @@ export async function getList(
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    const items = await listService.getUserList(req.user.id, req.query);
-    res.json(items);
+    
+    const filters: listService.ListFilters = {
+      type: req.query.type,
+      status: req.query.status,
+      sortBy: req.query.sortBy,
+      search: req.query.search,
+      page: req.query.page ? parseInt(req.query.page, 10) : undefined,
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
+    };
+    
+    const result = await listService.getUserList(req.user.id, filters);
+    res.json(result);
   } catch (error) {
     next(error);
   }

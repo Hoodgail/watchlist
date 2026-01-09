@@ -73,11 +73,37 @@ const STATUS_PRIORITY: Record<MediaStatus, number> = {
   DROPPED: 5,
 };
 
+export interface PaginatedListResponse {
+  items: MediaItemResponse[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export interface ListFilters {
+  type?: MediaType;
+  status?: MediaStatus;
+  sortBy?: SortByOption;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 100;
+
 export async function getUserList(
   userId: string,
-  filters?: { type?: MediaType; status?: MediaStatus; sortBy?: SortByOption }
-): Promise<MediaItemResponse[]> {
-  const where: { userId: string; type?: MediaType; status?: MediaStatus } = { userId };
+  filters?: ListFilters
+): Promise<PaginatedListResponse> {
+  const page = Math.max(1, filters?.page ?? DEFAULT_PAGE);
+  const limit = Math.min(MAX_LIMIT, Math.max(1, filters?.limit ?? DEFAULT_LIMIT));
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.MediaItemWhereInput = { userId };
   
   if (filters?.type) {
     where.type = filters.type;
@@ -85,9 +111,17 @@ export async function getUserList(
   if (filters?.status) {
     where.status = filters.status;
   }
+  if (filters?.search) {
+    where.title = { contains: filters.search, mode: 'insensitive' };
+  }
+
+  // Get total count for pagination metadata
+  const total = await prisma.mediaItem.count({ where });
 
   // Determine orderBy based on sortBy parameter
-  let orderBy: { [key: string]: 'asc' | 'desc' }[];
+  let orderBy: Prisma.MediaItemOrderByWithRelationInput[];
+  const sortByStatus = !filters?.sortBy || filters.sortBy === 'status';
+  
   switch (filters?.sortBy) {
     case 'title':
       orderBy = [{ title: 'asc' }];
@@ -103,24 +137,53 @@ export async function getUserList(
       break;
     case 'status':
     default:
-      // Default: sort by status priority, then by title
-      // We'll fetch and sort in memory for status priority
-      orderBy = [{ updatedAt: 'desc' }];
+      // For status sorting, we fetch all and sort in memory, then paginate
+      // This is necessary because status priority requires custom ordering
+      orderBy = [{ title: 'asc' }];
       break;
   }
 
-  const items = await prisma.mediaItem.findMany({
-    where,
-    orderBy,
-    select: mediaItemSelect,
-  });
+  let items: {
+    id: string;
+    title: string;
+    type: MediaType;
+    status: MediaStatus;
+    current: number;
+    total: number | null;
+    notes: string | null;
+    rating: number | null;
+    imageUrl: string | null;
+    refId: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }[];
+  
+  if (sortByStatus) {
+    // For status-based sorting, fetch all matching items, sort in memory, then paginate
+    // This is a trade-off: we load more data but get correct status priority ordering
+    const allItems = await prisma.mediaItem.findMany({
+      where,
+      orderBy,
+      select: mediaItemSelect,
+    });
 
-  // If sorting by status (default), sort in memory by priority
-  if (!filters?.sortBy || filters.sortBy === 'status') {
-    items.sort((a, b) => {
+    // Sort in memory by status priority, then by title
+    allItems.sort((a, b) => {
       const priorityDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
       if (priorityDiff !== 0) return priorityDiff;
       return a.title.localeCompare(b.title);
+    });
+
+    // Apply pagination after sorting
+    items = allItems.slice(skip, skip + limit);
+  } else {
+    // For other sort options, use database pagination directly
+    items = await prisma.mediaItem.findMany({
+      where,
+      orderBy,
+      select: mediaItemSelect,
+      skip,
+      take: limit,
     });
   }
 
@@ -189,12 +252,22 @@ export async function getUserList(
   
   const friendIds = friendships.map(f => f.followingId);
   
+  const totalPages = Math.ceil(total / limit);
+  
   // If no friends, just attach watch progress and return
   if (friendIds.length === 0) {
-    return items.map(item => ({
+    const itemsWithProgress = items.map(item => ({
       ...item,
       activeProgress: item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null,
     }));
+    return {
+      items: itemsWithProgress,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasMore: page < totalPages,
+    };
   }
 
   // Get refIds from user's items to find matching items in friends' lists
@@ -273,7 +346,14 @@ export async function getUserList(
     };
   });
 
-  return itemsWithExtras;
+  return {
+    items: itemsWithExtras,
+    total,
+    page,
+    limit,
+    totalPages,
+    hasMore: page < totalPages,
+  };
 }
 
 /**
