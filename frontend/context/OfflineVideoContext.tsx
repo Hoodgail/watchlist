@@ -22,6 +22,7 @@ import {
   initVideoDatabase,
 } from '../services/offlineVideoStorage';
 import { updateWatchProgress as syncWatchProgressToBackend, getAccessToken } from '../services/api';
+import { getStreamingUrl } from '../services/video';
 
 // ============ Types ============
 
@@ -242,18 +243,31 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     downloadAbortController.current = new AbortController();
     
     try {
-      // Get episode streaming source URL
-      // Note: In a real implementation, you would call your video API to get the streaming URL
-      // For now, we'll use the episode's url if available
-      const videoUrl = task.episode.url;
+      // Fetch streaming sources using the same helper as VideoPlayer
+      console.log('[OfflineVideo] Fetching streaming sources for episode:', task.episode.id);
+      const streamingResult = await getStreamingUrl(task.provider, task.episode.id, task.mediaId);
       
-      if (!videoUrl) {
-        throw new Error('No video URL available for this episode');
+      console.log('[OfflineVideo] Got streaming URL:', {
+        url: streamingResult.url.substring(0, 80) + '...',
+        isM3U8: streamingResult.isM3U8,
+        quality: streamingResult.quality,
+      });
+      
+      // Check if download was cancelled while fetching sources
+      if (downloadAbortController.current.signal.aborted) {
+        console.log('[OfflineVideo] Download cancelled during source fetch:', task.episode.id);
+        return;
+      }
+      
+      // For HLS streams, we can't directly download the video
+      // In the future, we could implement HLS segment downloading
+      if (streamingResult.isM3U8) {
+        throw new Error('HLS streams cannot be downloaded for offline playback yet. This feature is coming soon.');
       }
       
       // Download video with progress tracking
       const videoBlob = await fetchVideoAsBlob(
-        videoUrl,
+        streamingResult.url,
         undefined,
         (loaded, total) => {
           const progress = total > 0 ? Math.round((loaded / total) * 100) : 0;

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Hls from 'hls.js';
 import { VideoEpisode, StreamingSources, StreamingSubtitle, VideoProviderName } from '../types';
 import * as video from '../services/video';
+import { getProxyUrl } from '../services/video';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 
 interface VideoPlayerProps {
@@ -19,24 +20,6 @@ interface VideoPlayerProps {
 const PLAYBACK_SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 
 // ============ Proxy URL Helpers ============
-
-/**
- * Convert a video source URL to proxy URL if referer is provided.
- * When a referer is returned from the backend, it means the source requires
- * special headers that browsers can't send cross-origin, so we proxy it.
- * 
- * @param url - Original video URL
- * @param referer - Referer header value (from sources.headers)
- * @param isM3U8 - Whether this is an M3U8 playlist
- */
-function getProxyUrl(url: string, referer: string | undefined, isM3U8: boolean): string {
-  if (!referer) {
-    return url; // No proxy needed - backend didn't specify headers
-  }
-  
-  const endpoint = isM3U8 ? '/api/video/m3u8' : '/api/video/segment';
-  return `${endpoint}?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`;
-}
 
 /**
  * Convert a subtitle URL to proxy URL if referer is provided

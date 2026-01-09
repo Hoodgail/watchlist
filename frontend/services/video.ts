@@ -13,6 +13,7 @@ import {
   VideoSeason,
   VideoServer,
   StreamingSources,
+  StreamingSubtitle,
 } from '../types';
 import {
   getMediaInfo as getMediaInfoBase,
@@ -270,6 +271,87 @@ export function findEpisodeByNumber(
     }
     return ep.number === episodeNumber;
   }) || null;
+}
+
+// ============ Constants ============
+
+// ============ Streaming URL Helpers ============
+
+/**
+ * Convert a video source URL to a proxy URL if referer is provided.
+ * When a referer is returned from the backend, the source requires special headers
+ * that browsers can't send cross-origin, so we proxy the request.
+ * 
+ * @param url - Original video URL
+ * @param referer - Referer header value (from sources.headers)
+ * @param isM3U8 - Whether this is an M3U8 playlist
+ */
+export function getProxyUrl(url: string, referer: string | undefined, isM3U8: boolean): string {
+  if (!referer) {
+    return url; // No proxy needed - backend didn't specify headers
+  }
+  
+  const endpoint = isM3U8 ? '/api/video/m3u8' : '/api/video/segment';
+  return `${endpoint}?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`;
+}
+
+/**
+ * Result from getStreamingUrl containing the URL and metadata needed for streaming/downloading
+ */
+export interface StreamingUrlResult {
+  /** The proxied URL that can be fetched directly */
+  url: string;
+  /** Whether the source is an HLS stream */
+  isM3U8: boolean;
+  /** Quality label if available */
+  quality?: string;
+  /** Subtitles from the source */
+  subtitles: StreamingSubtitle[];
+  /** Full sources object for advanced use cases */
+  sources: StreamingSources;
+}
+
+/**
+ * Get a streaming URL that can be used for playback or download.
+ * This handles:
+ * - Fetching sources from the video provider API
+ * - Applying proxy URLs when referer headers are required
+ * - Selecting the best available source
+ * 
+ * @param provider - The video provider
+ * @param episodeId - The episode ID
+ * @param mediaId - Optional media ID (required by some providers)
+ * @returns StreamingUrlResult with the proxied URL and metadata
+ */
+export async function getStreamingUrl(
+  provider: VideoProviderName,
+  episodeId: string,
+  mediaId?: string
+): Promise<StreamingUrlResult> {
+  // Fetch streaming sources from the API
+  const streamingSources = await getEpisodeSources(provider, episodeId, mediaId);
+  
+  if (!streamingSources.sources || streamingSources.sources.length === 0) {
+    throw new Error('No streaming sources found');
+  }
+
+  // Get referer header for proxy (if sources need it)
+  const referer = streamingSources.headers?.Referer;
+  
+  // Get the first/best source
+  const source = streamingSources.sources[0];
+  const isM3U8 = source.isM3U8 ?? source.url.includes('.m3u8');
+  
+  // Convert source URL to proxy URL if needed
+  const proxiedUrl = getProxyUrl(source.url, referer, isM3U8);
+  
+  return {
+    url: proxiedUrl,
+    isM3U8,
+    quality: source.quality,
+    subtitles: streamingSources.subtitles || [],
+    sources: streamingSources,
+  };
 }
 
 // ============ Constants ============
