@@ -18,7 +18,7 @@ interface MediaDetailProps {
   /** Media type hint for better resolution */
   mediaType?: 'movie' | 'tv' | 'anime';
   onClose: () => void;
-  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName) => void;
+  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName, mediaTitle: string) => void;
 }
 
 // Helper to proxy image URLs through our server to bypass hotlink protection
@@ -620,7 +620,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                   number: 1,
                   title: mediaInfo.title,
                 };
-                onWatchEpisode(resolvedProviderIdRef.current, resolvedProviderIdRef.current, [movieEpisode], resolvedProviderRef.current);
+                onWatchEpisode(resolvedProviderIdRef.current, resolvedProviderIdRef.current, [movieEpisode], resolvedProviderRef.current, mediaInfo.title);
               }}
               className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
             >
@@ -873,7 +873,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                       toggleEpisodeSelection(episode.id);
                                     } else {
                                       // Use resolved provider ID and provider for watching
-                                      onWatchEpisode(resolvedProviderIdRef.current, episode.id, allEpisodes, resolvedProviderRef.current);
+                                      onWatchEpisode(resolvedProviderIdRef.current, episode.id, allEpisodes, resolvedProviderRef.current, mediaInfo.title);
                                     }
                                   }}
                                   className="flex-1 text-left min-w-0"

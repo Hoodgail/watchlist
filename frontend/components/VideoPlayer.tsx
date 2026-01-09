@@ -137,7 +137,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // ============ Load Sources ============
   useEffect(() => {
-    loadEpisodeSources();
+    // Pass current props to avoid stale closure issues
+    loadEpisodeSources(episodeId, mediaId, provider);
     
     return () => {
       // Cleanup HLS instance
@@ -154,7 +155,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         clearTimeout(autoPlayTimeoutRef.current);
       }
     };
-  }, [episodeId, provider]);
+  }, [episodeId, provider, mediaId]);
 
   // Save progress on unmount
   useEffect(() => {
@@ -165,20 +166,40 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [mediaId, episodeId, duration]);
 
-  const loadEpisodeSources = async () => {
+  const loadEpisodeSources = async (currentEpisodeId: string, currentMediaId: string, currentProvider: VideoProviderName) => {
+    // Destroy existing HLS instance first before resetting state
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    
+    // Reset video element source to stop any pending loads
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.removeAttribute('src');
+      videoRef.current.load();
+    }
+    
     setLoading(true);
     setError(null);
     setSources(null);
     setCurrentSourceIndex(0);
     setHlsLevels([]);
     setCurrentHlsLevel(-1);
+    
+    // Reset playback state for new episode
+    setCurrentTime(0);
+    setDuration(0);
+    setBuffered(0);
+    setIsPlaying(false);
+    setShowAutoPlayCountdown(false);
 
     try {
       // Check for offline version first
-      const isDownloaded = isEpisodeDownloaded(episodeId);
+      const isDownloaded = isEpisodeDownloaded(currentEpisodeId);
       
       if (isDownloaded) {
-        const offlineUrl = await getOfflineVideoUrl(episodeId);
+        const offlineUrl = await getOfflineVideoUrl(currentEpisodeId);
         if (offlineUrl) {
           // Create a simple sources object for offline playback
           const offlineSources: StreamingSources = {
@@ -187,7 +208,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           };
           setSources(offlineSources);
           setSubtitles([]);
-          await initializePlayer(offlineUrl, false);
+          await initializePlayer(offlineUrl, false, currentEpisodeId, currentMediaId);
           setLoading(false);
           return;
         }
@@ -198,7 +219,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         throw new Error('This episode is not available offline');
       }
 
-      const streamingSources = await video.getEpisodeSources(provider, episodeId, mediaId);
+      const streamingSources = await video.getEpisodeSources(currentProvider, currentEpisodeId, currentMediaId);
       
       if (!streamingSources.sources || streamingSources.sources.length === 0) {
         throw new Error('No streaming sources found');
@@ -229,7 +250,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       // Initialize player with first source
       const firstSource = proxiedSources.sources[0];
-      await initializePlayer(firstSource.url, firstSource.isM3U8 || false);
+      await initializePlayer(firstSource.url, firstSource.isM3U8 || false, currentEpisodeId, currentMediaId);
       
     } catch (err) {
       console.error('[VideoPlayer] Failed to load sources:', err);
@@ -239,9 +260,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  const initializePlayer = async (url: string, isHLS: boolean) => {
+  const initializePlayer = async (url: string, isHLS: boolean, episodeIdForProgress: string, mediaIdForProgress: string) => {
     const videoElement = videoRef.current;
-    if (!videoElement) return;
+    console.log('[VideoPlayer] initializePlayer called:', { url: url.substring(0, 50), isHLS, hasVideoElement: !!videoElement });
+    
+    if (!videoElement) {
+      console.error('[VideoPlayer] Video element not found!');
+      return;
+    }
 
     // Destroy existing HLS instance
     if (hlsRef.current) {
@@ -249,7 +275,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       hlsRef.current = null;
     }
 
+    // Helper to restore playback position after video is ready
+    const restorePosition = () => {
+      const progress = getWatchProgress(mediaIdForProgress, episodeIdForProgress);
+      if (progress && progress.currentTime > 0 && videoElement) {
+        // Don't restore if near the end (within last 60 seconds)
+        if (progress.duration - progress.currentTime > 60) {
+          videoElement.currentTime = progress.currentTime;
+        }
+      }
+    };
+
     if (isHLS && Hls.isSupported()) {
+      console.log('[VideoPlayer] Setting up HLS.js');
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
@@ -259,13 +297,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       hls.attachMedia(videoElement);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('[VideoPlayer] HLS manifest parsed, starting playback');
         // Extract quality levels
         const levels = hls.levels.map(level => ({
           height: level.height,
           bitrate: level.bitrate,
         }));
         setHlsLevels(levels);
-        restorePlaybackPosition();
+        // Restore position then start playback
+        restorePosition();
+        videoElement.play().catch(err => {
+          console.log('[VideoPlayer] Autoplay prevented:', err);
+        });
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
@@ -286,23 +329,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari native HLS support
       videoElement.src = url;
-      restorePlaybackPosition();
+      restorePosition();
+      videoElement.play().catch(err => {
+        console.log('[VideoPlayer] Autoplay prevented:', err);
+      });
     } else {
       // Direct video source
       videoElement.src = url;
-      restorePlaybackPosition();
+      restorePosition();
+      videoElement.play().catch(err => {
+        console.log('[VideoPlayer] Autoplay prevented:', err);
+      });
     }
   };
-
-  const restorePlaybackPosition = useCallback(() => {
-    const progress = getWatchProgress(mediaId, episodeId);
-    if (progress && progress.currentTime > 0 && videoRef.current) {
-      // Don't restore if near the end (within last 60 seconds)
-      if (progress.duration - progress.currentTime > 60) {
-        videoRef.current.currentTime = progress.currentTime;
-      }
-    }
-  }, [mediaId, episodeId, getWatchProgress]);
 
   const handleSourceError = useCallback(() => {
     if (!sources) return;
@@ -312,11 +351,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       console.log('[VideoPlayer] Trying next source:', nextIndex);
       setCurrentSourceIndex(nextIndex);
       const nextSource = sources.sources[nextIndex];
-      initializePlayer(nextSource.url, nextSource.isM3U8 || false);
+      initializePlayer(nextSource.url, nextSource.isM3U8 || false, episodeId, mediaId);
     } else {
       setError('All video sources failed. Please try again later.');
     }
-  }, [sources, currentSourceIndex]);
+  }, [sources, currentSourceIndex, episodeId, mediaId]);
 
   // ============ Controls Auto-hide ============
   useEffect(() => {
@@ -486,9 +525,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [nextEpisode, onEpisodeChange]);
 
   const handleVideoError = useCallback(() => {
-    console.error('[VideoPlayer] Video element error');
+    // Ignore errors during loading/reset phase - sources will be null
+    if (!sources || loading) {
+      return;
+    }
+    
     handleSourceError();
-  }, [handleSourceError]);
+  }, [handleSourceError, sources, loading]);
 
   // ============ Player Controls ============
   const togglePlayPause = useCallback(() => {
@@ -637,24 +680,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [duration, seekTo]);
 
   // ============ Render ============
-  if (loading) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.loadingContainer}>
-          <div style={styles.spinner} />
-          <div style={styles.loadingText}>Loading video...</div>
-        </div>
-      </div>
-    );
-  }
-
+  // Always render video element so ref is available, show overlays for loading/error states
+  
   if (error) {
     return (
       <div style={styles.container}>
         <div style={styles.errorContainer}>
           <div style={styles.errorText}>{error}</div>
           <div style={styles.errorButtons}>
-            <button onClick={loadEpisodeSources} style={styles.retryButton}>
+            <button onClick={() => loadEpisodeSources(episodeId, mediaId, provider)} style={styles.retryButton}>
               Retry
             </button>
             <button onClick={onClose} style={styles.backButton}>
@@ -674,7 +708,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       onTouchEnd={handleDoubleTap}
       onMouseMove={() => setShowControls(true)}
     >
-      {/* Video Element */}
+      {/* Video Element - always rendered so ref is available */}
       <video
         ref={videoRef}
         style={styles.video}
@@ -700,16 +734,25 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         ))}
       </video>
 
-      {/* Controls Overlay */}
-      <div
-        className="player-controls"
-        style={{
-          ...styles.controlsOverlay,
-          opacity: showControls ? 1 : 0,
-          pointerEvents: showControls ? 'auto' : 'none',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      {/* Loading Overlay */}
+      {loading && (
+        <div style={styles.loadingOverlay}>
+          <div style={styles.spinner} />
+          <div style={styles.loadingText}>Loading video...</div>
+        </div>
+      )}
+
+      {/* Controls Overlay - only show when not loading */}
+      {!loading && (
+        <div
+          className="player-controls"
+          style={{
+            ...styles.controlsOverlay,
+            opacity: showControls ? 1 : 0,
+            pointerEvents: showControls ? 'auto' : 'none',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Top Bar */}
         <div style={styles.topBar}>
           <button onClick={onClose} style={styles.iconButton}>
@@ -973,6 +1016,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Auto-play Next Episode Countdown */}
       {showAutoPlayCountdown && nextEpisode && (
@@ -1041,6 +1085,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: '50%',
     transform: 'translate(-50%, -50%)',
     pointerEvents: 'none',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '16px',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    zIndex: 10,
   },
   errorContainer: {
     display: 'flex',
