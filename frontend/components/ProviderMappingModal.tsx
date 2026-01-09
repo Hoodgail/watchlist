@@ -246,9 +246,9 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
                         <span>{result.total} {result.type === 'MOVIE' ? 'min' : 'ep'}</span>
                       )}
                     </div>
-                    {result.description && (
+                    {(result.description || result.overview) && (
                       <p className="text-xs text-neutral-600 mt-2 line-clamp-2">
-                        {result.description}
+                        {result.description || result.overview}
                       </p>
                     )}
                   </div>

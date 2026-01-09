@@ -269,7 +269,7 @@ function findMatchingResults(
         year: result.year,
         type: result.type,
         imageUrl: result.imageUrl,
-        description: result.description,
+        description: result.description || result.overview,
       });
     }
   }

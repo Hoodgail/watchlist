@@ -186,7 +186,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             const searchResults: SearchResult[] = multiMatchCheck.matches.map(m => ({
               id: `${provider}:${m.id}`,
               title: m.title,
-              type: m.type || (mediaType === 'movie' ? 'MOVIE' : mediaType === 'tv' ? 'TV' : 'ANIME'),
+              type: (m.type || (mediaType === 'movie' ? 'MOVIE' : mediaType === 'tv' ? 'TV' : 'ANIME')) as SearchResult['type'],
+              total: null,
               year: m.year,
               imageUrl: m.imageUrl,
               description: m.description,

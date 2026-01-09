@@ -118,6 +118,7 @@ export interface SearchResult {
   imageUrl?: string;
   year?: number;
   overview?: string;
+  description?: string; // Alias for overview, used by some providers
   source?: string; // The source/provider used
   provider?: ProviderName; // The specific provider
 }
