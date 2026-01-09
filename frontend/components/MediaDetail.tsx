@@ -725,9 +725,17 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 return (
                   <div key={season.season} className="border border-neutral-800">
                     {/* Season Header */}
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => toggleSeason(season.season)}
-                      className="w-full px-4 py-3 flex items-center justify-between bg-neutral-950 hover:bg-neutral-900 transition-colors"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleSeason(season.season);
+                        }
+                      }}
+                      className="w-full px-4 py-3 flex items-center justify-between bg-neutral-950 hover:bg-neutral-900 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <span className="font-bold uppercase tracking-tight text-white">
@@ -769,7 +777,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </div>
-                    </button>
+                    </div>
 
                     {/* Episode List */}
                     {isExpanded && (
