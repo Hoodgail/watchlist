@@ -3,9 +3,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { VideoProviderName, VideoEpisode, VideoSeason } from '../types';
 import * as videoService from '../services/video';
 import { VideoMediaInfo } from '../services/video';
-import { resolveAndGetMediaInfo, needsResolution } from '../services/videoResolver';
+import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD } from '../services/videoResolver';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
+import ProviderMappingModal from './ProviderMappingModal';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -60,6 +61,12 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const [selectedEpisodes, setSelectedEpisodes] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  
+  // Resolution confidence tracking
+  const [confidence, setConfidence] = useState<number>(1.0);
+  const [isVerified, setIsVerified] = useState<boolean>(true);
+  const [showLinkSourceModal, setShowLinkSourceModal] = useState(false);
+  const [showConfidenceWarning, setShowConfidenceWarning] = useState(false);
   
   // Resolved provider ID - may differ from mediaId if resolution was needed
   const resolvedProviderIdRef = useRef<string>(mediaId);
@@ -116,6 +123,13 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             resolvedProviderIdRef.current = resolved.providerId;
             resolvedProviderRef.current = resolved.provider;
             setMediaInfo(resolved.mediaInfo);
+            setConfidence(resolved.confidence);
+            setIsVerified(resolved.isVerified);
+            
+            // Show confidence warning if match quality is low
+            if (resolved.confidence < LOW_CONFIDENCE_THRESHOLD && !resolved.isVerified) {
+              setShowConfidenceWarning(true);
+            }
             
             // Expand first season by default
             if (resolved.mediaInfo.seasons && resolved.mediaInfo.seasons.length > 0) {
@@ -155,6 +169,13 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 resolvedProviderIdRef.current = resolved.providerId;
                 resolvedProviderRef.current = resolved.provider;
                 setMediaInfo(resolved.mediaInfo);
+                setConfidence(resolved.confidence);
+                setIsVerified(resolved.isVerified);
+                
+                // Show confidence warning if match quality is low
+                if (resolved.confidence < LOW_CONFIDENCE_THRESHOLD && !resolved.isVerified) {
+                  setShowConfidenceWarning(true);
+                }
                 
                 if (resolved.mediaInfo.seasons && resolved.mediaInfo.seasons.length > 0) {
                   setExpandedSeasons(new Set([resolved.mediaInfo.seasons[0].season]));
@@ -349,6 +370,26 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     return 0;
   };
 
+  // Handle when user manually links a source
+  const handleMappingSaved = useCallback((providerId: string, providerTitle: string) => {
+    // Update resolved refs with the new mapping
+    resolvedProviderIdRef.current = providerId;
+    
+    // Clear confidence warning since this is now verified
+    setShowConfidenceWarning(false);
+    setConfidence(1.0);
+    setIsVerified(true);
+    
+    // Reset loaded ref to force reload with new mapping
+    loadedForRef.current = null;
+    
+    // Show success toast
+    showToast(`Linked to "${providerTitle}"`, 'success');
+    
+    // Reload media details with the new mapping
+    loadMediaDetails();
+  }, [showToast]);
+
   // Check if this is a movie (single content without episodes)
   const isMovie = mediaInfo?.type === 'Movie' || 
     (getAllEpisodes().length === 0 && !mediaInfo?.seasons?.length);
@@ -403,6 +444,34 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           )}
         </div>
       </div>
+
+      {/* Confidence Warning Banner */}
+      {showConfidenceWarning && (
+        <div className="mx-4 mt-4 bg-yellow-900/20 border border-yellow-700 p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm text-yellow-200 font-medium">
+                Low confidence match ({Math.round(confidence * 100)}%)
+              </p>
+              <p className="text-xs text-yellow-400/80 mt-1">
+                This title was matched automatically and may not be correct. 
+                If this is the wrong content, use "Link Source" below to manually select the correct one.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowConfidenceWarning(false)}
+              className="text-yellow-500 hover:text-yellow-300 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Media Info */}
       <div className="p-4 border-b border-neutral-800">
@@ -569,6 +638,16 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 </button>
               )}
             </>
+          )}
+          
+          {/* Link Source button - allows manual mapping override */}
+          {isOnline && needsResolution(mediaId) && (
+            <button
+              onClick={() => setShowLinkSourceModal(true)}
+              className="px-4 py-2 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            >
+              Link Source
+            </button>
           )}
         </div>
       </div>
@@ -869,7 +948,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                             </div>
                           );
                         })}
-                      </div>
+                       </div>
                     )}
                   </div>
                 );
@@ -877,6 +956,18 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* Provider Mapping Modal */}
+      {showLinkSourceModal && (
+        <ProviderMappingModal
+          refId={mediaId}
+          title={initialTitle || mediaInfo?.title || ''}
+          mediaType={mediaType}
+          currentProvider={provider}
+          onClose={() => setShowLinkSourceModal(false)}
+          onMappingSaved={handleMappingSaved}
+        />
       )}
     </div>
   );

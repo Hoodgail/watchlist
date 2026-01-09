@@ -192,3 +192,22 @@ model WatchProgress {
   @@index([userId, mediaId])
   @@map("watch_progress")
 }
+
+// Provider mapping for resolving external IDs (TMDB, AniList) to video provider-specific IDs
+// This stores user-verified mappings to avoid fuzzy match errors
+model ProviderMapping {
+  id            String   @id @default(uuid())
+  refId         String   @map("ref_id") @db.VarChar(100) // External ID (e.g., "tmdb:12345", "anilist:456")
+  provider      String   @db.VarChar(50) // Video provider (e.g., "hianime", "flixhq")
+  providerId    String   @map("provider_id") @db.VarChar(255) // Provider-specific ID
+  providerTitle String   @map("provider_title") @db.VarChar(255) // Title from provider (for display)
+  confidence    Float    @default(1.0) // Match confidence score (1.0 = user verified)
+  verifiedBy    String?  @map("verified_by") // User ID who verified (null = auto-matched)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([refId, provider])
+  @@index([refId])
+  @@index([provider])
+  @@map("provider_mappings")
+}

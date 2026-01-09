@@ -7,6 +7,7 @@ import profileRoutes from './profile.js';
 import mangaRoutes from './manga.js';
 import mediaRoutes from './media.js';
 import watchProgressRoutes from './watchProgress.js';
+import providerMappingRoutes from './providerMappings.js';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use('/profile', profileRoutes);
 router.use('/manga', mangaRoutes);
 router.use('/media', mediaRoutes);
 router.use('/watch-progress', watchProgressRoutes);
+router.use('/provider-mappings', providerMappingRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

@@ -26,6 +26,15 @@ import {
   getProviderDisplayName,
   ALL_VIDEO_PROVIDERS,
 } from './providerConfig';
+import { getProviderMapping, saveAutoMapping } from './api';
+
+// ============ Constants ============
+
+/** Confidence threshold below which we show "Is this correct?" prompt */
+export const LOW_CONFIDENCE_THRESHOLD = 0.9;
+
+/** Minimum similarity score to accept a match */
+const MIN_SIMILARITY_THRESHOLD = 0.3;
 
 // ============ Types ============
 
@@ -40,6 +49,10 @@ export interface ResolvedMedia {
   originalRefId: string;
   /** Media info if already fetched during resolution */
   mediaInfo?: VideoMediaInfo;
+  /** Confidence score of the match (1.0 = verified, <0.9 = needs confirmation) */
+  confidence: number;
+  /** Whether this was from a user-verified database mapping */
+  isVerified: boolean;
 }
 
 export interface ResolutionOptions {
@@ -222,8 +235,11 @@ function findBestMatch(
 /**
  * Resolve a refId to a provider-specific ID
  * 
- * If the refId is already from a video provider, returns it directly.
- * If it's from an external source (TMDB, AniList), searches the provider by title.
+ * Resolution priority:
+ * 1. If refId is already a video provider ID, use directly
+ * 2. Check database for verified/cached mapping
+ * 3. Check in-memory cache
+ * 4. Search provider by title (fuzzy match)
  * 
  * @param refId - The reference ID to resolve (e.g., "tmdb:95479" or "hianime:abc123")
  * @param provider - The video provider to resolve to
@@ -252,6 +268,8 @@ export async function resolveToProvider(
         provider,
         title: options.title || '',
         originalRefId: refId,
+        confidence: 1.0,
+        isVerified: true,
       };
       
       // Optionally fetch media info
@@ -281,7 +299,40 @@ export async function resolveToProvider(
     return null;
   }
   
-  // Check cache first
+  // Check database for existing mapping first (highest priority)
+  try {
+    const dbMapping = await getProviderMapping(refId, provider);
+    if (dbMapping) {
+      console.log(`[videoResolver] Found database mapping for ${refId} → ${provider}: ${dbMapping.providerId} (confidence: ${dbMapping.confidence})`);
+      
+      const result: ResolvedMedia = {
+        providerId: dbMapping.providerId,
+        provider,
+        title: dbMapping.providerTitle,
+        originalRefId: refId,
+        confidence: dbMapping.confidence,
+        isVerified: dbMapping.verifiedBy !== null,
+      };
+      
+      // Also cache in memory for faster subsequent lookups
+      cacheProviderId(refId, provider, dbMapping.providerId);
+      
+      if (options.fetchInfo) {
+        try {
+          result.mediaInfo = await getMediaInfo(provider, dbMapping.providerId, toApiMediaType(options.mediaType));
+          result.title = result.mediaInfo.title;
+        } catch (err) {
+          console.warn('[videoResolver] Failed to fetch media info from database mapping:', err);
+        }
+      }
+      
+      return result;
+    }
+  } catch (err) {
+    console.warn('[videoResolver] Failed to check database mapping:', err);
+  }
+  
+  // Check in-memory cache
   const cachedId = getCachedProviderId(refId, provider);
   if (cachedId) {
     const result: ResolvedMedia = {
@@ -289,6 +340,8 @@ export async function resolveToProvider(
       provider,
       title: options.title,
       originalRefId: refId,
+      confidence: 1.0, // Cache entries are assumed high confidence
+      isVerified: false,
     };
     
     if (options.fetchInfo) {
@@ -317,14 +370,21 @@ export async function resolveToProvider(
     
     console.log(`[videoResolver] Found match: "${match.title}" (${match.id}) with score ${match.score.toFixed(2)}`);
     
-    // Cache the resolution
+    // Cache the resolution in memory
     cacheProviderId(refId, provider, match.id);
+    
+    // Save auto-mapping to database (non-blocking)
+    saveAutoMapping(refId, provider, match.id, match.title, match.score).catch(err => {
+      console.warn('[videoResolver] Failed to save auto-mapping:', err);
+    });
     
     const result: ResolvedMedia = {
       providerId: match.id,
       provider,
       title: match.title,
       originalRefId: refId,
+      confidence: match.score,
+      isVerified: false,
     };
     
     // Optionally fetch media info
@@ -360,7 +420,13 @@ export async function resolveAndGetMediaInfo(
   provider: VideoProviderName,
   title: string,
   mediaType?: 'movie' | 'tv' | 'anime'
-): Promise<{ mediaInfo: VideoMediaInfo; providerId: string; provider: VideoProviderName } | null> {
+): Promise<{ 
+  mediaInfo: VideoMediaInfo; 
+  providerId: string; 
+  provider: VideoProviderName;
+  confidence: number;
+  isVerified: boolean;
+} | null> {
   const parsed = parseRefId(refId);
   if (!parsed) {
     console.error('[videoResolver] Invalid refId:', refId);
@@ -372,7 +438,7 @@ export async function resolveAndGetMediaInfo(
     if (parsed.source === provider) {
       try {
         const mediaInfo = await getMediaInfo(provider, parsed.id, toApiMediaType(mediaType));
-        return { mediaInfo, providerId: parsed.id, provider };
+        return { mediaInfo, providerId: parsed.id, provider, confidence: 1.0, isVerified: true };
       } catch (err) {
         // Direct fetch failed - fall through to search
         console.warn('[videoResolver] Direct fetch failed, trying search:', err);
@@ -395,6 +461,8 @@ export async function resolveAndGetMediaInfo(
     mediaInfo: resolved.mediaInfo,
     providerId: resolved.providerId,
     provider: resolved.provider,
+    confidence: resolved.confidence,
+    isVerified: resolved.isVerified,
   };
 }
 
@@ -419,6 +487,10 @@ export interface FallbackResolutionResult {
   triedProviders: VideoProviderName[];
   /** Whether fallback was used (not the primary provider) */
   usedFallback: boolean;
+  /** Confidence score of the match */
+  confidence: number;
+  /** Whether this was from a user-verified mapping */
+  isVerified: boolean;
 }
 
 /**
@@ -462,6 +534,8 @@ export async function resolveWithFallback(
           provider: result.provider,
           triedProviders,
           usedFallback: triedProviders.length > 1,
+          confidence: result.confidence,
+          isVerified: result.isVerified,
         };
       }
     } catch (err) {
