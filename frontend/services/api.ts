@@ -431,6 +431,22 @@ interface BackendUserWithList {
   list: BackendMediaItem[];
 }
 
+// GET /api/friends/:userId/list/grouped returns grouped list with pagination
+interface BackendGroupedFriendList {
+  id: string;
+  username: string;
+  displayName: string | null;
+  groups: {
+    WATCHING: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number };
+    READING: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number };
+    PAUSED: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number };
+    PLAN_TO_WATCH: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number };
+    COMPLETED: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number };
+    DROPPED: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number };
+  };
+  grandTotal: number;
+}
+
 // GET /api/friends/search returns: [{ id, username, isFollowing }]
 interface BackendSearchUser {
   id: string;
@@ -525,6 +541,71 @@ export async function getUserList(userId: string): Promise<User> {
     id: data.id,
     username: data.username,
     list: data.list.map(transformBackendItem),
+  };
+}
+
+// Grouped friend list response type
+export interface GroupedFriendListResponse {
+  id: string;
+  username: string;
+  displayName: string | null;
+  groups: {
+    WATCHING: StatusGroupPagination;
+    READING: StatusGroupPagination;
+    PAUSED: StatusGroupPagination;
+    PLAN_TO_WATCH: StatusGroupPagination;
+    COMPLETED: StatusGroupPagination;
+    DROPPED: StatusGroupPagination;
+  };
+  grandTotal: number;
+}
+
+interface GroupedFriendListFilters {
+  mediaTypeFilter?: MediaTypeFilter;
+  statusPages?: Partial<Record<MediaStatus, number>>;
+  limit?: number;
+}
+
+export async function getFriendGroupedList(
+  userId: string,
+  filters?: GroupedFriendListFilters
+): Promise<GroupedFriendListResponse> {
+  const params = new URLSearchParams();
+  if (filters?.mediaTypeFilter) params.append('mediaTypeFilter', filters.mediaTypeFilter);
+  if (filters?.limit) params.append('limit', String(filters.limit));
+  if (filters?.statusPages) params.append('statusPages', JSON.stringify(filters.statusPages));
+
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetchWithAuth(`/friends/${userId}/list/grouped${query}`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch friend grouped list');
+  }
+
+  const data: BackendGroupedFriendList = await response.json();
+  
+  // Transform items in each group
+  const transformGroup = (group: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number }): StatusGroupPagination => ({
+    items: group.items.map(transformBackendItem),
+    total: group.total,
+    hasMore: group.hasMore,
+    page: group.page,
+  });
+
+  return {
+    id: data.id,
+    username: data.username,
+    displayName: data.displayName,
+    groups: {
+      WATCHING: transformGroup(data.groups.WATCHING),
+      READING: transformGroup(data.groups.READING),
+      PAUSED: transformGroup(data.groups.PAUSED),
+      PLAN_TO_WATCH: transformGroup(data.groups.PLAN_TO_WATCH),
+      COMPLETED: transformGroup(data.groups.COMPLETED),
+      DROPPED: transformGroup(data.groups.DROPPED),
+    },
+    grandTotal: data.grandTotal,
   };
 }
 

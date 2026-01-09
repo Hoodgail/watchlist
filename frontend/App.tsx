@@ -53,6 +53,13 @@ const MainApp: React.FC = () => {
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
 
+  // Friend's grouped lists (for FRIEND_VIEW)
+  const [friendWatchlistGrouped, setFriendWatchlistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
+  const [friendReadlistGrouped, setFriendReadlistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
+  const [friendListLoading, setFriendListLoading] = useState(false);
+  const [friendWatchlistLoadingStatuses, setFriendWatchlistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
+  const [friendReadlistLoadingStatuses, setFriendReadlistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
+
   // User's own lists - separate state for watchlist (video) and readlist (manga)
   const [watchlistGrouped, setWatchlistGrouped] = useState<api.GroupedListResponse | null>(null);
   const [readlistGrouped, setReadlistGrouped] = useState<api.GroupedListResponse | null>(null);
@@ -235,6 +242,78 @@ const MainApp: React.FC = () => {
       });
     }
   }, [readlistGrouped, readlistLoadingStatuses]);
+
+  const loadFriendWatchlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
+    if (!friendWatchlistGrouped || !selectedFriend || friendWatchlistLoadingStatuses.has(status)) return;
+    
+    setFriendWatchlistLoadingStatuses(prev => new Set(prev).add(status));
+    try {
+      // Build statusPages with this status at the requested page
+      const statusPages: Partial<Record<MediaStatus, number>> = {};
+      // Keep existing pages for all other statuses
+      for (const s of Object.keys(friendWatchlistGrouped.groups) as MediaStatus[]) {
+        statusPages[s] = s === status ? page : friendWatchlistGrouped.groups[s].page;
+      }
+      
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'video' });
+      
+      // Replace the items for this status with the new page
+      setFriendWatchlistGrouped(prev => {
+        if (!prev) return result;
+        return {
+          ...prev,
+          groups: {
+            ...prev.groups,
+            [status]: result.groups[status],
+          },
+        };
+      });
+    } catch (error) {
+      console.error(`Failed to load friend watchlist page ${page} for ${status}:`, error);
+    } finally {
+      setFriendWatchlistLoadingStatuses(prev => {
+        const next = new Set(prev);
+        next.delete(status);
+        return next;
+      });
+    }
+  }, [friendWatchlistGrouped, friendWatchlistLoadingStatuses, selectedFriend]);
+
+  const loadFriendReadlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
+    if (!friendReadlistGrouped || !selectedFriend || friendReadlistLoadingStatuses.has(status)) return;
+    
+    setFriendReadlistLoadingStatuses(prev => new Set(prev).add(status));
+    try {
+      // Build statusPages with this status at the requested page
+      const statusPages: Partial<Record<MediaStatus, number>> = {};
+      // Keep existing pages for all other statuses
+      for (const s of Object.keys(friendReadlistGrouped.groups) as MediaStatus[]) {
+        statusPages[s] = s === status ? page : friendReadlistGrouped.groups[s].page;
+      }
+      
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'manga' });
+      
+      // Replace the items for this status with the new page
+      setFriendReadlistGrouped(prev => {
+        if (!prev) return result;
+        return {
+          ...prev,
+          groups: {
+            ...prev.groups,
+            [status]: result.groups[status],
+          },
+        };
+      });
+    } catch (error) {
+      console.error(`Failed to load friend readlist page ${page} for ${status}:`, error);
+    } finally {
+      setFriendReadlistLoadingStatuses(prev => {
+        const next = new Set(prev);
+        next.delete(status);
+        return next;
+      });
+    }
+  }, [friendReadlistGrouped, friendReadlistLoadingStatuses, selectedFriend]);
 
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true);
@@ -491,24 +570,23 @@ const MainApp: React.FC = () => {
   };
 
   const handleViewFriend = async (friend: User) => {
-    // Load friend's full list if not already loaded
-    if (friend.list.length === 0) {
-      try {
-        // getUserList returns full User object with list populated
-        const userWithList = await api.getUserList(friend.id);
-        setSelectedFriend(userWithList);
-        // Update in friends list too
-        setFriends((prev) =>
-          prev.map((f) => (f.id === friend.id ? userWithList : f))
-        );
-      } catch (error) {
-        console.error('Failed to load friend list:', error);
-        setSelectedFriend(friend);
-      }
-    } else {
-      setSelectedFriend(friend);
-    }
+    setSelectedFriend(friend);
     setCurrentView('FRIEND_VIEW');
+    setFriendListLoading(true);
+    
+    try {
+      // Load friend's grouped lists for video and manga in parallel
+      const [watchlistResult, readlistResult] = await Promise.all([
+        api.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'video' }),
+        api.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'manga' }),
+      ]);
+      setFriendWatchlistGrouped(watchlistResult);
+      setFriendReadlistGrouped(readlistResult);
+    } catch (error) {
+      console.error('Failed to load friend list:', error);
+    } finally {
+      setFriendListLoading(false);
+    }
   };
 
   const handleSearchUsers = async (query: string): Promise<User[]> => {
@@ -785,11 +863,34 @@ const MainApp: React.FC = () => {
         );
       case 'FRIEND_VIEW':
         if (!selectedFriend) return null;
+        
+        // Derive flat lists from grouped data for friend's lists
+        const friendWatchlistItems: MediaItem[] = friendWatchlistGrouped 
+          ? Object.values(friendWatchlistGrouped.groups).flatMap(g => g.items)
+          : [];
+        const friendReadlistItems: MediaItem[] = friendReadlistGrouped
+          ? Object.values(friendReadlistGrouped.groups).flatMap(g => g.items)
+          : [];
+        
+        // Convert GroupedFriendListResponse to GroupedListResponse format for MediaList
+        const friendWatchlistForMediaList = friendWatchlistGrouped ? {
+          groups: friendWatchlistGrouped.groups,
+          grandTotal: friendWatchlistGrouped.grandTotal,
+        } : null;
+        const friendReadlistForMediaList = friendReadlistGrouped ? {
+          groups: friendReadlistGrouped.groups,
+          grandTotal: friendReadlistGrouped.grandTotal,
+        } : null;
+        
         return (
           <div className="space-y-8">
             <div className="border-b border-white pb-4 mb-4">
               <button
-                onClick={() => setCurrentView('FRIENDS')}
+                onClick={() => {
+                  setCurrentView('FRIENDS');
+                  setFriendWatchlistGrouped(null);
+                  setFriendReadlistGrouped(null);
+                }}
                 className="text-gray-500 hover:text-white mb-2 text-sm uppercase tracking-wider"
               >
                 &larr; Back to Friends
@@ -798,18 +899,36 @@ const MainApp: React.FC = () => {
                 {selectedFriend.username}'s LISTS
               </h2>
             </div>
-            <MediaList
-              title="WATCHLIST"
-              items={selectedFriend.list.filter((i) => i.type !== 'MANGA')}
-              onAddToMyList={handleAddFromFriendList}
-              readonly={true}
-            />
-            <MediaList
-              title="READLIST"
-              items={selectedFriend.list.filter((i) => i.type === 'MANGA')}
-              onAddToMyList={handleAddFromFriendList}
-              readonly={true}
-            />
+            {friendListLoading ? (
+              <div className="flex items-center justify-center min-h-[40vh]">
+                <div className="text-neutral-500 uppercase tracking-wider animate-pulse">
+                  Loading lists...
+                </div>
+              </div>
+            ) : (
+              <>
+                <MediaList
+                  title="WATCHLIST"
+                  items={friendWatchlistItems}
+                  groupedData={friendWatchlistForMediaList}
+                  mediaTypeFilter="video"
+                  onAddToMyList={handleAddFromFriendList}
+                  readonly={true}
+                  onPageChange={loadFriendWatchlistPageForStatus}
+                  loadingStatuses={friendWatchlistLoadingStatuses}
+                />
+                <MediaList
+                  title="READLIST"
+                  items={friendReadlistItems}
+                  groupedData={friendReadlistForMediaList}
+                  mediaTypeFilter="manga"
+                  onAddToMyList={handleAddFromFriendList}
+                  readonly={true}
+                  onPageChange={loadFriendReadlistPageForStatus}
+                  loadingStatuses={friendReadlistLoadingStatuses}
+                />
+              </>
+            )}
           </div>
         );
       case 'SUGGESTIONS':

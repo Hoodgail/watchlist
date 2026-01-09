@@ -86,6 +86,44 @@ export async function getFriendList(
   }
 }
 
+export async function getGroupedFriendList(
+  req: Request<{ userId: string }, unknown, unknown, {
+    mediaTypeFilter?: string;
+    statusPages?: string;
+    limit?: string;
+  }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    
+    let statusPages: Partial<Record<string, number>> | undefined;
+    if (req.query.statusPages) {
+      try {
+        statusPages = JSON.parse(req.query.statusPages);
+      } catch {
+        res.status(400).json({ error: 'Invalid statusPages format' });
+        return;
+      }
+    }
+    
+    const filters: friendService.GroupedFriendListFilters = {
+      mediaTypeFilter: req.query.mediaTypeFilter as friendService.MediaTypeFilter | undefined,
+      statusPages,
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
+    };
+    
+    const friendList = await friendService.getGroupedFriendList(req.user.id, req.params.userId, filters);
+    res.json(friendList);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function searchUsers(
   req: Request<unknown, unknown, unknown, { q: string }>,
   res: Response,

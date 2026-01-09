@@ -23,4 +23,7 @@ router.delete('/:userId', friendController.unfollow);
 // View friend's list
 router.get('/:userId/list', friendController.getFriendList);
 
+// View friend's list grouped by status with pagination
+router.get('/:userId/list/grouped', friendController.getGroupedFriendList);
+
 export default router;
