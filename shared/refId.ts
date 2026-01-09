@@ -27,9 +27,7 @@ export const KNOWN_SOURCES = [
   // Book sources
   'libgen',
   'novelupdates',
-  'getcomics',
-  // Local/manual entries
-  'local',
+  'getcomics'
 ] as const;
 
 export type KnownSource = typeof KNOWN_SOURCES[number];
@@ -47,7 +45,7 @@ export function isKnownSource(source: string): source is KnownSource {
  * Regex pattern for valid refId format
  * Format: source:id where source is lowercase letters/hyphens and id is alphanumeric with _ and -
  */
-export const REF_ID_PATTERN = /^[a-z][a-z-]*:[a-zA-Z0-9_-]+$/;
+export const REF_ID_PATTERN = /^[a-z][a-z-]*:[a-zA-Z0-9_/-]+$/;
 
 /**
  * Check if a string is a valid refId format
