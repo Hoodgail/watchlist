@@ -7,6 +7,7 @@ import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD } fro
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
 import { getWatchProgressForMedia, WatchProgressData, getAccessToken } from '../services/api';
+import { getOfflineEpisodesForMedia, OfflineVideoEpisode } from '../services/offlineVideoStorage';
 import ProviderMappingModal from './ProviderMappingModal';
 
 interface MediaDetailProps {
@@ -119,18 +120,39 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
     try {
       // Try to load from offline storage first
-      const offlineMedia = downloadedMedia.find(m => m.id === mediaId);
+      // Check both by ID and originalRefId (for cases where we store provider ID but query with external ID)
+      const offlineMedia = downloadedMedia.find(m => 
+        m.id === mediaId || m.originalRefId === mediaId
+      );
       
       if (offlineMedia) {
         // We have offline metadata but need full info
-        // If online, fetch fresh data; otherwise show limited info
+        // If online, fetch fresh data; otherwise show limited info with offline episodes
         if (!isOnline) {
-          // Create minimal media info from offline data
+          // Load episodes from IndexedDB for offline playback
+          const offlineEpisodes = await getOfflineEpisodesForMedia(offlineMedia.id);
+          
+          // Convert offline episodes to VideoEpisode format
+          const episodes: VideoEpisode[] = offlineEpisodes.map(ep => ({
+            id: ep.id,
+            number: ep.episodeNumber,
+            title: ep.title || `Episode ${ep.episodeNumber}`,
+          }));
+          
+          // Create media info from offline data with episodes
           setMediaInfo({
             id: offlineMedia.id,
             title: offlineMedia.title,
+            description: offlineMedia.description,
             totalEpisodes: offlineMedia.episodeCount,
+            episodes: episodes.length > 0 ? episodes : undefined,
           });
+          
+          // Expand "season 1" by default if we have episodes
+          if (episodes.length > 0) {
+            setExpandedSeasons(new Set([1]));
+          }
+          
           setLoading(false);
           return;
         }

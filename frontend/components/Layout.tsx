@@ -9,6 +9,7 @@ interface LayoutProps {
   onLogout?: () => void;
   pendingSuggestionsCount?: number;
   isOnline?: boolean;
+  isOfflineAuthenticated?: boolean;
 }
 
 // Avatar component with fallback to initials
@@ -73,19 +74,28 @@ export const Layout: React.FC<LayoutProps> = ({
   onLogout,
   pendingSuggestionsCount = 0,
   isOnline = true,
+  isOfflineAuthenticated = false,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const navItems: { id: View; label: string }[] = [
+  // Views that require network access
+  const networkRequiredViews: View[] = ['TRENDING', 'SEARCH', 'FRIENDS', 'SUGGESTIONS'];
+
+  const navItems: { id: View; label: string; requiresNetwork?: boolean }[] = [
     { id: 'WATCHLIST', label: 'WATCH' },
     { id: 'READLIST', label: 'READ' },
-    { id: 'TRENDING', label: 'HOT' },
-    { id: 'SEARCH', label: 'ADD' },
-    { id: 'FRIENDS', label: 'SOCIAL' },
+    { id: 'TRENDING', label: 'HOT', requiresNetwork: true },
+    { id: 'SEARCH', label: 'ADD', requiresNetwork: true },
+    { id: 'FRIENDS', label: 'SOCIAL', requiresNetwork: true },
   ];
 
   const isAuthView = currentView === 'LOGIN' || currentView === 'REGISTER';
+  
+  // Check if navigation should be disabled for a view
+  const isNavDisabled = (item: { id: View; requiresNetwork?: boolean }) => {
+    return isOfflineAuthenticated && item.requiresNetwork;
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -143,13 +153,16 @@ export const Layout: React.FC<LayoutProps> = ({
                 </button>
                 {/* Suggestions Bell Icon */}
                 <button
-                  onClick={() => onViewChange('SUGGESTIONS')}
+                  onClick={() => !isOfflineAuthenticated && onViewChange('SUGGESTIONS')}
+                  disabled={isOfflineAuthenticated}
                   className={`relative p-1 transition-colors ${
-                    currentView === 'SUGGESTIONS'
-                      ? 'text-white'
-                      : 'text-neutral-500 hover:text-white'
+                    isOfflineAuthenticated
+                      ? 'text-neutral-700 cursor-not-allowed'
+                      : currentView === 'SUGGESTIONS'
+                        ? 'text-white'
+                        : 'text-neutral-500 hover:text-white'
                   }`}
-                  title="Suggestions"
+                  title={isOfflineAuthenticated ? 'Requires internet connection' : 'Suggestions'}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -227,21 +240,30 @@ export const Layout: React.FC<LayoutProps> = ({
         {/* Only show nav when logged in */}
         {user && !isAuthView && (
           <nav className="grid grid-cols-5 divide-x divide-neutral-800">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onViewChange(item.id)}
-                className={`py-4 text-xs sm:text-sm font-bold tracking-wider hover:bg-neutral-900 transition-colors uppercase
-                ${currentView === item.id ||
-                    (currentView === 'FRIEND_VIEW' && item.id === 'FRIENDS') ||
-                    (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS')
-                    ? 'bg-white text-black'
-                    : 'text-neutral-500'
-                  }`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {navItems.map((item) => {
+              const disabled = isNavDisabled(item);
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => !disabled && onViewChange(item.id)}
+                  disabled={disabled}
+                  className={`py-4 text-xs sm:text-sm font-bold tracking-wider transition-colors uppercase
+                  ${disabled 
+                    ? 'text-neutral-700 cursor-not-allowed' 
+                    : 'hover:bg-neutral-900'
+                  }
+                  ${!disabled && (currentView === item.id ||
+                      (currentView === 'FRIEND_VIEW' && item.id === 'FRIENDS') ||
+                      (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS'))
+                      ? 'bg-white text-black'
+                      : disabled ? '' : 'text-neutral-500'
+                    }`}
+                  title={disabled ? 'Requires internet connection' : undefined}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
         )}
       </header>

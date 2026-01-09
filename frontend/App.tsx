@@ -12,13 +12,13 @@ import { Settings } from './components/Settings';
 import { PublicProfile } from './components/PublicProfile';
 import { MangaDetail } from './components/MangaDetail';
 import { ChapterReader } from './components/ChapterReader';
-import { DownloadManager } from './components/DownloadManager';
+import { UnifiedDownloadManager } from './components/UnifiedDownloadManager';
 import MediaDetail from './components/MediaDetail';
 import VideoPlayer from './components/VideoPlayer';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { useOffline } from './context/OfflineContext';
-import { OfflineVideoProvider } from './context/OfflineVideoContext';
+import { OfflineVideoProvider, useOfflineVideo } from './context/OfflineVideoContext';
 import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter, VideoProviderName, VideoEpisode, ProviderName } from './types';
 import { ChapterInfo } from './services/mangadexTypes';
 import * as api from './services/api';
@@ -33,13 +33,22 @@ const isOAuthCallbackPath = (path: string, search: string): boolean => {
 
 // Main App component that handles the authenticated app
 const MainApp: React.FC = () => {
-  const { user, isLoading: authLoading, logout } = useAuth();
+  const { user, isLoading: authLoading, logout, isOfflineAuthenticated } = useAuth();
   const { showToast } = useToast();
-  const { isOnline, isChapterDownloaded, getOfflineChapters } = useOffline();
+  const { isOnline, isChapterDownloaded, getOfflineChapters, downloadedManga } = useOffline();
   const location = useLocation();
   const navigate = useNavigate();
   
-  const [currentView, setCurrentView] = useState<View>('WATCHLIST');
+  // Determine initial view based on offline status
+  const getInitialView = (): View => {
+    // If offline and we have downloaded content, show downloads
+    if (!navigator.onLine) {
+      return 'DOWNLOADS';
+    }
+    return 'WATCHLIST';
+  };
+  
+  const [currentView, setCurrentView] = useState<View>(getInitialView());
   const [isOAuthCallback, setIsOAuthCallback] = useState(isOAuthCallbackPath(location.pathname, location.search));
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -98,18 +107,23 @@ const MainApp: React.FC = () => {
     mediaTitle: string;
   } | null>(null);
 
-  // Load user's list when authenticated
+  // Load user's list when authenticated (skip when offline-authenticated)
   useEffect(() => {
-    if (user) {
+    if (user && !isOfflineAuthenticated) {
+      // Online: load from API
       loadMyList();
       loadFriends();
       loadPendingSuggestionsCount();
+    } else if (user && isOfflineAuthenticated) {
+      // Offline: set default view to downloads if there's downloaded content
+      console.log('[App] Offline mode - skipping API calls');
+      setCurrentView('DOWNLOADS');
     } else {
       setMyList([]);
       setFriends([]);
       setPendingSuggestionsCount(0);
     }
-  }, [user]);
+  }, [user, isOfflineAuthenticated]);
 
   const loadMyList = useCallback(async (sortBy: SortBy = 'status', reset: boolean = true) => {
     if (reset) {
@@ -579,7 +593,15 @@ const MainApp: React.FC = () => {
         );
       case 'DOWNLOADS':
         return (
-          <DownloadManager onMangaClick={handleOpenManga} />
+          <OfflineVideoProvider>
+            <UnifiedDownloadManager 
+              onMangaClick={handleOpenManga}
+              onVideoClick={(mediaId, provider, title) => {
+                // Open video detail in offline mode
+                handleOpenMedia(mediaId, provider, title, 'anime');
+              }}
+            />
+          </OfflineVideoProvider>
         );
       default:
         return null;
@@ -653,6 +675,7 @@ const MainApp: React.FC = () => {
       onLogout={handleLogout}
       pendingSuggestionsCount={pendingSuggestionsCount}
       isOnline={isOnline}
+      isOfflineAuthenticated={isOfflineAuthenticated}
     >
       {renderContent()}
     </Layout>
