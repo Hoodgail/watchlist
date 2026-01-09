@@ -299,8 +299,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     if (!mediaInfo) return;
 
     try {
-      // Use resolved provider ID for downloads
-      await downloadEpisode(resolvedProviderId, mediaInfo.title, episode, resolvedProvider);
+      // Use resolved provider ID for downloads, but pass original mediaId as refId for offline lookup
+      await downloadEpisode(resolvedProviderId, mediaInfo.title, episode, resolvedProvider, mediaId);
       showToast('Episode queued for download', 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');
@@ -314,8 +314,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     const episodesToDownload = allEpisodes.filter(ep => selectedEpisodes.has(ep.id));
     
     try {
-      // Use resolved provider ID for downloads
-      await downloadEpisodes(resolvedProviderId, mediaInfo.title, episodesToDownload, resolvedProvider);
+      // Use resolved provider ID for downloads, but pass original mediaId as refId for offline lookup
+      await downloadEpisodes(resolvedProviderId, mediaInfo.title, episodesToDownload, resolvedProvider, mediaId);
       showToast(`Downloading ${episodesToDownload.length} episodes...`, 'success');
       setSelectedEpisodes(new Set());
       setIsSelectionMode(false);
@@ -328,8 +328,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     if (!mediaInfo) return;
 
     try {
-      // Use resolved provider ID for downloads
-      await downloadEpisodes(resolvedProviderId, mediaInfo.title, season.episodes, resolvedProvider);
+      // Use resolved provider ID for downloads, but pass original mediaId as refId for offline lookup
+      await downloadEpisodes(resolvedProviderId, mediaInfo.title, season.episodes, resolvedProvider, mediaId);
       showToast(`Downloading ${season.episodes.length} episodes...`, 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');
@@ -344,8 +344,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
     setDownloadingAll(true);
     try {
-      // Use resolved provider ID for downloads
-      await downloadEpisodes(resolvedProviderId, mediaInfo.title, allEpisodes, resolvedProvider);
+      // Use resolved provider ID for downloads, but pass original mediaId as refId for offline lookup
+      await downloadEpisodes(resolvedProviderId, mediaInfo.title, allEpisodes, resolvedProvider, mediaId);
       showToast(`Downloading all ${allEpisodes.length} episodes...`, 'success');
     } catch (err) {
       showToast('Failed to start download', 'error');

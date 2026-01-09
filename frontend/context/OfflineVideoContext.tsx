@@ -24,6 +24,9 @@ import {
   saveHLSEpisodeOffline,
   getDownloadedSegmentIndices,
   formatBytes,
+  saveHLSInitSegment,
+  hasHLSInitSegment,
+  cleanupOrphanedData,
 } from '../services/offlineVideoStorage';
 import { updateWatchProgress as syncWatchProgressToBackend, getAccessToken } from '../services/api';
 import { getStreamingUrl } from '../services/video';
@@ -72,9 +75,10 @@ interface OfflineVideoContextType {
   watchProgress: Map<string, WatchProgress>;
   
   // Actions
-  downloadEpisode: (mediaId: string, mediaTitle: string, episode: VideoEpisode, provider: VideoProviderName) => Promise<void>;
-  downloadEpisodes: (mediaId: string, mediaTitle: string, episodes: VideoEpisode[], provider: VideoProviderName) => Promise<void>;
+  downloadEpisode: (mediaId: string, mediaTitle: string, episode: VideoEpisode, provider: VideoProviderName, originalRefId?: string) => Promise<void>;
+  downloadEpisodes: (mediaId: string, mediaTitle: string, episodes: VideoEpisode[], provider: VideoProviderName, originalRefId?: string) => Promise<void>;
   cancelDownload: (episodeId: string) => void;
+  retryDownload: (episodeId: string) => void;
   deleteOfflineMedia: (mediaId: string) => Promise<void>;
   deleteOfflineEpisode: (episodeId: string) => Promise<void>;
   selectQuality: (episodeId: string, quality: QualityOption) => void;
@@ -131,9 +135,19 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // ============ Initialize ============
   
   useEffect(() => {
-    // Initialize database and request persistent storage
-    initVideoDatabase().then(() => {
+    // Initialize database, request persistent storage, and cleanup orphaned data
+    initVideoDatabase().then(async () => {
       console.log('[OfflineVideo] Database initialized with persistence request');
+      
+      // Run orphaned data cleanup in background (non-blocking)
+      try {
+        const cleanupResult = await cleanupOrphanedData();
+        if (cleanupResult.bytesReclaimed > 0) {
+          console.log('[OfflineVideo] Reclaimed', formatBytes(cleanupResult.bytesReclaimed), 'from orphaned data');
+        }
+      } catch (err) {
+        console.warn('[OfflineVideo] Cleanup failed:', err);
+      }
     });
     
     // Load downloaded content from IndexedDB
@@ -216,26 +230,35 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     mediaId: string,
     mediaTitle: string,
     episode: VideoEpisode,
-    provider: VideoProviderName
+    provider: VideoProviderName,
+    originalRefId?: string
   ) => {
-    await downloadEpisodes(mediaId, mediaTitle, [episode], provider);
+    await downloadEpisodes(mediaId, mediaTitle, [episode], provider, originalRefId);
   }, []);
   
   const downloadEpisodes = useCallback(async (
     mediaId: string,
     mediaTitle: string,
     episodes: VideoEpisode[],
-    provider: VideoProviderName
+    provider: VideoProviderName,
+    originalRefId?: string
   ) => {
-    console.log('[OfflineVideo] Queueing download:', { mediaId, mediaTitle, episodeCount: episodes.length, provider });
+    console.log('[OfflineVideo] Queueing download:', { mediaId, mediaTitle, episodeCount: episodes.length, provider, originalRefId });
     
-    // Ensure media is saved first
+    // Ensure media is saved first (with originalRefId for offline lookup by external ID)
     const existingMedia = await getOfflineMedia(mediaId);
     if (!existingMedia) {
       await saveMediaOffline({
         id: mediaId,
         title: mediaTitle,
         episodeCount: 0,
+        originalRefId: originalRefId !== mediaId ? originalRefId : undefined,
+      });
+    } else if (originalRefId && originalRefId !== mediaId && !existingMedia.originalRefId) {
+      // Update existing media with originalRefId if it wasn't set before
+      await saveMediaOffline({
+        ...existingMedia,
+        originalRefId,
       });
     }
     
@@ -459,11 +482,14 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     // Check for previously downloaded segments (resumable)
     const downloadedIndices = await getDownloadedSegmentIndices(task.episode.id);
+    const initSegmentDownloaded = await hasHLSInitSegment(task.episode.id);
     
     console.log('[OfflineVideo] Starting HLS segment download:', {
       totalSegments,
       alreadyDownloaded: downloadedIndices.size,
       estimatedSize: formatBytes(estimatedSize),
+      hasInitSegment: !!parsed.initSegment,
+      initSegmentDownloaded,
     });
     
     // Update state to show HLS-specific progress
@@ -477,18 +503,28 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } : null);
     
     let bytesDownloaded = 0;
+    let hasInitSegment = false;
     
     // Download segments
     await downloadHLSStream(playlistUrl, {
       signal,
       referer,
       downloadedSegments: downloadedIndices,
+      initSegmentDownloaded,
+      onInitSegmentDownloaded: async (data) => {
+        // Save init segment for fMP4
+        await saveHLSInitSegment(task.episode.id, data);
+        hasInitSegment = true;
+        bytesDownloaded += data.length;
+        console.log('[OfflineVideo] Init segment saved:', data.length, 'bytes');
+      },
       onSegmentDownloaded: async (index, data, duration, _totalSegments) => {
         // Save segment to storage
         await saveHLSSegment(task.episode.id, index, data, duration);
         bytesDownloaded += data.length;
       },
       onProgress: (progress: HLSDownloadProgress) => {
+        hasInitSegment = progress.hasInitSegment || hasInitSegment;
         setActiveDownload(prev => prev ? {
           ...prev,
           progress: progress.percentage,
@@ -515,7 +551,9 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       },
       totalSegments,
       totalDuration,
-      bytesDownloaded
+      bytesDownloaded,
+      undefined, // subtitleBlobs
+      hasInitSegment
     );
     
     console.log('[OfflineVideo] HLS Episode downloaded:', task.episode.id, formatBytes(bytesDownloaded));
@@ -563,6 +601,38 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } else {
       // Remove from queue
       setDownloadQueue(prev => prev.filter(t => t.episode.id !== episodeId));
+    }
+  }, [activeDownload]);
+  
+  const retryDownload = useCallback((episodeId: string) => {
+    // If it's the active download that failed, reset it to pending and reprocess
+    if (activeDownload?.episode.id === episodeId && activeDownload.status === 'error') {
+      const retryTask: VideoDownloadTask = {
+        ...activeDownload,
+        status: 'pending',
+        progress: 0,
+        error: undefined,
+        // Keep selectedQuality if it was set, so user doesn't have to pick again
+      };
+      
+      setActiveDownload(null);
+      setDownloadQueue(prev => [retryTask, ...prev.slice(1)]);
+    } else {
+      // Find in queue and reset
+      setDownloadQueue(prev => {
+        const taskIndex = prev.findIndex(t => t.episode.id === episodeId);
+        if (taskIndex >= 0 && prev[taskIndex].status === 'error') {
+          const updated = [...prev];
+          updated[taskIndex] = {
+            ...updated[taskIndex],
+            status: 'pending',
+            progress: 0,
+            error: undefined,
+          };
+          return updated;
+        }
+        return prev;
+      });
     }
   }, [activeDownload]);
   
@@ -672,6 +742,7 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     downloadEpisode,
     downloadEpisodes,
     cancelDownload,
+    retryDownload,
     deleteOfflineMedia: deleteOfflineMediaHandler,
     deleteOfflineEpisode: deleteOfflineEpisodeHandler,
     selectQuality,

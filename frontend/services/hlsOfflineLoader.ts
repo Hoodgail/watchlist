@@ -16,7 +16,8 @@ import Hls, {
 import { 
   getHLSSegment, 
   getHLSSegmentMetadata, 
-  getOfflineEpisode 
+  getOfflineEpisode,
+  getHLSInitSegment,
 } from './offlineVideoStorage';
 
 // ============ Types ============
@@ -33,6 +34,7 @@ interface OfflineLoaderConfig {
  */
 export async function generateOfflineM3U8(episodeId: string): Promise<string> {
   const metadata = await getHLSSegmentMetadata(episodeId);
+  const episode = await getOfflineEpisode(episodeId);
   
   if (metadata.length === 0) {
     throw new Error(`No segments found for episode ${episodeId}`);
@@ -42,20 +44,31 @@ export async function generateOfflineM3U8(episodeId: string): Promise<string> {
   const maxDuration = Math.max(...metadata.map(m => m.duration));
   const targetDuration = Math.ceil(maxDuration);
   
+  // Determine if we need version 6+ for fMP4 (EXT-X-MAP)
+  const hasInitSegment = episode?.hlsHasInitSegment;
+  const version = hasInitSegment ? 6 : 3;
+  
   // Build M3U8 content
   const lines: string[] = [
     '#EXTM3U',
-    '#EXT-X-VERSION:3',
+    `#EXT-X-VERSION:${version}`,
     `#EXT-X-TARGETDURATION:${targetDuration}`,
     '#EXT-X-MEDIA-SEQUENCE:0',
     '#EXT-X-PLAYLIST-TYPE:VOD',
   ];
   
+  // Add init segment for fMP4 if present
+  if (hasInitSegment) {
+    lines.push(`#EXT-X-MAP:URI="offline://${episodeId}/init.mp4"`);
+  }
+  
   // Add segments
   for (const seg of metadata) {
     lines.push(`#EXTINF:${seg.duration.toFixed(3)},`);
     // Use a virtual URL scheme that our loader will intercept
-    lines.push(`offline://${episodeId}/segment/${seg.index}.ts`);
+    // Use .m4s extension for fMP4 segments, .ts for MPEG-TS
+    const extension = hasInitSegment ? 'm4s' : 'ts';
+    lines.push(`offline://${episodeId}/segment/${seg.index}.${extension}`);
   }
   
   // End marker
@@ -84,17 +97,30 @@ function isOfflineUrl(url: string): boolean {
 
 /**
  * Parse an offline segment URL to get episodeId and segment index
+ * Returns null if not a valid offline URL
  */
-function parseOfflineUrl(url: string): { episodeId: string; segmentIndex: number } | null {
-  // Format: offline://{episodeId}/segment/{index}.ts
-  const match = url.match(/^offline:\/\/([^/]+)\/segment\/(\d+)\.ts$/);
+function parseOfflineUrl(url: string): { episodeId: string; segmentIndex: number; isInit: boolean } | null {
+  // Format for init segment: offline://{episodeId}/init.mp4
+  const initMatch = url.match(/^offline:\/\/([^/]+)\/init\.mp4$/);
+  if (initMatch) {
+    return {
+      episodeId: initMatch[1],
+      segmentIndex: -1, // -1 indicates init segment
+      isInit: true,
+    };
+  }
   
-  if (!match) return null;
+  // Format for regular segment: offline://{episodeId}/segment/{index}.(ts|m4s)
+  const segMatch = url.match(/^offline:\/\/([^/]+)\/segment\/(\d+)\.(ts|m4s)$/);
+  if (segMatch) {
+    return {
+      episodeId: segMatch[1],
+      segmentIndex: parseInt(segMatch[2], 10),
+      isInit: false,
+    };
+  }
   
-  return {
-    episodeId: match[1],
-    segmentIndex: parseInt(match[2], 10),
-  };
+  return null;
 }
 
 /**
@@ -156,13 +182,23 @@ export class OfflineFragmentLoader implements Hls.LoaderInterface<LoaderContext>
       throw new Error(`Invalid offline URL: ${context.url}`);
     }
     
-    const { episodeId, segmentIndex } = parsed;
+    const { episodeId, segmentIndex, isInit } = parsed;
     
     // Fetch segment from IndexedDB
-    const segmentData = await getHLSSegment(episodeId, segmentIndex);
+    let segmentData: Uint8Array | null;
     
-    if (!segmentData) {
-      throw new Error(`Segment ${segmentIndex} not found for episode ${episodeId}`);
+    if (isInit) {
+      // Load init segment (for fMP4)
+      segmentData = await getHLSInitSegment(episodeId);
+      if (!segmentData) {
+        throw new Error(`Init segment not found for episode ${episodeId}`);
+      }
+    } else {
+      // Load regular segment
+      segmentData = await getHLSSegment(episodeId, segmentIndex);
+      if (!segmentData) {
+        throw new Error(`Segment ${segmentIndex} not found for episode ${episodeId}`);
+      }
     }
     
     // Create response

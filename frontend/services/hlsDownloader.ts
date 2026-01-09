@@ -22,6 +22,22 @@ export interface QualityOption {
   url: string;
 }
 
+export interface AudioTrack {
+  groupId: string;
+  name: string;
+  language: string;
+  isDefault: boolean;
+  uri?: string; // URL to the audio playlist (may be muxed if no URI)
+}
+
+export interface SubtitleTrack {
+  groupId: string;
+  name: string;
+  language: string;
+  isDefault: boolean;
+  uri: string; // URL to the subtitle playlist
+}
+
 export interface HLSDownloadOptions {
   /** AbortSignal for cancellation */
   signal?: AbortSignal;
@@ -29,6 +45,8 @@ export interface HLSDownloadOptions {
   referer?: string;
   /** Already downloaded segment indices (for resuming) */
   downloadedSegments?: Set<number>;
+  /** Whether init segment is already downloaded (for resuming fMP4) */
+  initSegmentDownloaded?: boolean;
   /** Callback when a segment is downloaded */
   onSegmentDownloaded?: (
     index: number,
@@ -36,6 +54,8 @@ export interface HLSDownloadOptions {
     duration: number,
     totalSegments: number
   ) => Promise<void>;
+  /** Callback when init segment is downloaded (for fMP4) */
+  onInitSegmentDownloaded?: (data: Uint8Array) => Promise<void>;
   /** Callback for progress updates */
   onProgress?: (progress: HLSDownloadProgress) => void;
 }
@@ -55,6 +75,8 @@ export interface HLSDownloadProgress {
   totalDuration: number;
   /** Duration downloaded so far in seconds */
   downloadedDuration: number;
+  /** Whether this stream has an init segment (fMP4) */
+  hasInitSegment?: boolean;
 }
 
 export interface ParsedHLSInfo {
@@ -68,6 +90,12 @@ export interface ParsedHLSInfo {
   totalDuration?: number;
   /** Encryption key info if encrypted */
   encryptionKey?: EncryptionKeyInfo;
+  /** Initialization segment for fMP4 (EXT-X-MAP) */
+  initSegment?: InitSegmentInfo;
+  /** Audio tracks (only for master playlists with EXT-X-MEDIA TYPE=AUDIO) */
+  audioTracks?: AudioTrack[];
+  /** Subtitle tracks (only for master playlists with EXT-X-MEDIA TYPE=SUBTITLES) */
+  subtitleTracks?: SubtitleTrack[];
 }
 
 export interface HLSSegment {
@@ -75,6 +103,11 @@ export interface HLSSegment {
   uri: string;
   duration: number;
   key?: EncryptionKeyInfo;
+}
+
+export interface InitSegmentInfo {
+  uri: string;
+  byteRange?: { offset: number; length: number };
 }
 
 export interface EncryptionKeyInfo {
@@ -177,9 +210,57 @@ export async function parseM3U8(
     // Sort by bandwidth (highest first)
     qualities.sort((a, b) => b.bandwidth - a.bandwidth);
     
+    // Extract audio and subtitle tracks from EXT-X-MEDIA tags
+    // The m3u8-parser stores these in manifest.mediaGroups
+    const audioTracks: AudioTrack[] = [];
+    const subtitleTracks: SubtitleTrack[] = [];
+    
+    const mediaGroups = manifest.mediaGroups;
+    if (mediaGroups) {
+      // Parse AUDIO groups
+      const audioGroups = mediaGroups.AUDIO;
+      if (audioGroups) {
+        for (const groupId of Object.keys(audioGroups)) {
+          const group = audioGroups[groupId];
+          for (const trackName of Object.keys(group)) {
+            const track = group[trackName];
+            audioTracks.push({
+              groupId,
+              name: trackName,
+              language: track.language || 'und',
+              isDefault: track.default || false,
+              uri: track.uri ? resolveUrl(url, track.uri) : undefined,
+            });
+          }
+        }
+      }
+      
+      // Parse SUBTITLES groups
+      const subtitleGroups = mediaGroups.SUBTITLES;
+      if (subtitleGroups) {
+        for (const groupId of Object.keys(subtitleGroups)) {
+          const group = subtitleGroups[groupId];
+          for (const trackName of Object.keys(group)) {
+            const track = group[trackName];
+            if (track.uri) {
+              subtitleTracks.push({
+                groupId,
+                name: trackName,
+                language: track.language || 'und',
+                isDefault: track.default || false,
+                uri: resolveUrl(url, track.uri),
+              });
+            }
+          }
+        }
+      }
+    }
+    
     return {
       isMaster: true,
       qualities,
+      audioTracks: audioTracks.length > 0 ? audioTracks : undefined,
+      subtitleTracks: subtitleTracks.length > 0 ? subtitleTracks : undefined,
     };
   }
   
@@ -198,12 +279,28 @@ function parseMediaPlaylist(
   const segments: HLSSegment[] = [];
   let totalDuration = 0;
   let currentKey: EncryptionKeyInfo | undefined;
+  let initSegment: InitSegmentInfo | undefined;
   
   // The parser stores segments in manifest.segments
   const rawSegments: Segment[] = manifest.segments || [];
   
   for (let i = 0; i < rawSegments.length; i++) {
     const seg = rawSegments[i];
+    
+    // Handle EXT-X-MAP (initialization segment for fMP4)
+    // The m3u8-parser stores this in seg.map
+    if (seg.map && seg.map.uri && !initSegment) {
+      initSegment = {
+        uri: resolveUrl(baseUrl, seg.map.uri),
+      };
+      // Handle byte range if present
+      if (seg.map.byterange) {
+        initSegment.byteRange = {
+          offset: seg.map.byterange.offset || 0,
+          length: seg.map.byterange.length,
+        };
+      }
+    }
     
     // Handle encryption key changes
     if (seg.key && seg.key.method !== 'NONE') {
@@ -231,6 +328,7 @@ function parseMediaPlaylist(
     segments,
     totalDuration,
     encryptionKey: segments[0]?.key,
+    initSegment,
   };
 }
 
@@ -401,6 +499,52 @@ export async function estimateTotalSize(
 const SEGMENT_DOWNLOAD_TIMEOUT = 30000;
 
 /**
+ * Download an init segment (for fMP4) with optional byte range
+ */
+async function downloadInitSegment(
+  initSegment: InitSegmentInfo,
+  referer?: string,
+  signal?: AbortSignal
+): Promise<Uint8Array> {
+  const proxyUrl = getProxyUrl(initSegment.uri, referer, false);
+  
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(() => timeoutController.abort(), SEGMENT_DOWNLOAD_TIMEOUT);
+  
+  const combinedSignal = signal 
+    ? AbortSignal.any([signal, timeoutController.signal])
+    : timeoutController.signal;
+  
+  try {
+    const headers: HeadersInit = {};
+    
+    // Add byte range header if specified
+    if (initSegment.byteRange) {
+      const { offset, length } = initSegment.byteRange;
+      headers['Range'] = `bytes=${offset}-${offset + length - 1}`;
+    }
+    
+    const response = await fetch(proxyUrl, { 
+      signal: combinedSignal,
+      headers,
+    });
+    
+    if (!response.ok && response.status !== 206) { // 206 = Partial Content (for byte range)
+      throw new Error(`Failed to download init segment: ${response.status}`);
+    }
+    
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    if (timeoutController.signal.aborted && !signal?.aborted) {
+      throw new Error(`Init segment download timed out after ${SEGMENT_DOWNLOAD_TIMEOUT / 1000}s`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
  * Download a single HLS segment with timeout
  */
 async function downloadSegment(
@@ -459,7 +603,15 @@ export async function downloadHLSStream(
   mediaPlaylistUrl: string,
   options: HLSDownloadOptions = {}
 ): Promise<HLSDownloadProgress> {
-  const { signal, referer, downloadedSegments = new Set(), onSegmentDownloaded, onProgress } = options;
+  const { 
+    signal, 
+    referer, 
+    downloadedSegments = new Set(), 
+    initSegmentDownloaded = false,
+    onSegmentDownloaded, 
+    onInitSegmentDownloaded,
+    onProgress 
+  } = options;
   
   // Parse the media playlist
   const parsed = await parseM3U8(mediaPlaylistUrl, referer);
@@ -475,6 +627,7 @@ export async function downloadHLSStream(
   const segments = parsed.segments;
   const totalSegments = segments.length;
   const totalDuration = parsed.totalDuration || 0;
+  const hasInitSegment = !!parsed.initSegment;
   
   // Estimate total size
   const estimatedTotalBytes = await estimateTotalSize(segments, referer);
@@ -482,7 +635,30 @@ export async function downloadHLSStream(
   let bytesDownloaded = 0;
   let downloadedDuration = 0;
   
-  console.log(`[HLS] Starting download: ${totalSegments} segments, ~${Math.round(estimatedTotalBytes / 1024 / 1024)} MB estimated`);
+  console.log(`[HLS] Starting download: ${totalSegments} segments, ~${Math.round(estimatedTotalBytes / 1024 / 1024)} MB estimated${hasInitSegment ? ', has init segment (fMP4)' : ''}`);
+  
+  // Download init segment first if present (required for fMP4)
+  if (parsed.initSegment && !initSegmentDownloaded) {
+    console.log('[HLS] Downloading init segment...');
+    
+    if (signal?.aborted) {
+      throw new Error('Download cancelled');
+    }
+    
+    try {
+      const initData = await downloadInitSegment(parsed.initSegment, referer, signal);
+      bytesDownloaded += initData.length;
+      
+      if (onInitSegmentDownloaded) {
+        await onInitSegmentDownloaded(initData);
+      }
+      
+      console.log(`[HLS] Init segment downloaded (${initData.length} bytes)`);
+    } catch (error) {
+      console.error('[HLS] Failed to download init segment:', error);
+      throw error;
+    }
+  }
   
   // Download segments sequentially
   for (let i = 0; i < totalSegments; i++) {
@@ -528,6 +704,7 @@ export async function downloadHLSStream(
       percentage: Math.round(((i + 1) / totalSegments) * 100),
       totalDuration,
       downloadedDuration,
+      hasInitSegment,
     };
     
     if (onProgress) {
@@ -543,6 +720,7 @@ export async function downloadHLSStream(
     percentage: 100,
     totalDuration,
     downloadedDuration: totalDuration,
+    hasInitSegment,
   };
 }
 
@@ -565,4 +743,89 @@ export async function getQualityOptions(
   }
   
   return parsed.qualities;
+}
+
+/**
+ * Get available audio tracks from a master playlist
+ */
+export async function getAudioTracks(
+  m3u8Url: string,
+  referer?: string
+): Promise<AudioTrack[]> {
+  const parsed = await parseM3U8(m3u8Url, referer);
+  return parsed.audioTracks || [];
+}
+
+/**
+ * Get available subtitle tracks from a master playlist
+ */
+export async function getSubtitleTracks(
+  m3u8Url: string,
+  referer?: string
+): Promise<SubtitleTrack[]> {
+  const parsed = await parseM3U8(m3u8Url, referer);
+  return parsed.subtitleTracks || [];
+}
+
+/**
+ * Download an audio track's segments
+ * Similar to downloadHLSStream but for audio-only content
+ */
+export async function downloadAudioTrack(
+  track: AudioTrack,
+  options: HLSDownloadOptions & {
+    onAudioSegmentDownloaded?: (
+      index: number,
+      data: Uint8Array,
+      duration: number,
+      totalSegments: number,
+      language: string
+    ) => Promise<void>;
+  } = {}
+): Promise<{ bytesDownloaded: number; segmentCount: number }> {
+  if (!track.uri) {
+    // Audio is muxed with video, no separate download needed
+    return { bytesDownloaded: 0, segmentCount: 0 };
+  }
+  
+  const { signal, referer, onAudioSegmentDownloaded } = options;
+  
+  // Parse the audio playlist
+  const parsed = await parseM3U8(track.uri, referer);
+  
+  if (!parsed.segments || parsed.segments.length === 0) {
+    return { bytesDownloaded: 0, segmentCount: 0 };
+  }
+  
+  const segments = parsed.segments;
+  let bytesDownloaded = 0;
+  
+  console.log(`[HLS] Downloading audio track "${track.name}" (${track.language}): ${segments.length} segments`);
+  
+  // Download init segment if present
+  if (parsed.initSegment) {
+    const initData = await downloadInitSegment(parsed.initSegment, referer, signal);
+    bytesDownloaded += initData.length;
+    
+    if (onAudioSegmentDownloaded) {
+      await onAudioSegmentDownloaded(-1, initData, 0, segments.length, track.language);
+    }
+  }
+  
+  // Download audio segments
+  for (let i = 0; i < segments.length; i++) {
+    if (signal?.aborted) {
+      throw new Error('Download cancelled');
+    }
+    
+    const segment = segments[i];
+    const data = await downloadSegment(segment, referer, signal);
+    bytesDownloaded += data.length;
+    
+    if (onAudioSegmentDownloaded) {
+      await onAudioSegmentDownloaded(i, data, segment.duration, segments.length, track.language);
+    }
+  }
+  
+  return { bytesDownloaded, segmentCount: segments.length };
 }

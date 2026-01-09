@@ -15,6 +15,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
     downloadQueue,
     activeDownload,
     cancelDownload,
+    retryDownload,
     deleteOfflineMedia,
     deleteOfflineEpisode,
     getStorageInfo,
@@ -268,6 +269,24 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
                   style={{ width: `${activeDownload.progress}%` }}
                 />
               </div>
+              
+              {/* Retry/Dismiss buttons for failed downloads */}
+              {activeDownload.status === 'error' && (
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => retryDownload(activeDownload.episode.id)}
+                    className="flex-1 py-2 px-3 bg-white text-black text-xs uppercase tracking-wider hover:bg-neutral-200 transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => cancelDownload(activeDownload.episode.id)}
+                    className="flex-1 py-2 px-3 border border-neutral-600 text-neutral-400 text-xs uppercase tracking-wider hover:border-white hover:text-white transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

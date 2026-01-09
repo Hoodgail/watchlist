@@ -31,6 +31,8 @@ export interface OfflineVideoMedia {
   episodeCount: number;
   downloadedAt: Date;
   lastAccessedAt: Date;
+  /** Original external ref ID (e.g., tmdb:12345) for resolving offline when provider ID differs */
+  originalRefId?: string;
 }
 
 export interface OfflineVideoEpisode {
@@ -48,6 +50,7 @@ export interface OfflineVideoEpisode {
   isHLS?: boolean;
   hlsSegmentCount?: number;
   hlsTotalDuration?: number;
+  hlsHasInitSegment?: boolean; // Whether this HLS has an fMP4 init segment
 }
 
 // HLS segment stored in IndexedDB
@@ -406,6 +409,7 @@ export async function saveMediaOffline(
     releaseYear?: number;
     genres?: string[];
     episodeCount?: number;
+    originalRefId?: string;
   },
   coverBlob?: Blob
 ): Promise<void> {
@@ -419,6 +423,7 @@ export async function saveMediaOffline(
     episodeCount: media.episodeCount || 0,
     downloadedAt: new Date(),
     lastAccessedAt: new Date(),
+    originalRefId: media.originalRefId,
   };
 
   await putToStore(STORES.MEDIA, offlineMedia);
@@ -436,6 +441,32 @@ export async function getOfflineMedia(mediaId: string): Promise<OfflineVideoMedi
 
 export async function getAllOfflineMedia(): Promise<OfflineVideoMedia[]> {
   return getAllFromStore<OfflineVideoMedia>(STORES.MEDIA);
+}
+
+/**
+ * Get offline media by original ref ID (e.g., tmdb:12345)
+ * This is useful when the UI is querying by external ID but offline storage uses provider IDs
+ */
+export async function getOfflineMediaByRefId(refId: string): Promise<OfflineVideoMedia | null> {
+  // First, try direct lookup (in case the id IS the refId)
+  const direct = await getFromStore<OfflineVideoMedia>(STORES.MEDIA, refId);
+  if (direct) {
+    direct.lastAccessedAt = new Date();
+    await putToStore(STORES.MEDIA, direct);
+    return direct;
+  }
+  
+  // Search all media for matching originalRefId
+  const allMedia = await getAllFromStore<OfflineVideoMedia>(STORES.MEDIA);
+  const match = allMedia.find(m => m.originalRefId === refId);
+  
+  if (match) {
+    match.lastAccessedAt = new Date();
+    await putToStore(STORES.MEDIA, match);
+    return match;
+  }
+  
+  return null;
 }
 
 export async function deleteOfflineMedia(mediaId: string): Promise<void> {
@@ -881,7 +912,8 @@ export async function saveHLSEpisodeOffline(
   segmentCount: number,
   totalDuration: number,
   totalSize: number,
-  subtitleBlobs?: Record<string, Blob>
+  subtitleBlobs?: Record<string, Blob>,
+  hasInitSegment?: boolean
 ): Promise<void> {
   // Save subtitle blobs if provided
   const subtitleBlobIds: Record<string, string> = {};
@@ -910,6 +942,7 @@ export async function saveHLSEpisodeOffline(
     isHLS: true,
     hlsSegmentCount: segmentCount,
     hlsTotalDuration: totalDuration,
+    hlsHasInitSegment: hasInitSegment,
     subtitleBlobIds: Object.keys(subtitleBlobIds).length > 0 ? subtitleBlobIds : undefined,
     downloadedAt: new Date(),
     fileSize: totalSize,
@@ -923,6 +956,128 @@ export async function saveHLSEpisodeOffline(
     const downloadedEpisodes = await getByIndex<OfflineVideoEpisode>(STORES.EPISODES, 'mediaId', mediaId);
     media.episodeCount = downloadedEpisodes.length;
     await putToStore(STORES.MEDIA, media);
+  }
+}
+
+/**
+ * Save an HLS init segment (for fMP4)
+ */
+export async function saveHLSInitSegment(
+  episodeId: string,
+  data: Uint8Array
+): Promise<void> {
+  const segment: StoredHLSSegment = {
+    id: `${episodeId}-init`,
+    episodeId,
+    segmentIndex: -1, // Use -1 to indicate init segment
+    data: data.buffer as ArrayBuffer,
+    duration: 0, // Init segment has no duration
+    size: data.length,
+  };
+
+  await putToStore(STORES.HLS_SEGMENTS, segment);
+}
+
+/**
+ * Get an HLS init segment (for fMP4)
+ */
+export async function getHLSInitSegment(
+  episodeId: string
+): Promise<Uint8Array | null> {
+  const id = `${episodeId}-init`;
+  const segment = await getFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS, id);
+  
+  if (!segment) return null;
+  
+  return new Uint8Array(segment.data);
+}
+
+/**
+ * Check if an HLS init segment exists for an episode
+ */
+export async function hasHLSInitSegment(episodeId: string): Promise<boolean> {
+  const id = `${episodeId}-init`;
+  const segment = await getFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS, id);
+  return !!segment;
+}
+
+// ============ Orphaned Data Cleanup ============
+
+export interface CleanupResult {
+  orphanedChunks: number;
+  orphanedSegments: number;
+  bytesReclaimed: number;
+}
+
+/**
+ * Clean up orphaned data from IndexedDB.
+ * This removes chunks and HLS segments that don't belong to any valid episode record.
+ * Should be called on app startup to reclaim storage from interrupted/failed downloads.
+ */
+export async function cleanupOrphanedData(): Promise<CleanupResult> {
+  console.log('[OfflineVideo] Starting orphaned data cleanup...');
+  
+  const result: CleanupResult = {
+    orphanedChunks: 0,
+    orphanedSegments: 0,
+    bytesReclaimed: 0,
+  };
+  
+  try {
+    // Get all valid episode IDs and blob IDs
+    const episodes = await getAllFromStore<OfflineVideoEpisode>(STORES.EPISODES);
+    const validEpisodeIds = new Set(episodes.map(e => e.id));
+    const validBlobIds = new Set(episodes.map(e => e.videoBlobId).filter(Boolean));
+    
+    // Clean up orphaned chunks (video data stored in 5MB pieces)
+    const allChunks = await getAllFromStore<StoredChunk>(STORES.CHUNKS);
+    for (const chunk of allChunks) {
+      if (!validBlobIds.has(chunk.blobId)) {
+        result.orphanedChunks++;
+        result.bytesReclaimed += chunk.size;
+        await deleteFromStore(STORES.CHUNKS, chunk.id);
+      }
+    }
+    
+    // Clean up orphaned HLS segments
+    const allSegments = await getAllFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS);
+    for (const segment of allSegments) {
+      if (!validEpisodeIds.has(segment.episodeId)) {
+        result.orphanedSegments++;
+        result.bytesReclaimed += segment.size;
+        await deleteFromStore(STORES.HLS_SEGMENTS, segment.id);
+      }
+    }
+    
+    // Clean up orphaned blob metadata
+    const allBlobs = await getAllFromStore<StoredBlob>(STORES.BLOBS);
+    for (const blob of allBlobs) {
+      // Check if this blob belongs to any valid episode
+      const isValidVideo = validBlobIds.has(blob.id);
+      const isValidSubtitle = blob.type === 'subtitle' && episodes.some(e => 
+        e.subtitleBlobIds && Object.values(e.subtitleBlobIds).includes(blob.id)
+      );
+      
+      if (!isValidVideo && !isValidSubtitle && blob.type !== 'cover') {
+        result.bytesReclaimed += blob.size;
+        await deleteFromStore(STORES.BLOBS, blob.id);
+      }
+    }
+    
+    if (result.orphanedChunks > 0 || result.orphanedSegments > 0) {
+      console.log('[OfflineVideo] Cleanup complete:', {
+        orphanedChunks: result.orphanedChunks,
+        orphanedSegments: result.orphanedSegments,
+        bytesReclaimed: formatBytes(result.bytesReclaimed),
+      });
+    } else {
+      console.log('[OfflineVideo] No orphaned data found');
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('[OfflineVideo] Cleanup failed:', error);
+    return result;
   }
 }
 

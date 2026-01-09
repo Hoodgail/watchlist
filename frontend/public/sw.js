@@ -90,6 +90,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
+  // Skip offline:// scheme URLs - these are handled by the app's HLS offline loader
+  if (url.protocol === 'offline:') {
+    return;
+  }
+  
+  // Skip video streaming routes - these are large and should NOT be cached in Cache Storage
+  // Video data is stored in IndexedDB which has higher storage limits
+  if (isVideoStreamingRequest(url)) {
+    return;
+  }
+  
   // Handle different request types
   if (isMangaDexApiRequest(url)) {
     event.respondWith(handleMangaDexApiRequest(event.request));
@@ -107,6 +118,16 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ============ Request Type Checkers ============
+
+function isVideoStreamingRequest(url) {
+  // Skip video segment and m3u8 routes - these are large video data
+  // that should be handled by the app's IndexedDB storage, not Cache Storage
+  return url.pathname.startsWith('/api/video/segment') ||
+         url.pathname.startsWith('/api/video/m3u8') ||
+         url.pathname.includes('.ts') || // HLS TS segments
+         url.pathname.includes('.m4s') || // fMP4 segments
+         url.pathname.endsWith('.m3u8'); // HLS playlists
+}
 
 function isMangaDexApiRequest(url) {
   return url.pathname.startsWith('/api/mangadex/');
