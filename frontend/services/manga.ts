@@ -19,6 +19,7 @@ export interface MangaProvider {
   id: MangaProviderName;
   name: string;
   isDefault: boolean;
+  supportsPaginatedChapters?: boolean;
 }
 
 export interface MangaSearchResult {
@@ -87,6 +88,28 @@ export interface PaginatedResults<T> {
   totalResults?: number;
   results: T[];
   provider?: MangaProviderName;
+}
+
+/**
+ * Result of fetching paginated chapters
+ */
+export interface PaginatedChaptersResult {
+  currentPage: number;
+  hasNextPage: boolean;
+  totalChapters?: number;
+  chapters: MangaChapter[];
+  provider: MangaProviderName;
+  mangaId: string;
+}
+
+// Providers that support paginated chapter fetching
+export const PROVIDERS_WITH_PAGINATED_CHAPTERS: MangaProviderName[] = ['comick'];
+
+/**
+ * Check if a provider supports paginated chapter fetching
+ */
+export function supportsPaginatedChapters(provider: MangaProviderName): boolean {
+  return PROVIDERS_WITH_PAGINATED_CHAPTERS.includes(provider);
 }
 
 // API base - use same pattern as api.ts
@@ -221,6 +244,38 @@ export async function getLatestManga(
   if (!response.ok) {
     throw new Error('Failed to fetch latest manga');
   }
+  return response.json();
+}
+
+/**
+ * Get paginated chapters for a manga (for providers that support it, like comick)
+ * Returns null if the provider doesn't support paginated chapters
+ */
+export async function getChaptersPaginated(
+  mangaId: string,
+  provider: MangaProviderName,
+  page: number = 1,
+  limit: number = 60,
+  lang: string = 'en'
+): Promise<PaginatedChaptersResult | null> {
+  if (!supportsPaginatedChapters(provider)) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    lang,
+  });
+
+  const response = await rateLimitedFetch(
+    `${API_BASE}/${provider}/${encodeURIComponent(mangaId)}/chapters?${params.toString()}`
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch chapters');
+  }
+  
   return response.json();
 }
 

@@ -56,6 +56,13 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
   const [selectedChapters, setSelectedChapters] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  
+  // Pagination state for providers that support it (e.g., comick)
+  const [chapterPage, setChapterPage] = useState(1);
+  const [hasMoreChapters, setHasMoreChapters] = useState(false);
+  const [totalChapters, setTotalChapters] = useState<number | undefined>(undefined);
+  const [loadingMoreChapters, setLoadingMoreChapters] = useState(false);
+  const supportsPagination = mangaService.supportsPaginatedChapters(provider);
 
   // Load manga details
   useEffect(() => {
@@ -132,30 +139,62 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     }
   };
 
-  const loadChapters = async () => {
-    setChaptersLoading(true);
+  const loadChapters = async (page: number = 1, append: boolean = false) => {
+    if (page === 1) {
+      setChaptersLoading(true);
+    } else {
+      setLoadingMoreChapters(true);
+    }
 
     try {
-      // Use unified manga service for all providers
-      const mangaInfo = await mangaService.getMangaInfo(mangaId, provider);
-      const chapters = mangaInfo.chapters || [];
+      let chaptersData: ChapterInfo[] = [];
       
-      // Convert MangaChapter to ChapterInfo format
-      const chaptersData: ChapterInfo[] = chapters.map(ch => ({
-        id: ch.id,
-        title: ch.title || null,
-        volume: ch.volume || null,
-        chapter: String(ch.number),
-        pages: ch.pages || 0,
-        translatedLanguage: 'en',
-        scanlationGroup: null,
-        publishedAt: ch.releaseDate || new Date().toISOString(),
-        externalUrl: ch.url || null,
-      }));
+      // For providers that support pagination (like comick), use paginated API
+      if (supportsPagination) {
+        const result = await mangaService.getChaptersPaginated(mangaId, provider, page);
+        if (result) {
+          chaptersData = result.chapters.map(ch => ({
+            id: ch.id,
+            title: ch.title || null,
+            volume: ch.volume || null,
+            chapter: String(ch.number),
+            pages: ch.pages || 0,
+            translatedLanguage: 'en',
+            scanlationGroup: null,
+            publishedAt: ch.releaseDate || new Date().toISOString(),
+            externalUrl: ch.url || null,
+          }));
+          setHasMoreChapters(result.hasNextPage);
+          setTotalChapters(result.totalChapters);
+          setChapterPage(page);
+        }
+      } else {
+        // For other providers, fetch all chapters from manga info
+        const mangaInfo = await mangaService.getMangaInfo(mangaId, provider);
+        const chapters = mangaInfo.chapters || [];
+        
+        chaptersData = chapters.map(ch => ({
+          id: ch.id,
+          title: ch.title || null,
+          volume: ch.volume || null,
+          chapter: String(ch.number),
+          pages: ch.pages || 0,
+          translatedLanguage: 'en',
+          scanlationGroup: null,
+          publishedAt: ch.releaseDate || new Date().toISOString(),
+          externalUrl: ch.url || null,
+        }));
+        setHasMoreChapters(false);
+      }
+      
+      // Merge with existing chapters if appending
+      const allChaptersData = append 
+        ? [...allChapters, ...chaptersData] 
+        : chaptersData;
 
       // Group chapters by volume (or "No Volume" if none)
       const volumeMap = new Map<string, ChapterInfo[]>();
-      chaptersData.forEach(ch => {
+      allChaptersData.forEach(ch => {
         const vol = ch.volume || 'No Volume';
         if (!volumeMap.has(vol)) {
           volumeMap.set(vol, []);
@@ -172,16 +211,23 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
         });
 
       setVolumes(volumeData);
-      setAllChapters(chaptersData);
+      setAllChapters(allChaptersData);
 
-      // Expand first volume by default
-      if (volumeData.length > 0) {
+      // Expand first volume by default (only on initial load)
+      if (!append && volumeData.length > 0) {
         setExpandedVolumes(new Set([volumeData[0].volume]));
       }
     } catch (err) {
       console.error('Failed to load chapters:', err);
     } finally {
       setChaptersLoading(false);
+      setLoadingMoreChapters(false);
+    }
+  };
+  
+  const loadMoreChapters = () => {
+    if (hasMoreChapters && !loadingMoreChapters) {
+      loadChapters(chapterPage + 1, true);
     }
   };
 
@@ -524,7 +570,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
       <div className="p-4">
         <div className="flex items-center justify-between mb-4 border-b border-neutral-900 pb-2">
           <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
-            Chapters {allChapters.length > 0 && `(${allChapters.length})`}
+            Chapters {allChapters.length > 0 && `(${allChapters.length}${totalChapters ? ` / ${totalChapters}` : ''})`}
           </h2>
           
           {allChapters.length > 0 && (
@@ -753,7 +799,31 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
             })}
           </div>
         )}
+        
+        {/* Load More Button for paginated providers */}
+        {hasMoreChapters && !chaptersLoading && (
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={loadMoreChapters}
+              disabled={loadingMoreChapters}
+              className="px-6 py-2 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loadingMoreChapters ? (
+                <span className="flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Loading...
+                </span>
+              ) : (
+                `Load More Chapters${totalChapters ? ` (${allChapters.length}/${totalChapters})` : ''}`
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+

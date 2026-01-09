@@ -287,3 +287,116 @@ export async function getLatestUpdatedManga(
     return { currentPage: 1, hasNextPage: false, results: [] };
   }
 }
+
+// ============ Paginated Chapters (Provider-Specific) ============
+
+// Providers that support paginated chapter fetching
+export const PROVIDERS_WITH_PAGINATED_CHAPTERS: MangaProviderName[] = ['comick'];
+
+/**
+ * Check if a provider supports paginated chapter fetching
+ */
+export function supportsPaginatedChapters(providerName: MangaProviderName): boolean {
+  return PROVIDERS_WITH_PAGINATED_CHAPTERS.includes(providerName);
+}
+
+/**
+ * Result type for paginated chapters
+ */
+export interface PaginatedChaptersResult {
+  currentPage: number;
+  hasNextPage: boolean;
+  totalChapters?: number;
+  chapters: UnifiedChapter[];
+}
+
+/**
+ * ComicK API types for chapter fetching
+ */
+interface ComickChapter {
+  hid: string;
+  chap: string;
+  vol?: string;
+  title?: string;
+  created_at: string;
+  lang: string;
+  group_name?: string[];
+}
+
+interface ComickChaptersResponse {
+  chapters: ComickChapter[];
+  total: number;
+  limit: number;
+}
+
+/**
+ * Fetch paginated chapters from ComicK
+ * ComicK API: GET https://api.comick.io/comic/{slug}/chapters?page={page}&limit={limit}&lang=en
+ */
+async function fetchComickChaptersPaginated(
+  mangaId: string,
+  page: number = 1,
+  limit: number = 60,
+  lang: string = 'en'
+): Promise<PaginatedChaptersResult> {
+  try {
+    const url = `https://api.comick.io/comic/${mangaId}/chapters?page=${page}&limit=${limit}&lang=${lang}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`ComicK API error: ${response.status}`);
+    }
+    
+    const data = await response.json() as ComickChaptersResponse;
+    
+    const chapters: UnifiedChapter[] = data.chapters.map((ch): UnifiedChapter => ({
+      id: `${mangaId}/${ch.hid}-chapter-${ch.chap}-${ch.lang}`,
+      number: ch.chap,
+      title: ch.title,
+      releaseDate: ch.created_at,
+      volume: ch.vol,
+    }));
+    
+    // Calculate if there are more pages
+    const totalFetched = (page - 1) * limit + data.chapters.length;
+    const hasNextPage = totalFetched < data.total;
+    
+    return {
+      currentPage: page,
+      hasNextPage,
+      totalChapters: data.total,
+      chapters,
+    };
+  } catch (error) {
+    console.error('ComicK chapters fetch error:', error);
+    return {
+      currentPage: page,
+      hasNextPage: false,
+      chapters: [],
+    };
+  }
+}
+
+/**
+ * Get paginated chapters for a manga
+ * Currently only supports: comick
+ * Other providers will throw an error
+ */
+export async function getChaptersPaginated(
+  mangaId: string,
+  providerName: MangaProviderName,
+  page: number = 1,
+  limit: number = 60,
+  lang: string = 'en'
+): Promise<PaginatedChaptersResult> {
+  if (!supportsPaginatedChapters(providerName)) {
+    throw new Error(`Provider ${providerName} does not support paginated chapter fetching. Use getMangaInfo instead.`);
+  }
+  
+  switch (providerName) {
+    case 'comick':
+      return fetchComickChaptersPaginated(mangaId, page, limit, lang);
+    default:
+      throw new Error(`Paginated chapters not implemented for ${providerName}`);
+  }
+}

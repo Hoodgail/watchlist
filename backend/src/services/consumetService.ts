@@ -268,6 +268,26 @@ export async function getChapterPages(
   return mangaProviders.getChapterPages(chapterId, provider);
 }
 
+/**
+ * Check if a provider supports paginated chapter fetching
+ */
+export function supportsPaginatedChapters(provider: MangaProviderName): boolean {
+  return mangaProviders.supportsPaginatedChapters(provider);
+}
+
+/**
+ * Get paginated chapters for manga (only for supported providers like comick)
+ */
+export async function getChaptersPaginated(
+  mangaId: string,
+  provider: MangaProviderName,
+  page: number = 1,
+  limit: number = 60,
+  lang: string = 'en'
+): Promise<mangaProviders.PaginatedChaptersResult> {
+  return mangaProviders.getChaptersPaginated(mangaId, provider, page, limit, lang);
+}
+
 // ============ Trending/Discovery Functions ============
 
 /**

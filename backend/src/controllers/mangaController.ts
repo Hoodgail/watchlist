@@ -205,8 +205,59 @@ export async function getProviders(
       id: provider,
       name: providerDisplayNames[provider] || provider.charAt(0).toUpperCase() + provider.slice(1),
       isDefault: provider === 'mangadex',
+      supportsPaginatedChapters: consumetService.supportsPaginatedChapters(provider as MangaProviderName),
     })),
   });
+}
+
+/**
+ * Get paginated chapters for a manga (for providers that support it)
+ * GET /api/manga/:provider/:id/chapters?page=1&limit=60&lang=en
+ */
+export async function getChaptersPaginated(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { provider, id } = req.params;
+    const { page, limit, lang } = req.query;
+
+    if (!id) {
+      throw new BadRequestError('Manga ID is required');
+    }
+
+    const validProvider = validateProvider(provider);
+    
+    // Check if provider supports paginated chapters
+    if (!consumetService.supportsPaginatedChapters(validProvider as MangaProviderName)) {
+      throw new BadRequestError(
+        `Provider ${validProvider} does not support paginated chapter fetching. ` +
+        `Chapters are included in the manga info response. ` +
+        `Supported providers: comick`
+      );
+    }
+
+    const pageNum = page ? parseInt(page as string, 10) : 1;
+    const limitNum = limit ? Math.min(parseInt(limit as string, 10), 100) : 60;
+    const language = (lang as string) || 'en';
+
+    const result = await consumetService.getChaptersPaginated(
+      id,
+      validProvider as MangaProviderName,
+      pageNum,
+      limitNum,
+      language
+    );
+
+    res.json({
+      provider: validProvider,
+      mangaId: id,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 // ============ MangaDex External Chapter Handling ============

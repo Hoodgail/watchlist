@@ -31,6 +31,10 @@ router.get('/external/mangaplus/image', mangaController.getMangaPlusImage);
 
 // ============ Standard Provider Routes ============
 
+// Get paginated chapters for a manga (for providers that support it like comick)
+// GET /api/manga/:provider/:id/chapters?page=1&limit=60&lang=en
+router.get('/:provider/:id/chapters', mangaController.getChaptersPaginated);
+
 // Get manga info from a specific provider
 // GET /api/manga/:provider/:id
 router.get('/:provider/:id', mangaController.getMangaInfo);
