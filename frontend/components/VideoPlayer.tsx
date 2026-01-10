@@ -17,9 +17,11 @@ interface VideoPlayerProps {
   episodeId: string;
   episodes: VideoEpisode[];
   onClose: () => void;
-  onEpisodeChange: (episodeId: string) => void;
+  onEpisodeChange: (episodeId: string, episodeNumber?: number, seasonNumber?: number) => void;
   provider: VideoProviderName;
   mediaTitle: string;
+  episodeNumber?: number;
+  seasonNumber?: number;
 }
 
 // Playback speed options
@@ -59,6 +61,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onEpisodeChange,
   provider,
   mediaTitle,
+  episodeNumber: initialEpisodeNumber,
+  seasonNumber: initialSeasonNumber,
 }) => {
   const {
     isOnline,
@@ -112,6 +116,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     episodes.find(e => e.id === episodeId), [episodes, episodeId]
   );
 
+  // Episode/season number for progress tracking - use prop if provided, else derive from episode
+  const currentEpisodeNumber = useMemo(() => 
+    initialEpisodeNumber ?? currentEpisode?.number, [initialEpisodeNumber, currentEpisode]
+  );
+  const currentSeasonNumber = useMemo(() => 
+    initialSeasonNumber ?? currentEpisode?.season, [initialSeasonNumber, currentEpisode]
+  );
+
   const currentEpisodeIndex = useMemo(() => 
     episodes.findIndex(e => e.id === episodeId), [episodes, episodeId]
   );
@@ -150,10 +162,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     return () => {
       if (videoRef.current && duration > 0) {
-        updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider);
+        updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber);
       }
     };
-  }, [mediaId, episodeId, duration, provider]);
+  }, [mediaId, episodeId, duration, provider, currentEpisodeNumber, currentSeasonNumber]);
 
   const loadEpisodeSources = async (currentEpisodeId: string, currentMediaId: string, currentProvider: VideoProviderName) => {
     // Destroy existing HLS instance first before resetting state
@@ -405,7 +417,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying) {
       progressIntervalRef.current = setInterval(() => {
         if (videoRef.current && duration > 0) {
-          updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider);
+          updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber);
         }
       }, 10000);
     }
@@ -415,7 +427,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [isPlaying, mediaId, episodeId, duration, provider, updateWatchProgress]);
+  }, [isPlaying, mediaId, episodeId, duration, provider, updateWatchProgress, currentEpisodeNumber, currentSeasonNumber]);
 
   // ============ Keyboard Shortcuts ============
   useEffect(() => {
@@ -452,12 +464,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           break;
         case 'n':
           if (nextEpisode) {
-            onEpisodeChange(nextEpisode.id);
+            onEpisodeChange(nextEpisode.id, nextEpisode.number, nextEpisode.season);
           }
           break;
         case 'p':
           if (prevEpisode) {
-            onEpisodeChange(prevEpisode.id);
+            onEpisodeChange(prevEpisode.id, prevEpisode.number, prevEpisode.season);
           }
           break;
         case 'escape':
@@ -518,9 +530,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsPlaying(false);
     // Save progress on pause
     if (videoRef.current && duration > 0) {
-      updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider);
+      updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber);
     }
-  }, [mediaId, episodeId, duration, provider, updateWatchProgress]);
+  }, [mediaId, episodeId, duration, provider, updateWatchProgress, currentEpisodeNumber, currentSeasonNumber]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
@@ -534,7 +546,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         setAutoPlayCountdown(prev => {
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            onEpisodeChange(nextEpisode.id);
+            onEpisodeChange(nextEpisode.id, nextEpisode.number, nextEpisode.season);
             return 0;
           }
           return prev - 1;
@@ -919,7 +931,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
         {/* Center Play/Pause Button */}
         <div style={styles.centerControls}>
-          <button onClick={() => prevEpisode && onEpisodeChange(prevEpisode.id)} style={styles.episodeButton} disabled={!prevEpisode}>
+          <button onClick={() => prevEpisode && onEpisodeChange(prevEpisode.id, prevEpisode.number, prevEpisode.season)} style={styles.episodeButton} disabled={!prevEpisode}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: prevEpisode ? 1 : 0.3 }}>
               <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
             </svg>
@@ -951,7 +963,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </svg>
           </button>
 
-          <button onClick={() => nextEpisode && onEpisodeChange(nextEpisode.id)} style={styles.episodeButton} disabled={!nextEpisode}>
+          <button onClick={() => nextEpisode && onEpisodeChange(nextEpisode.id, nextEpisode.number, nextEpisode.season)} style={styles.episodeButton} disabled={!nextEpisode}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: nextEpisode ? 1 : 0.3 }}>
               <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
             </svg>
@@ -1020,14 +1032,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {/* Right: Episode Navigation */}
             <div style={styles.episodeNav}>
               <button
-                onClick={() => prevEpisode && onEpisodeChange(prevEpisode.id)}
+                onClick={() => prevEpisode && onEpisodeChange(prevEpisode.id, prevEpisode.number, prevEpisode.season)}
                 disabled={!prevEpisode}
                 style={{ ...styles.navButton, opacity: prevEpisode ? 1 : 0.3 }}
               >
                 Prev
               </button>
               <button
-                onClick={() => nextEpisode && onEpisodeChange(nextEpisode.id)}
+                onClick={() => nextEpisode && onEpisodeChange(nextEpisode.id, nextEpisode.number, nextEpisode.season)}
                 disabled={!nextEpisode}
                 style={{ ...styles.navButton, opacity: nextEpisode ? 1 : 0.3 }}
               >
@@ -1048,7 +1060,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <div style={styles.autoPlayCountdown}>Playing in {autoPlayCountdown}s</div>
             <div style={styles.autoPlayButtons}>
               <button onClick={cancelAutoPlay} style={styles.cancelButton}>Cancel</button>
-              <button onClick={() => onEpisodeChange(nextEpisode.id)} style={styles.playNowButton}>Play Now</button>
+              <button onClick={() => onEpisodeChange(nextEpisode.id, nextEpisode.number, nextEpisode.season)} style={styles.playNowButton}>Play Now</button>
             </div>
           </div>
         </div>

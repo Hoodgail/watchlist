@@ -11,6 +11,8 @@ import {
   Suggestion,
   SuggestionStatus,
   PublicProfile,
+  FriendStatus,
+  ActiveProgress,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -201,6 +203,8 @@ interface BackendMediaItem {
   rating: number | null;
   imageUrl?: string | null;
   refId?: string | null;
+  friendsStatuses?: FriendStatus[];
+  activeProgress?: ActiveProgress | null;
 }
 
 interface BackendPaginatedResponse {
@@ -224,6 +228,8 @@ function transformBackendItem(item: BackendMediaItem): MediaItem {
     rating: item.rating,
     imageUrl: item.imageUrl || undefined,
     refId: item.refId || undefined,
+    friendsStatuses: item.friendsStatuses,
+    activeProgress: item.activeProgress,
   };
 }
 
@@ -942,6 +948,8 @@ export interface WatchProgressData {
   id: string;
   mediaId: string;
   episodeId: string;
+  episodeNumber: number | null;
+  seasonNumber: number | null;
   currentTime: number;
   duration: number;
   provider: string;
@@ -953,6 +961,8 @@ export interface WatchProgressData {
 export interface UpdateWatchProgressPayload {
   mediaId: string;
   episodeId?: string;
+  episodeNumber?: number;
+  seasonNumber?: number;
   currentTime: number;
   duration: number;
   provider: string;

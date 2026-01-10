@@ -12,6 +12,9 @@ import Hls, {
   LoaderConfiguration, 
   LoaderCallbacks,
   FragmentLoaderContext,
+  Loader,
+  LoaderStats,
+  HlsConfig,
 } from 'hls.js';
 import { 
   getHLSSegment, 
@@ -127,14 +130,17 @@ function parseOfflineUrl(url: string): { episodeId: string; segmentIndex: number
  * Custom fragment loader that serves segments from IndexedDB
  * Falls back to network loader for non-offline URLs
  */
-export class OfflineFragmentLoader implements Hls.LoaderInterface<LoaderContext> {
-  private defaultLoader: Hls.LoaderInterface<LoaderContext>;
-  private context: LoaderContext | null = null;
+export class OfflineFragmentLoader implements Loader<LoaderContext> {
+  private defaultLoader: Loader<LoaderContext>;
+  public context: LoaderContext | null = null;
   private callbacks: LoaderCallbacks<LoaderContext> | null = null;
+  public stats: LoaderStats;
   
-  constructor(config: LoaderConfiguration) {
+  constructor(config: HlsConfig) {
     // Keep a reference to the default loader for fallback
-    this.defaultLoader = new Hls.DefaultConfig.loader(config) as Hls.LoaderInterface<LoaderContext>;
+    const DefaultLoaderClass = Hls.DefaultConfig.loader;
+    this.defaultLoader = new DefaultLoaderClass(config);
+    this.stats = this.defaultLoader.stats;
   }
   
   /**
@@ -201,15 +207,18 @@ export class OfflineFragmentLoader implements Hls.LoaderInterface<LoaderContext>
       }
     }
     
-    // Create response
-    const stats = {
+    // Create response stats
+    const now = performance.now();
+    const stats: LoaderStats = {
       loaded: segmentData.length,
       total: segmentData.length,
       aborted: false,
-      trequest: performance.now(),
-      tfirst: performance.now(),
-      tload: performance.now(),
       retry: 0,
+      chunkCount: 1,
+      bwEstimate: 0,
+      loading: { start: now, first: now, end: now },
+      parsing: { start: now, end: now },
+      buffering: { start: now, first: now, end: now },
     };
     
     // Call success callback with the data
@@ -239,19 +248,12 @@ export class OfflineFragmentLoader implements Hls.LoaderInterface<LoaderContext>
     this.context = null;
     this.callbacks = null;
   }
-  
-  /**
-   * Get loader stats
-   */
-  get stats() {
-    return this.defaultLoader.stats;
-  }
 }
 
 /**
  * Create an HLS configuration for offline playback
  */
-export function createOfflineHLSConfig(): Partial<Hls.HlsConfig> {
+export function createOfflineHLSConfig(): Partial<HlsConfig> {
   return {
     // Use our custom loader for fragments
     fLoader: OfflineFragmentLoader as unknown as typeof Hls.DefaultConfig.fLoader,

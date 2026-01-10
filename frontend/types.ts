@@ -192,6 +192,7 @@ export interface WatchProgress {
 export interface ActiveProgress {
   episodeId: string;
   episodeNumber: number | null;
+  seasonNumber: number | null;
   currentTime: number;
   duration: number;
   percentComplete: number;

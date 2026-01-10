@@ -402,7 +402,8 @@ export async function getGroupedFriendList(
       const activeEntry = incompleteProgress || progressEntries[0];
       
       if (activeEntry) {
-        const episodeNumber = parseEpisodeNumber(activeEntry.episodeId);
+        // Prefer stored episodeNumber, fall back to parsing from episodeId
+        const episodeNumber = activeEntry.episodeNumber ?? parseEpisodeNumber(activeEntry.episodeId);
         const percentComplete = activeEntry.duration > 0
           ? (activeEntry.currentTime / activeEntry.duration) * 100
           : 0;
@@ -410,6 +411,7 @@ export async function getGroupedFriendList(
         watchProgressMap.set(refId, {
           episodeId: activeEntry.episodeId,
           episodeNumber,
+          seasonNumber: activeEntry.seasonNumber,
           currentTime: activeEntry.currentTime,
           duration: activeEntry.duration,
           percentComplete: Math.round(percentComplete * 10) / 10,

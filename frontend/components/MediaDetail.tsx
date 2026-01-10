@@ -23,7 +23,7 @@ interface MediaDetailProps {
   /** Media type hint for better resolution */
   mediaType?: 'movie' | 'tv' | 'anime';
   onClose: () => void;
-  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName, mediaTitle: string) => void;
+  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName, mediaTitle: string, episodeNumber?: number, seasonNumber?: number) => void;
 }
 
 // Helper to proxy image URLs with provider referer
@@ -853,7 +853,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                   number: 1,
                   title: mediaInfo.title,
                 };
-                onWatchEpisode(resolvedProviderId, resolvedProviderId, [movieEpisode], resolvedProvider, mediaInfo.title);
+                // Movies: episodeNumber=1, no season
+                onWatchEpisode(resolvedProviderId, resolvedProviderId, [movieEpisode], resolvedProvider, mediaInfo.title, 1, undefined);
               }}
               className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
             >
@@ -1160,7 +1161,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                       toggleEpisodeSelection(episode.id);
                                     } else {
                                       // Use resolved provider ID and provider for watching
-                                      onWatchEpisode(resolvedProviderId, episode.id, allEpisodes, resolvedProvider, mediaInfo.title);
+                                      // Pass episode number and season number for progress tracking
+                                      onWatchEpisode(resolvedProviderId, episode.id, allEpisodes, resolvedProvider, mediaInfo.title, episode.number, season.season);
                                     }
                                   }}
                                   className="flex-1 text-left min-w-0"

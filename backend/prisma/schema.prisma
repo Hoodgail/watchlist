@@ -173,16 +173,18 @@ model OAuthAccount {
 }
 
 model WatchProgress {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  mediaId     String   @map("media_id") @db.VarChar(100) // The provider:id ref (e.g., "tmdb:12345")
-  episodeId   String   @map("episode_id") @db.VarChar(100) // Episode identifier (empty string for movies)
-  currentTime Float    @map("current_time") // Current playback position in seconds
-  duration    Float    // Total duration in seconds
-  provider    String   @db.VarChar(50) // Provider name (e.g., "tmdb", "anilist")
-  completed   Boolean  @default(false) // Whether the media/episode has been completed
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  mediaId       String   @map("media_id") @db.VarChar(100) // The provider:id ref (e.g., "tmdb:12345")
+  episodeId     String   @map("episode_id") @db.VarChar(100) // Episode identifier (empty string for movies)
+  episodeNumber Int?     @map("episode_number") // Semantic episode number (provider-agnostic)
+  seasonNumber  Int?     @map("season_number") // Semantic season number (provider-agnostic)
+  currentTime   Float    @map("current_time") // Current playback position in seconds
+  duration      Float // Total duration in seconds
+  provider      String   @db.VarChar(50) // Provider name (e.g., "tmdb", "anilist")
+  completed     Boolean  @default(false) // Whether the media/episode has been completed
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

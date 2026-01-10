@@ -20,6 +20,7 @@ export interface FriendStatus {
 export interface ActiveProgress {
   episodeId: string;
   episodeNumber: number | null;
+  seasonNumber: number | null;
   currentTime: number;
   duration: number;
   percentComplete: number;
@@ -295,7 +296,8 @@ export async function getUserList(
       const activeEntry = incompleteProgress || progressEntries[0];
 
       if (activeEntry) {
-        const episodeNumber = parseEpisodeNumber(activeEntry.episodeId);
+        // Prefer stored episodeNumber, fall back to parsing from episodeId
+        const episodeNumber = activeEntry.episodeNumber ?? parseEpisodeNumber(activeEntry.episodeId);
         const percentComplete = activeEntry.duration > 0 
           ? (activeEntry.currentTime / activeEntry.duration) * 100 
           : 0;
@@ -303,6 +305,7 @@ export async function getUserList(
         watchProgressMap.set(refId, {
           episodeId: activeEntry.episodeId,
           episodeNumber,
+          seasonNumber: activeEntry.seasonNumber,
           currentTime: activeEntry.currentTime,
           duration: activeEntry.duration,
           percentComplete: Math.round(percentComplete * 10) / 10, // Round to 1 decimal
@@ -547,7 +550,8 @@ export async function getGroupedUserList(
       const activeEntry = incompleteProgress || progressEntries[0];
       
       if (activeEntry) {
-        const episodeNumber = parseEpisodeNumber(activeEntry.episodeId);
+        // Prefer stored episodeNumber, fall back to parsing from episodeId
+        const episodeNumber = activeEntry.episodeNumber ?? parseEpisodeNumber(activeEntry.episodeId);
         const percentComplete = activeEntry.duration > 0
           ? (activeEntry.currentTime / activeEntry.duration) * 100
           : 0;
@@ -555,6 +559,7 @@ export async function getGroupedUserList(
         watchProgressMap.set(refId, {
           episodeId: activeEntry.episodeId,
           episodeNumber,
+          seasonNumber: activeEntry.seasonNumber,
           currentTime: activeEntry.currentTime,
           duration: activeEntry.duration,
           percentComplete: Math.round(percentComplete * 10) / 10,

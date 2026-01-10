@@ -90,6 +90,8 @@ export const suggestionQuerySchema = z.object({
 export const updateWatchProgressSchema = z.object({
   mediaId: z.string().min(1, 'Media ID is required'),
   episodeId: z.string().optional(),
+  episodeNumber: z.number().int().min(1).optional(),
+  seasonNumber: z.number().int().min(1).optional(),
   currentTime: z.number().min(0, 'Current time must be non-negative'),
   duration: z.number().min(0, 'Duration must be non-negative'),
   provider: z.string().min(1, 'Provider is required'),

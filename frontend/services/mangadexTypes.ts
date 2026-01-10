@@ -167,7 +167,8 @@ export type MangaProviderName =
   | 'mangapill' 
   | 'comick' 
   | 'mangareader'
-  | 'asurascans';
+  | 'asurascans'
+  | 'anilist-manga';
 
 // ============ Helper Types ============
 

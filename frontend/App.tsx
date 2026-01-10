@@ -133,6 +133,8 @@ const MainApp: React.FC = () => {
     episodes: VideoEpisode[];
     provider: VideoProviderName;
     mediaTitle: string;
+    episodeNumber?: number;
+    seasonNumber?: number;
   } | null>(null);
 
   // Load user's list when authenticated (skip when offline-authenticated)
@@ -707,18 +709,20 @@ const MainApp: React.FC = () => {
     episodeId: string,
     episodes: VideoEpisode[],
     provider: VideoProviderName,
-    mediaTitle: string
+    mediaTitle: string,
+    episodeNumber?: number,
+    seasonNumber?: number
   ) => {
-    setPlayerState({ mediaId, episodeId, episodes, provider, mediaTitle });
+    setPlayerState({ mediaId, episodeId, episodes, provider, mediaTitle, episodeNumber, seasonNumber });
   }, []);
 
   const handleClosePlayer = useCallback(() => {
     setPlayerState(null);
   }, []);
 
-  const handleEpisodeChange = useCallback((episodeId: string) => {
+  const handleEpisodeChange = useCallback((episodeId: string, episodeNumber?: number, seasonNumber?: number) => {
     if (playerState) {
-      setPlayerState({ ...playerState, episodeId });
+      setPlayerState({ ...playerState, episodeId, episodeNumber, seasonNumber });
     }
   }, [playerState]);
 
@@ -984,6 +988,8 @@ const MainApp: React.FC = () => {
           onEpisodeChange={handleEpisodeChange}
           provider={playerState.provider}
           mediaTitle={playerState.mediaTitle}
+          episodeNumber={playerState.episodeNumber}
+          seasonNumber={playerState.seasonNumber}
         />
       </OfflineVideoProvider>
     );

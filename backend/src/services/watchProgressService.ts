@@ -7,6 +7,8 @@ export interface WatchProgressResponse {
   id: string;
   mediaId: string;
   episodeId: string | null;
+  episodeNumber: number | null;
+  seasonNumber: number | null;
   currentTime: number;
   duration: number;
   provider: string;
@@ -19,6 +21,8 @@ const watchProgressSelect = {
   id: true,
   mediaId: true,
   episodeId: true,
+  episodeNumber: true,
+  seasonNumber: true,
   currentTime: true,
   duration: true,
   provider: true,
@@ -42,7 +46,7 @@ export async function upsertProgress(
   userId: string,
   input: UpdateWatchProgressInput
 ): Promise<WatchProgressResponse> {
-  const { mediaId, episodeId, currentTime, duration, provider } = input;
+  const { mediaId, episodeId, episodeNumber, seasonNumber, currentTime, duration, provider } = input;
 
   // Calculate if completed (watched 95% or more)
   const completed = duration > 0 && currentTime / duration >= COMPLETION_THRESHOLD;
@@ -73,12 +77,17 @@ export async function upsertProgress(
       currentTime,
       duration,
       completed,
+      // Update episode/season numbers if provided (don't overwrite with undefined)
+      ...(episodeNumber !== undefined && { episodeNumber }),
+      ...(seasonNumber !== undefined && { seasonNumber }),
       updatedAt: new Date(),
     },
     create: {
       userId,
       mediaId,
       episodeId: episodeId ?? '',
+      episodeNumber: episodeNumber ?? null,
+      seasonNumber: seasonNumber ?? null,
       currentTime,
       duration,
       provider,
@@ -89,7 +98,9 @@ export async function upsertProgress(
 
   // If newly completed, try to sync with MediaItem
   if (isNewlyCompleted) {
-    await syncMediaItemProgress(userId, mediaId, episodeId);
+    // Prefer stored episodeNumber, fall back to parsing from episodeId
+    const epNum = result.episodeNumber ?? parseEpisodeNumber(episodeId);
+    await syncMediaItemProgress(userId, mediaId, epNum);
   }
 
   return result;
@@ -105,13 +116,9 @@ export async function upsertProgress(
 async function syncMediaItemProgress(
   userId: string,
   mediaId: string,
-  episodeId: string | undefined
+  episodeNumber: number | null
 ): Promise<void> {
   try {
-    // Parse the episode number from episodeId if available
-    // Episode IDs are often in format like "episode-5" or just contain a number
-    const episodeNumber = parseEpisodeNumber(episodeId);
-    
     if (episodeNumber === null) {
       // Can't determine episode number, skip sync
       return;
