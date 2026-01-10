@@ -12,6 +12,9 @@ enum MediaType {
   MOVIE
   ANIME
   MANGA
+  BOOK
+  LIGHT_NOVEL
+  COMIC
 }
 
 enum MediaStatus {
@@ -64,7 +67,7 @@ model User {
 model MediaItem {
   id        String      @id @default(uuid())
   userId    String      @map("user_id")
-  title     String      @db.VarChar(255)
+  title     String?     @db.VarChar(255)
   type      MediaType
   status    MediaStatus
   current   Int         @default(0)
@@ -73,16 +76,36 @@ model MediaItem {
   rating    Int?        @db.SmallInt // Personal rating 0-10
   imageUrl  String?     @map("image_url") @db.VarChar(500)
   refId     String      @map("ref_id") @db.VarChar(100) // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  sourceId  String?     @map("source_id")
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source MediaSource? @relation(fields: [sourceId], references: [id])
 
   @@unique([userId, refId])
   @@index([userId])
   @@index([userId, type])
+  @@index([sourceId])
   @@map("media_items")
+}
+
+model MediaSource {
+  id        String    @id @default(uuid())
+  refId     String    @unique @map("ref_id") @db.VarChar(100)
+  title     String    @db.VarChar(255)
+  imageUrl  String?   @map("image_url") @db.VarChar(500)
+  total     Int?
+  type      MediaType
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  mediaItems  MediaItem[]
+  suggestions Suggestion[]
+
+  @@map("media_sources")
 }
 
 model Friendship {
@@ -141,22 +164,25 @@ model Suggestion {
   id         String           @id @default(uuid())
   fromUserId String           @map("from_user_id")
   toUserId   String           @map("to_user_id")
-  title      String           @db.VarChar(255)
+  title      String?          @db.VarChar(255)
   type       MediaType
   refId      String           @map("ref_id")
   imageUrl   String?          @map("image_url")
   message    String?          @db.Text
   status     SuggestionStatus @default(PENDING)
+  sourceId   String?          @map("source_id")
   createdAt  DateTime         @default(now()) @map("created_at")
 
   // Relations
-  fromUser User @relation("SentSuggestions", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser   User @relation("ReceivedSuggestions", fields: [toUserId], references: [id], onDelete: Cascade)
+  fromUser User         @relation("SentSuggestions", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User         @relation("ReceivedSuggestions", fields: [toUserId], references: [id], onDelete: Cascade)
+  source   MediaSource? @relation(fields: [sourceId], references: [id])
 
   @@unique([fromUserId, toUserId, refId])
   @@index([fromUserId])
   @@index([toUserId])
   @@index([toUserId, status])
+  @@index([sourceId])
   @@map("suggestions")
 }
 

@@ -62,10 +62,8 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
     setSending(true);
     try {
       await api.sendSuggestion(selectedFriendId, {
-        title: item.title,
         type: item.type,
         refId: item.refId,
-        imageUrl: item.imageUrl,
         message: message.trim() || undefined,
       });
 

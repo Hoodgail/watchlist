@@ -67,6 +67,13 @@ export async function getPublicProfile(
           rating: true,
           imageUrl: true,
           refId: true,
+          source: {
+            select: {
+              title: true,
+              imageUrl: true,
+              total: true,
+            },
+          },
         },
         orderBy: {
           updatedAt: 'desc',
@@ -134,7 +141,18 @@ export async function getPublicProfile(
     isFollowing,
     followerCount: user._count.followers,
     followingCount: user._count.following,
-    list: user.mediaItems,
+    list: user.mediaItems.map((item) => ({
+      id: item.id,
+      title: item.source?.title ?? item.title ?? 'Unknown',
+      type: item.type,
+      status: item.status,
+      current: item.current,
+      total: item.source?.total ?? item.total,
+      notes: item.notes,
+      rating: item.rating,
+      imageUrl: item.source?.imageUrl ?? item.imageUrl,
+      refId: item.refId,
+    })),
   };
 }
 

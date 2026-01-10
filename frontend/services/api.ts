@@ -331,17 +331,14 @@ export async function getMyGroupedList(filters?: GroupedListFilters): Promise<Gr
 }
 
 export async function addToList(item: Omit<MediaItem, 'id'>): Promise<MediaItem> {
-  // Backend expects: { title, type, status, current, total?, notes?, rating?, imageUrl?, refId? }
+  // Backend fetches title/imageUrl/total from MediaSource via refId
   const payload = {
-    title: item.title,
+    refId: item.refId,
     type: item.type,
     status: item.status,
     current: item.current,
-    total: item.total,
     notes: item.notes,
     rating: item.rating,
-    imageUrl: item.imageUrl,
-    refId: item.refId,
   };
 
   const response = await fetchWithAuth('/list', {
@@ -719,10 +716,8 @@ export async function getSentSuggestions(): Promise<Suggestion[]> {
 }
 
 export interface SendSuggestionPayload {
-  title: string;
-  type: MediaType;
   refId: string;
-  imageUrl?: string;
+  type: MediaType;
   message?: string;
 }
 

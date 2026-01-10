@@ -3,6 +3,7 @@ import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '.
 import type { CreateMediaItemInput, UpdateMediaItemInput } from '../utils/schemas.js';
 import type { MediaType, MediaStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
+import { getOrCreateMediaSource } from './mediaSourceService.js';
 
 export interface FriendStatus {
   id: string;
@@ -60,7 +61,51 @@ const mediaItemSelect = {
   refId: true,
   createdAt: true,
   updatedAt: true,
+  source: {
+    select: {
+      title: true,
+      imageUrl: true,
+      total: true,
+    },
+  },
 } as const;
+
+interface MediaItemWithSource {
+  id: string;
+  title: string | null;
+  type: MediaType;
+  status: MediaStatus;
+  current: number;
+  total: number | null;
+  notes: string | null;
+  rating: number | null;
+  imageUrl: string | null;
+  refId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  source?: {
+    title: string;
+    imageUrl: string | null;
+    total: number | null;
+  } | null;
+}
+
+function resolveMediaItemResponse(item: MediaItemWithSource): MediaItemResponse {
+  return {
+    id: item.id,
+    title: item.source?.title ?? item.title ?? 'Unknown',
+    type: item.type,
+    status: item.status,
+    current: item.current,
+    total: item.source?.total ?? item.total,
+    notes: item.notes,
+    rating: item.rating,
+    imageUrl: item.source?.imageUrl ?? item.imageUrl,
+    refId: item.refId,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
 
 export type SortByOption = 'status' | 'title' | 'rating' | 'updatedAt' | 'createdAt';
 
@@ -177,7 +222,7 @@ export async function getUserList(
 
   let items: {
     id: string;
-    title: string;
+    title: string | null;
     type: MediaType;
     status: MediaStatus;
     current: number;
@@ -188,6 +233,11 @@ export async function getUserList(
     refId: string;
     createdAt: Date;
     updatedAt: Date;
+    source?: {
+      title: string;
+      imageUrl: string | null;
+      total: number | null;
+    } | null;
   }[];
   
   if (sortByStatus) {
@@ -199,11 +249,13 @@ export async function getUserList(
       select: mediaItemSelect,
     });
 
-    // Sort in memory by status priority, then by title
+    // Sort in memory by status priority, then by title (resolved from source)
     allItems.sort((a, b) => {
       const priorityDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
       if (priorityDiff !== 0) return priorityDiff;
-      return a.title.localeCompare(b.title);
+      const titleA = a.source?.title ?? a.title ?? 'Unknown';
+      const titleB = b.source?.title ?? b.title ?? 'Unknown';
+      return titleA.localeCompare(titleB);
     });
 
     // Apply pagination after sorting
@@ -331,7 +383,7 @@ export async function getUserList(
   // If no friends, just attach watch progress and return
   if (friendIds.length === 0) {
     const itemsWithProgress = items.map(item => ({
-      ...item,
+      ...resolveMediaItemResponse(item),
       activeProgress: item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null,
     }));
     return {
@@ -347,13 +399,18 @@ export async function getUserList(
   // Get refIds from user's items to find matching items in friends' lists
   const refIds = items.filter(item => item.refId).map(item => item.refId as string);
 
+  // Get resolved titles for friend matching (filter out nulls)
+  const resolvedTitles = items
+    .map(i => i.source?.title ?? i.title)
+    .filter((t): t is string => t !== null);
+
   // Fetch friends' media items that match by refId OR title
   const friendsItems = await prisma.mediaItem.findMany({
     where: {
       userId: { in: friendIds },
       OR: [
         ...(refIds.length > 0 ? [{ refId: { in: refIds } }] : []),
-        { title: { in: items.map(i => i.title), mode: 'insensitive' as const } },
+        ...(resolvedTitles.length > 0 ? [{ title: { in: resolvedTitles, mode: 'insensitive' as const } }] : []),
       ],
     },
     select: {
@@ -395,28 +452,31 @@ export async function getUserList(
       friendsMapByRefId.set(friendItem.refId, existing);
     }
     
-    // Also key by lowercase title
-    const titleKey = friendItem.title.toLowerCase();
-    const existingByTitle = friendsMapByTitle.get(titleKey) || [];
-    existingByTitle.push(friendStatus);
-    friendsMapByTitle.set(titleKey, existingByTitle);
+    // Also key by lowercase title (if title exists)
+    if (friendItem.title) {
+      const titleKey = friendItem.title.toLowerCase();
+      const existingByTitle = friendsMapByTitle.get(titleKey) || [];
+      existingByTitle.push(friendStatus);
+      friendsMapByTitle.set(titleKey, existingByTitle);
+    }
   }
 
   // Attach friends' statuses and watch progress to each item
   const itemsWithExtras: MediaItemResponse[] = items.map(item => {
+    const resolved = resolveMediaItemResponse(item);
     // First try to match by refId
     let friendsStatuses = item.refId ? friendsMapByRefId.get(item.refId) : undefined;
     
     // Fall back to title match if no refId match
     if (!friendsStatuses || friendsStatuses.length === 0) {
-      friendsStatuses = friendsMapByTitle.get(item.title.toLowerCase());
+      friendsStatuses = friendsMapByTitle.get(resolved.title.toLowerCase());
     }
     
     // Get active progress for video content
     const activeProgress = item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null;
     
     return { 
-      ...item, 
+      ...resolved, 
       friendsStatuses: friendsStatuses || [],
       activeProgress,
     };
@@ -587,12 +647,17 @@ export async function getGroupedUserList(
   if (friendIds.length > 0) {
     const refIds = allItems.filter(item => item.refId).map(item => item.refId as string);
     
+    // Get resolved titles for friend matching (filter out nulls)
+    const resolvedTitles = allItems
+      .map(i => i.source?.title ?? i.title)
+      .filter((t): t is string => t !== null);
+    
     const friendsItems = await prisma.mediaItem.findMany({
       where: {
         userId: { in: friendIds },
         OR: [
           ...(refIds.length > 0 ? [{ refId: { in: refIds } }] : []),
-          { title: { in: allItems.map(i => i.title), mode: 'insensitive' as const } },
+          ...(resolvedTitles.length > 0 ? [{ title: { in: resolvedTitles, mode: 'insensitive' as const } }] : []),
         ],
       },
       select: {
@@ -624,22 +689,26 @@ export async function getGroupedUserList(
         friendsMapByRefId.set(friendItem.refId, existing);
       }
       
-      const titleKey = friendItem.title.toLowerCase();
-      const existingByTitle = friendsMapByTitle.get(titleKey) || [];
-      existingByTitle.push(friendStatus);
-      friendsMapByTitle.set(titleKey, existingByTitle);
+      // Also key by lowercase title (if title exists)
+      if (friendItem.title) {
+        const titleKey = friendItem.title.toLowerCase();
+        const existingByTitle = friendsMapByTitle.get(titleKey) || [];
+        existingByTitle.push(friendStatus);
+        friendsMapByTitle.set(titleKey, existingByTitle);
+      }
     }
   }
   
   // Attach extras to items and build response
   const attachExtras = (item: typeof allItems[0]): MediaItemResponse => {
+    const resolved = resolveMediaItemResponse(item);
     let friendsStatuses = item.refId ? friendsMapByRefId.get(item.refId) : undefined;
     if (!friendsStatuses || friendsStatuses.length === 0) {
-      friendsStatuses = friendsMapByTitle.get(item.title.toLowerCase());
+      friendsStatuses = friendsMapByTitle.get(resolved.title.toLowerCase());
     }
     const activeProgress = item.type !== 'MANGA' ? watchProgressMap.get(item.refId) || null : null;
     return {
-      ...item,
+      ...resolved,
       friendsStatuses: friendsStatuses || [],
       activeProgress,
     };
@@ -705,21 +774,27 @@ export async function createMediaItem(
   }
 
   try {
-    return await prisma.mediaItem.create({
+    // Get or create the MediaSource for this refId
+    const source = await getOrCreateMediaSource(input.refId, input.type);
+
+    const item = await prisma.mediaItem.create({
       data: {
         userId,
-        title: input.title,
+        title: null, // Title comes from source
         type: input.type,
         status: input.status,
         current: input.current ?? 0,
-        total: input.total ?? null,
+        total: null, // Total comes from source
         notes: input.notes,
         rating: input.rating ?? null,
-        imageUrl: input.imageUrl,
+        imageUrl: null, // ImageUrl comes from source
         refId: input.refId,
+        sourceId: source.id,
       },
       select: mediaItemSelect,
     });
+
+    return resolveMediaItemResponse(item);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new ConflictError('This item is already in your list');
@@ -746,10 +821,9 @@ export async function updateMediaItem(
     throw new ForbiddenError('Not authorized to update this item');
   }
 
-  return prisma.mediaItem.update({
+  const item = await prisma.mediaItem.update({
     where: { id: itemId },
     data: {
-      title: input.title,
       status: input.status,
       current: input.current,
       total: input.total,
@@ -758,6 +832,8 @@ export async function updateMediaItem(
     },
     select: mediaItemSelect,
   });
+
+  return resolveMediaItemResponse(item);
 }
 
 export async function deleteMediaItem(userId: string, itemId: string): Promise<void> {
@@ -797,7 +873,7 @@ export async function getMediaItem(userId: string, itemId: string): Promise<Medi
   }
 
   const { userId: _, ...rest } = item;
-  return rest;
+  return resolveMediaItemResponse(rest);
 }
 
 export interface BulkStatusItem {

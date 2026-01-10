@@ -449,13 +449,27 @@ export async function getFriendsFeed(
     refIdSet.add(c.refId);
   }
   const refIds = Array.from(refIdSet);
-  const mediaItems = await prisma.mediaItem.findMany({
+  // Get titles from MediaSource first (canonical source)
+  const sources = await prisma.mediaSource.findMany({
     where: { refId: { in: refIds } },
     select: { refId: true, title: true },
-    distinct: ['refId'],
   });
+  const titleMap = new Map<string, string>(sources.map(s => [s.refId, s.title]));
 
-  const titleMap = new Map<string, string>(mediaItems.map(m => [m.refId, m.title]));
+  // Fallback: for any refIds not in MediaSource, check MediaItem (legacy data)
+  const missingRefIds = refIds.filter(id => !titleMap.has(id));
+  if (missingRefIds.length > 0) {
+    const legacyItems = await prisma.mediaItem.findMany({
+      where: { refId: { in: missingRefIds }, title: { not: null } },
+      select: { refId: true, title: true },
+      distinct: ['refId'],
+    });
+    for (const item of legacyItems) {
+      if (item.title && !titleMap.has(item.refId)) {
+        titleMap.set(item.refId, item.title);
+      }
+    }
+  }
 
   const feedItems: CommentFeedItem[] = resultComments.map((comment) => ({
     ...formatCommentWithAuthor(comment),
@@ -514,13 +528,27 @@ export async function getPublicFeed(
     publicRefIdSet.add(c.refId);
   }
   const publicRefIds = Array.from(publicRefIdSet);
-  const mediaItems = await prisma.mediaItem.findMany({
+  // Get titles from MediaSource first (canonical source)
+  const sources = await prisma.mediaSource.findMany({
     where: { refId: { in: publicRefIds } },
     select: { refId: true, title: true },
-    distinct: ['refId'],
   });
+  const titleMap = new Map<string, string>(sources.map(s => [s.refId, s.title]));
 
-  const titleMap = new Map<string, string>(mediaItems.map(m => [m.refId, m.title]));
+  // Fallback: for any refIds not in MediaSource, check MediaItem (legacy data)
+  const missingRefIds = publicRefIds.filter(id => !titleMap.has(id));
+  if (missingRefIds.length > 0) {
+    const legacyItems = await prisma.mediaItem.findMany({
+      where: { refId: { in: missingRefIds }, title: { not: null } },
+      select: { refId: true, title: true },
+      distinct: ['refId'],
+    });
+    for (const item of legacyItems) {
+      if (item.title && !titleMap.has(item.refId)) {
+        titleMap.set(item.refId, item.title);
+      }
+    }
+  }
 
   const feedItems: CommentFeedItem[] = resultComments.map((comment) => ({
     ...formatCommentWithAuthor(comment),

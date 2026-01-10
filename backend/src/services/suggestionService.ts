@@ -1,5 +1,6 @@
 import { prisma } from '../config/database.js';
 import { NotFoundError, ConflictError, ForbiddenError, BadRequestError } from '../utils/errors.js';
+import { getOrCreateMediaSource } from './mediaSourceService.js';
 import type { CreateSuggestionInput } from '../utils/schemas.js';
 import type { MediaType } from '@prisma/client';
 
@@ -35,6 +36,7 @@ const suggestionSelect = {
   message: true,
   status: true,
   createdAt: true,
+  sourceId: true,
   fromUser: {
     select: {
       id: true,
@@ -49,7 +51,56 @@ const suggestionSelect = {
       displayName: true,
     },
   },
+  source: {
+    select: {
+      title: true,
+      imageUrl: true,
+      total: true,
+    },
+  },
 } as const;
+
+type SuggestionWithSource = {
+  id: string;
+  title: string | null;
+  type: MediaType;
+  refId: string;
+  imageUrl: string | null;
+  message: string | null;
+  status: SuggestionStatus;
+  createdAt: Date;
+  sourceId: string | null;
+  fromUser: {
+    id: string;
+    username: string;
+    displayName: string | null;
+  };
+  toUser: {
+    id: string;
+    username: string;
+    displayName: string | null;
+  };
+  source: {
+    title: string;
+    imageUrl: string | null;
+    total: number | null;
+  } | null;
+};
+
+function resolveSuggestionResponse(suggestion: SuggestionWithSource): SuggestionResponse {
+  return {
+    id: suggestion.id,
+    title: suggestion.source?.title ?? suggestion.title ?? 'Unknown',
+    type: suggestion.type,
+    refId: suggestion.refId,
+    imageUrl: suggestion.source?.imageUrl ?? suggestion.imageUrl,
+    message: suggestion.message,
+    status: suggestion.status,
+    createdAt: suggestion.createdAt,
+    fromUser: suggestion.fromUser,
+    toUser: suggestion.toUser,
+  };
+}
 
 export async function createSuggestion(
   fromUserId: string,
@@ -103,20 +154,22 @@ export async function createSuggestion(
     });
   }
 
+  // Get or create the MediaSource for this refId
+  const source = await getOrCreateMediaSource(input.refId, input.type);
+
   const suggestion = await prisma.suggestion.create({
     data: {
       fromUserId,
       toUserId,
-      title: input.title,
       type: input.type,
       refId: input.refId,
-      imageUrl: input.imageUrl,
+      sourceId: source.id,
       message: input.message,
     },
     select: suggestionSelect,
   });
 
-  return suggestion;
+  return resolveSuggestionResponse(suggestion);
 }
 
 export async function getReceivedSuggestions(
@@ -138,7 +191,7 @@ export async function getReceivedSuggestions(
     orderBy: { createdAt: 'desc' },
   });
 
-  return suggestions;
+  return suggestions.map(resolveSuggestionResponse);
 }
 
 export async function getSentSuggestions(userId: string): Promise<SuggestionResponse[]> {
@@ -148,7 +201,7 @@ export async function getSentSuggestions(userId: string): Promise<SuggestionResp
     orderBy: { createdAt: 'desc' },
   });
 
-  return suggestions;
+  return suggestions.map(resolveSuggestionResponse);
 }
 
 export async function acceptSuggestion(
@@ -195,11 +248,10 @@ export async function acceptSuggestion(
       },
       create: {
         userId,
-        title: suggestion.title,
         type: suggestion.type,
         status: planStatus,
         refId: suggestion.refId,
-        imageUrl: suggestion.imageUrl,
+        sourceId: suggestion.sourceId,
       },
       update: {
         // If the item already exists, don't change anything
@@ -207,7 +259,7 @@ export async function acceptSuggestion(
     }),
   ]);
 
-  return updatedSuggestion;
+  return resolveSuggestionResponse(updatedSuggestion);
 }
 
 export async function dismissSuggestion(
@@ -236,7 +288,7 @@ export async function dismissSuggestion(
     select: suggestionSelect,
   });
 
-  return updatedSuggestion;
+  return resolveSuggestionResponse(updatedSuggestion);
 }
 
 export async function deleteSuggestion(

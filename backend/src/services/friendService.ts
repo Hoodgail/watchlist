@@ -180,6 +180,13 @@ export async function getFriendList(
           rating: true,
           imageUrl: true,
           refId: true,
+          source: {
+            select: {
+              title: true,
+              imageUrl: true,
+              total: true,
+            },
+          },
         },
         orderBy: {
           updatedAt: 'desc',
@@ -196,7 +203,18 @@ export async function getFriendList(
     id: friend.id,
     username: friend.username,
     displayName: friend.displayName,
-    list: friend.mediaItems,
+    list: friend.mediaItems.map(item => ({
+      id: item.id,
+      title: item.source?.title ?? item.title ?? 'Unknown',
+      type: item.type,
+      status: item.status,
+      current: item.current,
+      total: item.source?.total ?? item.total,
+      notes: item.notes,
+      rating: item.rating,
+      imageUrl: item.source?.imageUrl ?? item.imageUrl,
+      refId: item.refId,
+    })),
   };
 }
 
@@ -322,6 +340,13 @@ export async function getGroupedFriendList(
           rating: true,
           imageUrl: true,
           refId: true,
+          source: {
+            select: {
+              title: true,
+              imageUrl: true,
+              total: true,
+            },
+          },
         },
         skip,
         take: limit,
@@ -423,12 +448,24 @@ export async function getGroupedFriendList(
     }
   }
   
-  // Helper to attach activeProgress to items
+  // Helper to attach activeProgress to items and resolve source fields
   const attachActiveProgress = (item: typeof allItems[0]) => {
     const activeProgress = item.type !== 'MANGA' && item.refId 
       ? watchProgressMap.get(item.refId) || null 
       : null;
-    return { ...item, activeProgress };
+    return {
+      id: item.id,
+      title: item.source?.title ?? item.title ?? 'Unknown',
+      type: item.type,
+      status: item.status,
+      current: item.current,
+      total: item.source?.total ?? item.total,
+      notes: item.notes,
+      rating: item.rating,
+      imageUrl: item.source?.imageUrl ?? item.imageUrl,
+      refId: item.refId,
+      activeProgress,
+    };
   };
   
   // Build groups object
