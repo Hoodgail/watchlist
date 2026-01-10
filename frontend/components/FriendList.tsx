@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { User } from '../types';
 
 // Friend Avatar component with fallback to initials
-const FriendAvatar: React.FC<{ 
-  user: User; 
+export const FriendAvatar: React.FC<{ 
+  user: User | { username: string; avatarUrl?: string | null }; 
   size?: 'sm' | 'md' | 'lg';
 }> = ({ user, size = 'md' }) => {
   const sizeClasses = {

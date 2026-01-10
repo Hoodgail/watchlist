@@ -8,6 +8,7 @@ export interface FriendStatus {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl: string | null;
   status: MediaStatus;
   current: number;
   rating: number | null;
@@ -366,6 +367,7 @@ export async function getUserList(
           id: true,
           username: true,
           displayName: true,
+          avatarUrl: true,
         },
       },
     },
@@ -380,6 +382,7 @@ export async function getUserList(
       id: friendItem.user.id,
       username: friendItem.user.username,
       displayName: friendItem.user.displayName,
+      avatarUrl: friendItem.user.avatarUrl,
       status: friendItem.status,
       current: friendItem.current,
       rating: friendItem.rating,
@@ -599,7 +602,7 @@ export async function getGroupedUserList(
         current: true,
         rating: true,
         user: {
-          select: { id: true, username: true, displayName: true },
+          select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
       },
     });
@@ -609,6 +612,7 @@ export async function getGroupedUserList(
         id: friendItem.user.id,
         username: friendItem.user.username,
         displayName: friendItem.user.displayName,
+        avatarUrl: friendItem.user.avatarUrl,
         status: friendItem.status,
         current: friendItem.current,
         rating: friendItem.rating,

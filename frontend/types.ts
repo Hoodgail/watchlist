@@ -35,6 +35,7 @@ export interface FriendStatus {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   status: MediaStatus;
   current: number;
   rating: number | null;

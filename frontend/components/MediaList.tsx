@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress, ProviderName } from '../types';
 import { STATUS_OPTIONS } from '../constants';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
+import { FriendAvatar } from './FriendList';
 import type { GroupedListResponse, StatusGroupPagination } from '../services/api';
 import { extractProviderFromRefId } from '../services/mediaSearch';
 
@@ -22,9 +23,9 @@ const FILTER_STATUS_OPTIONS = [
 
 const FRIEND_ACTIVITY_OPTIONS: { value: FriendActivityFilter; label: string }[] = [
   { value: '', label: 'ALL' },
-  { value: 'friends_watching', label: 'FRIENDS WATCHING/READING' },
-  { value: 'friends_done', label: 'FRIENDS COMPLETED' },
-  { value: 'friends_dropped', label: 'FRIENDS DROPPED' },
+  { value: 'friends_watching', label: 'WATCHING/READING' },
+  { value: 'friends_done', label: 'COMPLETED' },
+  { value: 'friends_dropped', label: 'DROPPED' },
 ];
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
@@ -272,6 +273,48 @@ const getStatusConfig = (status: MediaStatus) => {
   return STATUS_GROUP_CONFIG.find(c => c.status === status) || STATUS_GROUP_CONFIG[0];
 };
 
+// ==================== Friend Avatar Stack Component ====================
+
+const FriendAvatarStack: React.FC<{
+  friends: FriendStatus[];
+  maxVisible?: number;
+}> = ({ friends, maxVisible = 5 }) => {
+  const visibleFriends = friends.slice(0, maxVisible);
+  const remainingCount = friends.length - maxVisible;
+
+  return (
+    <div className="flex items-center">
+      <div className="flex -space-x-2">
+        {visibleFriends.map((friend, index) => (
+          <div
+            key={friend.id}
+            className="relative"
+            style={{ zIndex: maxVisible - index }}
+            title={friend.displayName || friend.username}
+          >
+            <FriendAvatar
+              user={{ username: friend.username, avatarUrl: friend.avatarUrl }}
+              size="sm"
+            />
+          </div>
+        ))}
+        {remainingCount > 0 && (
+          <div
+            className="relative w-6 h-6 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-[10px] text-neutral-400 font-bold"
+            style={{ zIndex: 0 }}
+            title={`${remainingCount} more friends`}
+          >
+            {remainingCount > 9 ? '9+' : `+${remainingCount}`}
+          </div>
+        )}
+      </div>
+      <span className="ml-2 text-neutral-500 text-[10px]">
+        {friends.length}
+      </span>
+    </div>
+  );
+};
+
 // ==================== Types ====================
 
 interface MediaListProps {
@@ -339,7 +382,7 @@ const StatisticsSummary: React.FC<{
   }, [items]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-3 px-4 bg-neutral-950 border border-neutral-800 rounded">
+    <div className="flex flex-wrap items-center gap-2  ">
       {/* Total count */}
       <button
         onClick={() => onStatusClick('')}
@@ -711,6 +754,22 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
               </div>
             )}
             <div className="flex flex-col   text-xs uppercase mt-1">
+              {/* Resume indicator for video content with active progress */}
+              {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
+                <span
+                  className="text-red-400 py-0.5 flex items-center gap-1 text-[12px] "
+                  title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                  </svg>
+                  {item.activeProgress.seasonNumber
+                    ? `RES S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
+                    : `RES E${item.activeProgress.episodeNumber || '?'}`
+                  }
+                </span>
+              )}
+
 
             </div>
 
@@ -719,7 +778,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
 
           <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4 overflow-hidden">
             {/* Main Info */}
-            <div className="flex-grow  h-fit flex flex-col w-fit">
+            <div className="flex-grow  h-fit flex flex-col w-full">
               <div className="flex items-start justify-between h-fit w-full">
                 <div className="flex items-center h-fit gap-2 flex-wrap">
                   {onItemClick ? (
@@ -755,22 +814,6 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
 
               <div className="flex gap-2 justify-between ">
 
-                {/* Resume indicator for video content with active progress */}
-                {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
-                  <span
-                    className="text-red-400 py-0.5 flex items-center gap-1 text-[12px] "
-                    title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
-                  >
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
-                    {item.activeProgress.seasonNumber
-                      ? `RESUME S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
-                      : `RESUME E${item.activeProgress.episodeNumber || '?'}`
-                    }
-                  </span>
-                )}
-
 
                 <div className="flex gap-1">
 
@@ -797,15 +840,18 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
 
               {/* Friends status summary */}
               {item.friendsStatuses && item.friendsStatuses.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   {(Object.entries(friendsByStatus) as [MediaStatus, FriendStatus[]][]).map(([status, friends]) => (
-                    <span
+                    <div
                       key={status}
-                      className="text-[10px] px-1.5 py-0.5 bg-neutral-900 border border-neutral-700 text-neutral-400 uppercase"
+                      className="flex items-center gap-1.5 px-1.5 py-1 pl-[5px]   border border-neutral-700 rounded-[50px]"
                       title={friends.map(f => f.displayName || f.username).join(', ')}
                     >
-                      {friends.length} {getShortStatus(status)}
-                    </span>
+                      <FriendAvatarStack friends={friends} maxVisible={5} />
+                      <span className="text-[10px] text-neutral-400 uppercase">
+                        {getShortStatus(status)}
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1425,7 +1471,7 @@ export const MediaList: React.FC<MediaListProps> = ({
 
       {/* Filter and Sort Controls */}
       {!readonly && (onFilterChange || onSortChange || onFriendActivityFilterChange) && (
-        <div className="flex flex-wrap items-center gap-4 text-xs py-2 mt-0">
+        <div className="flex flex-wrap items-center gap-1 text-xs   mt-0">
           {/* Filter by Friend Activity */}
           {onFriendActivityFilterChange && (
             <div className="flex items-center gap-2">
