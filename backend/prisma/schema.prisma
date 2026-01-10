@@ -104,8 +104,22 @@ model MediaSource {
   // Relations
   mediaItems  MediaItem[]
   suggestions Suggestion[]
+  aliases     MediaSourceAlias[]
 
   @@map("media_sources")
+}
+
+model MediaSourceAlias {
+  id            String   @id @default(uuid())
+  mediaSourceId String   @map("media_source_id")
+  refId         String   @unique @map("ref_id") @db.VarChar(200)
+  provider      String   @db.VarChar(50) // "tmdb", "hianime", "anilist", etc.
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  mediaSource MediaSource @relation(fields: [mediaSourceId], references: [id], onDelete: Cascade)
+
+  @@index([mediaSourceId])
+  @@map("media_source_aliases")
 }
 
 model Friendship {

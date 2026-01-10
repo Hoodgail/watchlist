@@ -175,6 +175,14 @@ export const PROVIDER_INFO: Record<ProviderName, ProviderInfo> = {
     baseUrl: 'https://www.themoviedb.org',
     supportedTypes: ['movie', 'tv'],
   },
+  myanimelist: {
+    name: 'myanimelist',
+    displayName: 'MyAnimeList',
+    category: 'anime',
+    language: 'en',
+    isWorking: true,
+    baseUrl: 'https://myanimelist.net',
+  },
 
   // Book providers
   libgen: {
@@ -243,7 +251,7 @@ export const MANGA_PROVIDERS: MangaProviderName[] = [
   'asurascans',
 ];
 
-export const META_ANIME_PROVIDERS: MetaProviderName[] = ['anilist'];
+export const META_ANIME_PROVIDERS: MetaProviderName[] = ['anilist', 'myanimelist'];
 export const META_MANGA_PROVIDERS: MetaProviderName[] = ['anilist-manga'];
 export const META_MOVIE_PROVIDERS: MetaProviderName[] = ['tmdb'];
 

@@ -38,8 +38,28 @@ const fetchFromProviderSchema = z.object({
   providerIds: z.record(z.string()).optional(),
 });
 
+const fetchWithResolutionSchema = z.object({
+  title: z.string().min(1, 'title is required'),
+  mediaType: z.enum(['TV', 'MOVIE', 'ANIME', 'MANGA']),
+  year: z.number().int().min(1800).max(2100).optional(),
+  refId: z.string().optional(),
+  seasonNumber: z.number().int().min(0).optional(),
+  episodeNumber: z.number().int().min(0).optional(),
+  providerIds: z.record(z.string()).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+
+const resolvePreviewSchema = z.object({
+  title: z.string().min(1, 'title is required'),
+  mediaType: z.enum(['TV', 'MOVIE', 'ANIME', 'MANGA']),
+  year: z.number().int().min(1800).max(2100).optional(),
+  refId: z.string().optional(),
+});
+
 type FetchCommentsInput = z.infer<typeof fetchCommentsSchema>;
 type FetchFromProviderInput = z.infer<typeof fetchFromProviderSchema>;
+type FetchWithResolutionInput = z.infer<typeof fetchWithResolutionSchema>;
+type ResolvePreviewInput = z.infer<typeof resolvePreviewSchema>;
 
 // ============================================================================
 // Route Handlers
@@ -204,6 +224,85 @@ async function refreshPopularMedia(
   }
 }
 
+/**
+ * POST /external-comments/fetch-with-resolution
+ * Smart comment fetching with automatic provider resolution.
+ * Uses title-based search and matching when provider ID isn't known.
+ * Requires authentication.
+ */
+async function fetchWithResolution(
+  req: Request<unknown, unknown, FetchWithResolutionInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { title, mediaType, year, refId, seasonNumber, episodeNumber, providerIds, limit } = req.body;
+
+    const result = await externalCommentService.fetchCommentsWithResolution({
+      title,
+      mediaType,
+      year,
+      refId,
+      seasonNumber,
+      episodeNumber,
+      providerIds,
+      limit,
+    });
+
+    res.json({
+      comments: result.comments,
+      resolvedMatches: result.resolvedMatches,
+      errors: result.errors,
+      confidence: result.confidence,
+      usedDirectFetch: result.usedDirectFetch,
+      totalComments: result.comments.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /external-comments/resolve-preview
+ * Preview what providers would be matched for a given title without fetching comments.
+ * Useful for debugging and UI previews.
+ * Requires authentication.
+ */
+async function resolvePreview(
+  req: Request<unknown, unknown, ResolvePreviewInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { title, mediaType, year, refId } = req.body;
+
+    const result = await externalCommentService.previewResolution({
+      title,
+      mediaType,
+      year,
+      refId,
+    });
+
+    res.json({
+      resolvedMatches: result.resolvedMatches,
+      titleBasedProviders: result.titleBasedProviders,
+      confidence: result.confidence,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // ============================================================================
 // Route Definitions
 // ============================================================================
@@ -230,5 +329,20 @@ router.post(
 );
 
 router.post('/refresh', authenticate, refreshPopularMedia);
+
+// Smart resolution routes
+router.post(
+  '/fetch-with-resolution',
+  authenticate,
+  validate(fetchWithResolutionSchema),
+  fetchWithResolution
+);
+
+router.post(
+  '/resolve-preview',
+  authenticate,
+  validate(resolvePreviewSchema),
+  resolvePreview
+);
 
 export default router;

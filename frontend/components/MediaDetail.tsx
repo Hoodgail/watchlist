@@ -1,12 +1,12 @@
 // MediaDetail Component - Shows TV/Movie/Anime details with episode listing
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress } from '../types';
+import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress, SourceAlias } from '../types';
 import * as videoService from '../services/video';
 import { VideoMediaInfo } from '../services/video';
 import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider, MatchResult, resolveWithAlternatives, ResolutionWithAlternatives } from '../services/videoResolver';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
-import { getWatchProgressForMedia, WatchProgressData, getAccessToken } from '../services/api';
+import { getWatchProgressForMedia, WatchProgressData, getAccessToken, findMediaSourceByRefId, linkMediaSource, unlinkMediaSource, MediaSourceWithAliases } from '../services/api';
 import { getOfflineEpisodesForMedia, OfflineVideoEpisode } from '../services/offlineVideoStorage';
 import ProviderMappingModal from './ProviderMappingModal';
 import MediaSelectionModal from './MediaSelectionModal';
@@ -104,6 +104,14 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Change Source modal state
   const [showSourceSearchModal, setShowSourceSearchModal] = useState(false);
 
+  // Linked sources state
+  const [mediaSource, setMediaSource] = useState<MediaSourceWithAliases | null>(null);
+  const [linkedSourcesExpanded, setLinkedSourcesExpanded] = useState(false);
+  const [showAddLinkModal, setShowAddLinkModal] = useState(false);
+  const [newLinkRefId, setNewLinkRefId] = useState('');
+  const [addingLink, setAddingLink] = useState(false);
+  const [activeSourceRefId, setActiveSourceRefId] = useState<string>(mediaId);
+
   // Track if we've loaded for this mediaId to prevent duplicate loads
   const loadedForRef = useRef<string | null>(null);
 
@@ -139,6 +147,27 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     
     fetchBackendProgress();
   }, [resolvedProviderId, isOnline]);
+
+  // Fetch media source with aliases when online
+  useEffect(() => {
+    const fetchMediaSource = async () => {
+      if (!isOnline || !getAccessToken() || !mediaId) return;
+      
+      try {
+        const source = await findMediaSourceByRefId(mediaId);
+        if (source) {
+          setMediaSource(source);
+          // Set active source to the primary refId initially
+          setActiveSourceRefId(source.refId);
+        }
+      } catch (err) {
+        // Non-critical - just don't show linked sources
+        console.error('[MediaDetail] Failed to fetch media source:', err);
+      }
+    };
+    
+    fetchMediaSource();
+  }, [mediaId, isOnline]);
 
   const loadMediaDetails = async () => {
     setLoading(true);
@@ -690,6 +719,134 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     }
   }, [showToast]);
 
+  // ========== LINKED SOURCES HELPERS ==========
+
+  // Get display name for provider
+  const getProviderDisplayName = useCallback((providerStr: string): string => {
+    const names: Record<string, string> = {
+      tmdb: 'TMDB',
+      anilist: 'AniList',
+      'anilist-manga': 'AniList Manga',
+      hianime: 'HiAnime',
+      animepahe: 'AnimePahe',
+      animekai: 'AnimeKai',
+      kickassanime: 'KickAssAnime',
+      flixhq: 'FlixHQ',
+      goku: 'Goku',
+      sflix: 'SFlix',
+      himovies: 'HiMovies',
+      dramacool: 'DramaCool',
+      mangadex: 'MangaDex',
+      mal: 'MyAnimeList',
+    };
+    return names[providerStr.toLowerCase()] || providerStr;
+  }, []);
+
+  // Get icon/emoji for provider
+  const getProviderIcon = useCallback((providerStr: string): string => {
+    const icons: Record<string, string> = {
+      tmdb: '🎬',
+      anilist: '📺',
+      'anilist-manga': '📖',
+      hianime: '🎌',
+      animepahe: '🎌',
+      animekai: '🎌',
+      kickassanime: '🎌',
+      flixhq: '🎥',
+      goku: '🎥',
+      sflix: '🎥',
+      himovies: '🎥',
+      dramacool: '🎭',
+      mangadex: '📖',
+      mal: '📋',
+    };
+    return icons[providerStr.toLowerCase()] || '🔗';
+  }, []);
+
+  // Extract provider from refId
+  const extractProvider = useCallback((refId: string): string => {
+    const colonIndex = refId.indexOf(':');
+    if (colonIndex !== -1) {
+      return refId.substring(0, colonIndex);
+    }
+    return 'unknown';
+  }, []);
+
+  // Handle adding a new linked source
+  const handleAddLink = useCallback(async () => {
+    if (!mediaSource || !newLinkRefId.trim()) return;
+    
+    setAddingLink(true);
+    try {
+      await linkMediaSource(mediaSource.id, newLinkRefId.trim());
+      // Refresh the media source to show the new alias
+      const updatedSource = await findMediaSourceByRefId(mediaId);
+      if (updatedSource) {
+        setMediaSource(updatedSource);
+      }
+      setNewLinkRefId('');
+      setShowAddLinkModal(false);
+      showToast('Source linked successfully', 'success');
+    } catch (err) {
+      console.error('[MediaDetail] Failed to link source:', err);
+      showToast(err instanceof Error ? err.message : 'Failed to link source', 'error');
+    } finally {
+      setAddingLink(false);
+    }
+  }, [mediaSource, newLinkRefId, mediaId, showToast]);
+
+  // Handle removing a linked source
+  const handleRemoveLink = useCallback(async (aliasId: string) => {
+    if (!confirm('Remove this linked source?')) return;
+    
+    try {
+      await unlinkMediaSource(aliasId);
+      // Refresh the media source
+      const updatedSource = await findMediaSourceByRefId(mediaId);
+      if (updatedSource) {
+        setMediaSource(updatedSource);
+      }
+      showToast('Source unlinked', 'success');
+    } catch (err) {
+      console.error('[MediaDetail] Failed to unlink source:', err);
+      showToast(err instanceof Error ? err.message : 'Failed to unlink source', 'error');
+    }
+  }, [mediaId, showToast]);
+
+  // Handle switching active source for playback
+  const handleSwitchActiveSource = useCallback(async (refId: string) => {
+    setActiveSourceRefId(refId);
+    
+    // Extract provider from the refId
+    const newProvider = extractProvider(refId) as VideoProviderName;
+    const providerId = refId.includes(':') ? refId.split(':')[1] : refId;
+    
+    // Update resolved provider ID and provider
+    setResolvedProviderId(providerId);
+    setResolvedProvider(newProvider);
+    
+    // Reload media info with the new provider
+    try {
+      setLoading(true);
+      const info = await videoService.getMediaInfo(newProvider, providerId);
+      setMediaInfo(info);
+      
+      // Expand first season by default
+      if (info.seasons && info.seasons.length > 0) {
+        setExpandedSeasons(new Set([info.seasons[0].season]));
+      } else if (info.episodes && info.episodes.length > 0) {
+        setExpandedSeasons(new Set([1]));
+      }
+      
+      showToast(`Switched to ${getProviderDisplayName(newProvider)}`, 'success');
+    } catch (err) {
+      console.error('[MediaDetail] Failed to switch source:', err);
+      showToast('Failed to load source', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [extractProvider, getProviderDisplayName, showToast]);
+
   // Check if this is a movie (single content without episodes)
   const isMovie = mediaInfo?.type === 'Movie' || 
     (getAllEpisodes().length === 0 && !mediaInfo?.seasons?.length);
@@ -989,6 +1146,177 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           )}
         </div>
       </div>
+
+      {/* Linked Sources Section */}
+      {isOnline && mediaSource && (mediaSource.aliases?.length > 0 || getAccessToken()) && (
+        <div className="mx-4 my-4 bg-neutral-950 border border-neutral-800">
+          <button
+            onClick={() => setLinkedSourcesExpanded(!linkedSourcesExpanded)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-900 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span className="text-sm font-medium text-neutral-300 uppercase tracking-wider">
+                Linked Sources
+              </span>
+              {mediaSource.aliases && mediaSource.aliases.length > 0 && (
+                <span className="text-xs text-neutral-500">
+                  ({mediaSource.aliases.length + 1})
+                </span>
+              )}
+            </div>
+            <svg
+              className={`w-4 h-4 text-neutral-500 transition-transform ${linkedSourcesExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {linkedSourcesExpanded && (
+            <div className="px-4 pb-4 space-y-2">
+              {/* Primary Source */}
+              <div className={`p-3 border ${activeSourceRefId === mediaSource.refId ? 'border-green-700 bg-green-900/10' : 'border-neutral-800'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{getProviderIcon(extractProvider(mediaSource.refId))}</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white">
+                          {getProviderDisplayName(extractProvider(mediaSource.refId))}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 bg-neutral-800 text-neutral-400 uppercase">
+                          Primary
+                        </span>
+                        {activeSourceRefId === mediaSource.refId && (
+                          <span className="text-xs px-1.5 py-0.5 bg-green-900 text-green-400 uppercase">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-neutral-600 font-mono">
+                        {mediaSource.refId}
+                      </span>
+                    </div>
+                  </div>
+                  {activeSourceRefId !== mediaSource.refId && (
+                    <button
+                      onClick={() => handleSwitchActiveSource(mediaSource.refId)}
+                      className="px-3 py-1 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+                    >
+                      Use for Playback
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Aliases */}
+              {mediaSource.aliases && mediaSource.aliases.map((alias) => (
+                <div
+                  key={alias.id}
+                  className={`p-3 border ${activeSourceRefId === alias.refId ? 'border-green-700 bg-green-900/10' : 'border-neutral-800'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{getProviderIcon(alias.provider)}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-white">
+                            {getProviderDisplayName(alias.provider)}
+                          </span>
+                          {activeSourceRefId === alias.refId && (
+                            <span className="text-xs px-1.5 py-0.5 bg-green-900 text-green-400 uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-neutral-600 font-mono">
+                          {alias.refId}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {activeSourceRefId !== alias.refId && (
+                        <button
+                          onClick={() => handleSwitchActiveSource(alias.refId)}
+                          className="px-3 py-1 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+                        >
+                          Use for Playback
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleRemoveLink(alias.id)}
+                        className="p-1 text-neutral-600 hover:text-red-500 transition-colors"
+                        title="Remove link"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Add Link Button */}
+              {getAccessToken() && (
+                <button
+                  onClick={() => setShowAddLinkModal(true)}
+                  className="w-full p-3 border border-dashed border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300 transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-xs uppercase tracking-wider">Link Another Source</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Link Modal */}
+      {showAddLinkModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-neutral-950 border border-neutral-800 p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold uppercase tracking-tight mb-4">
+              Link Another Source
+            </h3>
+            <p className="text-sm text-neutral-500 mb-4">
+              Enter a refId to link to this media (e.g., "hianime:abc-xyz", "anilist:12345")
+            </p>
+            <input
+              type="text"
+              value={newLinkRefId}
+              onChange={(e) => setNewLinkRefId(e.target.value)}
+              placeholder="provider:id"
+              className="w-full px-3 py-2 bg-black border border-neutral-700 text-white text-sm mb-4 focus:border-neutral-500 focus:outline-none font-mono"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowAddLinkModal(false);
+                  setNewLinkRefId('');
+                }}
+                className="px-4 py-2 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddLink}
+                disabled={!newLinkRefId.trim() || addingLink}
+                className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 disabled:opacity-50 transition-colors"
+              >
+                {addingLink ? 'Linking...' : 'Link Source'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Comments Section - Overall media comments */}
       <div className="px-4 py-4 border-b border-neutral-800">

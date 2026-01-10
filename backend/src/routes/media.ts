@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import * as mediaSearchController from '../controllers/mediaSearchController.js';
+import * as mediaSourceController from '../controllers/mediaSourceController.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -27,5 +29,11 @@ router.get('/trending/tv', mediaSearchController.getTrendingTV);
 router.get('/trending/anime', mediaSearchController.getTrendingAnime);
 router.get('/trending/anime/popular', mediaSearchController.getPopularAnime);
 router.get('/trending/manga', mediaSearchController.getPopularManga);
+
+// MediaSource routes
+router.post('/link', authenticate, mediaSourceController.linkSource);
+router.delete('/alias/:id', authenticate, mediaSourceController.removeAlias);
+router.get('/source/:id', mediaSourceController.getSourceWithAliases);
+router.get('/source/by-ref/:refId(*)', mediaSourceController.findSourceByRefId);
 
 export default router;

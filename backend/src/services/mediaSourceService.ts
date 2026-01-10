@@ -1,8 +1,8 @@
 import { prisma } from '../config/database.js';
 import { parseRefId } from '@shared/refId.js';
 import { getAnilistAnimeInfo, getAnilistMangaInfo, getTMDBInfo } from './consumet/metaProviders.js';
-import { BadRequestError } from '../utils/errors.js';
-import type { MediaType, MediaSource } from '@prisma/client';
+import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors.js';
+import type { MediaType, MediaSource, MediaSourceAlias } from '@prisma/client';
 
 const SUPPORTED_META_SOURCES = ['tmdb', 'anilist', 'anilist-manga'] as const;
 const COMING_SOON_TYPES: MediaType[] = ['BOOK', 'LIGHT_NOVEL', 'COMIC'];
@@ -75,9 +75,10 @@ async function fetchMediaMetadata(refId: string, type: MediaType): Promise<Media
 /**
  * Get or create MediaSource for a given refId
  * If source exists and is stale (>7 days), refresh it
+ * Also checks MediaSourceAlias table for existing aliases
  */
 export async function getOrCreateMediaSource(refId: string, type: MediaType): Promise<MediaSource> {
-  // Check if source already exists
+  // First check if source exists directly by refId
   const existing = await prisma.mediaSource.findUnique({
     where: { refId },
   });
@@ -91,7 +92,22 @@ export async function getOrCreateMediaSource(refId: string, type: MediaType): Pr
     return existing;
   }
 
-  // Fetch metadata and create new source
+  // Check if this refId exists as an alias
+  const alias = await prisma.mediaSourceAlias.findUnique({
+    where: { refId },
+    include: { mediaSource: true },
+  });
+
+  if (alias) {
+    // Found via alias, check if parent source needs refresh
+    const age = Date.now() - alias.mediaSource.updatedAt.getTime();
+    if (age > STALE_THRESHOLD_MS) {
+      return refreshMediaSource(alias.mediaSource);
+    }
+    return alias.mediaSource;
+  }
+
+  // Neither found, fetch metadata and create new source
   const metadata = await fetchMediaMetadata(refId, type);
 
   return prisma.mediaSource.create({
@@ -126,4 +142,108 @@ async function refreshMediaSource(source: MediaSource): Promise<MediaSource> {
     console.error(`Failed to refresh MediaSource ${source.refId}:`, error);
     return source;
   }
+}
+
+/**
+ * Find a MediaSource by refId, checking both primary refId and aliases
+ */
+export async function findSourceByRefId(refId: string): Promise<MediaSource | null> {
+  // First check direct refId match
+  const directMatch = await prisma.mediaSource.findUnique({
+    where: { refId },
+  });
+
+  if (directMatch) {
+    return directMatch;
+  }
+
+  // Check if refId exists as an alias
+  const alias = await prisma.mediaSourceAlias.findUnique({
+    where: { refId },
+    include: { mediaSource: true },
+  });
+
+  return alias?.mediaSource ?? null;
+}
+
+/**
+ * Add an alias refId to an existing MediaSource
+ */
+export async function addAliasToSource(sourceId: string, newRefId: string): Promise<MediaSourceAlias> {
+  // Validate the refId format
+  const parsed = parseRefId(newRefId);
+  if (!parsed) {
+    throw new BadRequestError(`Invalid refId format: ${newRefId}. Expected format "source:id"`);
+  }
+
+  const { source: provider } = parsed;
+
+  // Check if this refId already exists as a primary MediaSource refId
+  const existingSource = await prisma.mediaSource.findUnique({
+    where: { refId: newRefId },
+  });
+
+  if (existingSource) {
+    throw new ConflictError(`refId "${newRefId}" is already in use as a primary source`);
+  }
+
+  // Check if this refId already exists as an alias
+  const existingAlias = await prisma.mediaSourceAlias.findUnique({
+    where: { refId: newRefId },
+  });
+
+  if (existingAlias) {
+    throw new ConflictError(`refId "${newRefId}" is already in use as an alias`);
+  }
+
+  // Verify the source exists
+  const mediaSource = await prisma.mediaSource.findUnique({
+    where: { id: sourceId },
+  });
+
+  if (!mediaSource) {
+    throw new NotFoundError(`MediaSource with id "${sourceId}" not found`);
+  }
+
+  // Create the alias
+  return prisma.mediaSourceAlias.create({
+    data: {
+      mediaSourceId: sourceId,
+      refId: newRefId,
+      provider,
+    },
+  });
+}
+
+/**
+ * Get a MediaSource with all its aliases
+ */
+export async function getSourceWithAliases(sourceId: string): Promise<MediaSource & { aliases: MediaSourceAlias[] }> {
+  const source = await prisma.mediaSource.findUnique({
+    where: { id: sourceId },
+    include: { aliases: true },
+  });
+
+  if (!source) {
+    throw new NotFoundError(`MediaSource with id "${sourceId}" not found`);
+  }
+
+  return source;
+}
+
+/**
+ * Remove an alias from a MediaSource
+ */
+export async function removeAlias(aliasId: string): Promise<void> {
+  const alias = await prisma.mediaSourceAlias.findUnique({
+    where: { id: aliasId },
+  });
+
+  if (!alias) {
+    throw new NotFoundError(`Alias with id "${aliasId}" not found`);
+  }
+
+  await prisma.mediaSourceAlias.delete({
+    where: { id: aliasId },
+  });
 }

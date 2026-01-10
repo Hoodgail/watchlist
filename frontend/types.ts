@@ -41,6 +41,17 @@ export interface FriendStatus {
   rating: number | null;
 }
 
+/**
+ * Alias/linked source for a MediaItem
+ * Represents alternative refIds that map to the same content
+ */
+export interface SourceAlias {
+  id: string;
+  refId: string;
+  provider: string;
+  createdAt: string;
+}
+
 export interface MediaItem {
   id: string;
   title: string;
@@ -54,6 +65,7 @@ export interface MediaItem {
   refId: string; // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
   friendsStatuses?: FriendStatus[]; // Friends who have this item
   activeProgress?: ActiveProgress | null; // Current playback progress for video content
+  aliases?: SourceAlias[]; // Linked alternative sources for playback
 }
 
 // User type for friends list display

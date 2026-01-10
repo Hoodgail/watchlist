@@ -25,6 +25,8 @@ import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter, Video
 import { ChapterInfo } from './services/mangadexTypes';
 import * as api from './services/api';
 import * as manga from './services/manga';
+import { calculateSimilarity, MatchableItem } from '@shared/matching';
+import { ConflictResolutionModal, NewItemData } from './components/ConflictResolutionModal';
 import { parseMangaRefId, MangaProviderName } from './services/manga';
 import { parseVideoRefId, DEFAULT_ANIME_PROVIDER, DEFAULT_MOVIE_PROVIDER } from './services/video';
 
@@ -160,6 +162,16 @@ const MainApp: React.FC = () => {
     episodeNumber?: number;
     seasonNumber?: number;
     mediaType?: 'anime' | 'movie' | 'tv';
+  } | null>(null);
+
+  // Conflict resolution modal state
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<{
+    newItem: Omit<MediaItem, 'id'>;
+    newItemData: NewItemData;
+    existingItem: MediaItem;
+    similarityScore: number;
+    seasonMismatch: boolean;
   } | null>(null);
 
   // Load user's list when authenticated (skip when offline-authenticated)
@@ -363,8 +375,87 @@ const MainApp: React.FC = () => {
     }
   }, []);
 
+  // Helper to extract year from refId or other sources
+  const extractYear = (item: { refId: string; title?: string }): number | null => {
+    // Try to extract year from refId format like "tmdb:12345:2020"
+    const parts = item.refId.split(':');
+    if (parts.length >= 3) {
+      const maybeYear = parseInt(parts[2], 10);
+      if (maybeYear >= 1900 && maybeYear <= 2100) {
+        return maybeYear;
+      }
+    }
+    // Try to extract year from title like "Show Name (2020)"
+    if (item.title) {
+      const match = item.title.match(/\((\d{4})\)\s*$/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+    }
+    return null;
+  };
+
+  // Helper to find item by refId
+  const findItemByRefId = useCallback((refId: string): MediaItem | null => {
+    for (const item of myList) {
+      if (item.refId === refId) {
+        return item;
+      }
+    }
+    return null;
+  }, [myList]);
+
+  // Helper to get all list items for conflict checking
+  const getAllListItems = useCallback((): MediaItem[] => {
+    return myList;
+  }, [myList]);
+
   const handleAddMedia = async (newItem: Omit<MediaItem, 'id'>) => {
     try {
+      // 1. Check exact refId match
+      const exactMatch = findItemByRefId(newItem.refId);
+      if (exactMatch) {
+        showToast('This item is already in your list', 'error');
+        return;
+      }
+
+      // 2. Check for similar items
+      const existingItems = getAllListItems();
+      const target: MatchableItem = {
+        title: newItem.title,
+        year: extractYear({ refId: newItem.refId, title: newItem.title }),
+      };
+
+      for (const existing of existingItems) {
+        const existingMatchable: MatchableItem = {
+          title: existing.title,
+          year: extractYear({ refId: existing.refId, title: existing.title }),
+        };
+
+        const result = calculateSimilarity(target, existingMatchable);
+
+        if (result.score > 0.85 || result.seasonMismatch) {
+          // Show conflict modal
+          const newItemData: NewItemData = {
+            refId: newItem.refId,
+            title: newItem.title,
+            imageUrl: newItem.imageUrl,
+            year: target.year ?? undefined,
+            type: newItem.type,
+          };
+          setConflictData({
+            newItem,
+            newItemData,
+            existingItem: existing,
+            similarityScore: result.score,
+            seasonMismatch: result.seasonMismatch,
+          });
+          setConflictModalOpen(true);
+          return;
+        }
+      }
+
+      // 3. No conflict - proceed with normal add
       const created = await api.addToList(newItem);
       const status = created.status;
       const isManga = created.type === 'MANGA';
@@ -407,9 +498,118 @@ const MainApp: React.FC = () => {
       showToast(`Added "${newItem.title}" to your list`, 'success');
     } catch (error: any) {
       console.error('Failed to add item:', error);
-      const message = error?.response?.data?.error || 'Failed to add item to your list';
+      const message = error?.message || error?.response?.data?.error || 'Failed to add item to your list';
       showToast(message, 'error');
     }
+  };
+
+  // Conflict resolution handlers
+  const handleConflictMerge = async (existingItemId: string, newRefId: string) => {
+    if (!conflictData) return;
+    
+    // Find the existing item to get its source ID
+    const existingItem = conflictData.existingItem;
+    
+    // Call API to link the new refId as an alias to the existing source
+    await api.linkSource(existingItem.refId, newRefId);
+    
+    // Refresh list to get updated aliases
+    await loadMyList();
+  };
+
+  const handleConflictReplace = async (existingItemId: string, newItemData: NewItemData) => {
+    if (!conflictData) return;
+    
+    // Remove old item
+    await api.deleteListItem(existingItemId);
+    
+    // Add new item
+    const created = await api.addToList(conflictData.newItem);
+    
+    // Update local state
+    const status = created.status;
+    const isManga = created.type === 'MANGA';
+    
+    if (isManga) {
+      setReadlistGrouped(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          groups: {
+            ...prev.groups,
+            [status]: {
+              ...prev.groups[status],
+              items: [...prev.groups[status].items, created],
+              total: prev.groups[status].total + 1,
+            },
+          },
+        };
+      });
+    } else {
+      setWatchlistGrouped(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          groups: {
+            ...prev.groups,
+            [status]: {
+              ...prev.groups[status],
+              items: [...prev.groups[status].items, created],
+              total: prev.groups[status].total + 1,
+            },
+          },
+        };
+      });
+    }
+  };
+
+  const handleConflictKeepBoth = async (newItemData: NewItemData) => {
+    if (!conflictData) return;
+    
+    // Just add the new item normally
+    const created = await api.addToList(conflictData.newItem);
+    
+    const status = created.status;
+    const isManga = created.type === 'MANGA';
+    
+    if (isManga) {
+      setReadlistGrouped(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          grandTotal: prev.grandTotal + 1,
+          groups: {
+            ...prev.groups,
+            [status]: {
+              ...prev.groups[status],
+              items: [...prev.groups[status].items, created],
+              total: prev.groups[status].total + 1,
+            },
+          },
+        };
+      });
+    } else {
+      setWatchlistGrouped(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          grandTotal: prev.grandTotal + 1,
+          groups: {
+            ...prev.groups,
+            [status]: {
+              ...prev.groups[status],
+              items: [...prev.groups[status].items, created],
+              total: prev.groups[status].total + 1,
+            },
+          },
+        };
+      });
+    }
+  };
+
+  const handleCloseConflictModal = () => {
+    setConflictModalOpen(false);
+    setConflictData(null);
   };
 
   const handleAddFromFriendList = async (item: MediaItem) => {
@@ -1146,6 +1346,21 @@ const MainApp: React.FC = () => {
     >
       <AccountSecurityBanner onSetupRecovery={() => setCurrentView('SETTINGS')} />
       {renderContent()}
+      
+      {/* Conflict Resolution Modal */}
+      {conflictData && (
+        <ConflictResolutionModal
+          isOpen={conflictModalOpen}
+          onClose={handleCloseConflictModal}
+          newItem={conflictData.newItemData}
+          existingItem={conflictData.existingItem}
+          similarityScore={conflictData.similarityScore}
+          seasonMismatch={conflictData.seasonMismatch}
+          onMerge={handleConflictMerge}
+          onReplace={handleConflictReplace}
+          onKeepBoth={handleConflictKeepBoth}
+        />
+      )}
     </Layout>
   );
 };

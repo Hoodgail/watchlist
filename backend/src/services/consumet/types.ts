@@ -28,7 +28,8 @@ export type MangaProviderName =
 export type MetaProviderName = 
   | 'anilist' 
   | 'anilist-manga'
-  | 'tmdb';
+  | 'tmdb'
+  | 'myanimelist';
 
 export type BookProviderName = 'libgen';
 

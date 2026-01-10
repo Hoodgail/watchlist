@@ -16,6 +16,11 @@
 
 import { VideoProviderName } from '../types';
 import { parseRefId, getSource } from '@shared/refId';
+import { 
+  normalizeTitle, 
+  calculateSimilarity, 
+  type MatchableItem 
+} from '@shared/matching';
 import { searchWithProvider, PaginatedSearchResults } from './mediaSearch';
 import { VideoMediaInfo, getMediaInfo, getEpisodeSources } from './video';
 import {
@@ -136,46 +141,17 @@ export function needsResolution(refId: string): boolean {
 
 // ============ Title Matching ============
 
-/**
- * Normalize a title for comparison
- */
-function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '') // Remove punctuation
-    .replace(/\s+/g, ' ')     // Normalize whitespace
-    .trim();
-}
+// Title normalization and similarity functions are imported from @shared/matching
+// The local titleSimilarity wrapper uses the shared calculateSimilarity for consistency
 
 /**
  * Calculate similarity between two titles (0-1)
+ * Wraps the shared calculateSimilarity function for backward compatibility
  */
 function titleSimilarity(a: string, b: string): number {
-  const normA = normalizeTitle(a);
-  const normB = normalizeTitle(b);
-  
-  // Exact match
-  if (normA === normB) return 1;
-  
-  // One contains the other
-  if (normA.includes(normB) || normB.includes(normA)) {
-    const longerLen = Math.max(normA.length, normB.length);
-    const shorterLen = Math.min(normA.length, normB.length);
-    return shorterLen / longerLen;
-  }
-  
-  // Word-based comparison
-  const wordsA = new Set(normA.split(' ').filter(w => w.length > 1));
-  const wordsB = new Set(normB.split(' ').filter(w => w.length > 1));
-  
-  if (wordsA.size === 0 || wordsB.size === 0) return 0;
-  
-  let matchCount = 0;
-  for (const word of wordsA) {
-    if (wordsB.has(word)) matchCount++;
-  }
-  
-  return matchCount / Math.max(wordsA.size, wordsB.size);
+  const itemA: MatchableItem = { title: a };
+  const itemB: MatchableItem = { title: b };
+  return calculateSimilarity(itemA, itemB).score;
 }
 
 /** Match result with metadata for confidence checking */

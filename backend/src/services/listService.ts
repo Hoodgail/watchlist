@@ -31,6 +31,11 @@ export interface ActiveProgress {
   provider: string;
 }
 
+export interface SourceAlias {
+  refId: string;
+  provider: string;
+}
+
 export interface MediaItemResponse {
   id: string;
   title: string;
@@ -46,6 +51,7 @@ export interface MediaItemResponse {
   updatedAt: Date;
   friendsStatuses?: FriendStatus[];
   activeProgress?: ActiveProgress | null;
+  aliases?: SourceAlias[];
 }
 
 const mediaItemSelect = {
@@ -66,6 +72,12 @@ const mediaItemSelect = {
       title: true,
       imageUrl: true,
       total: true,
+      aliases: {
+        select: {
+          refId: true,
+          provider: true,
+        },
+      },
     },
   },
 } as const;
@@ -87,6 +99,10 @@ interface MediaItemWithSource {
     title: string;
     imageUrl: string | null;
     total: number | null;
+    aliases?: {
+      refId: string;
+      provider: string;
+    }[];
   } | null;
 }
 
@@ -104,6 +120,7 @@ function resolveMediaItemResponse(item: MediaItemWithSource): MediaItemResponse 
     refId: item.refId,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    aliases: item.source?.aliases,
   };
 }
 
@@ -894,6 +911,7 @@ export async function getStatusesByRefIds(
   // Limit to prevent abuse
   const limitedRefIds = refIds.slice(0, 100);
 
+  // First, find items directly by refId
   const items = await prisma.mediaItem.findMany({
     where: {
       userId,
@@ -908,6 +926,8 @@ export async function getStatusesByRefIds(
   });
 
   const result: Record<string, BulkStatusItem> = {};
+  const foundRefIds = new Set<string>();
+  
   for (const item of items) {
     if (item.refId) {
       result[item.refId] = {
@@ -916,6 +936,73 @@ export async function getStatusesByRefIds(
         current: item.current,
         total: item.total,
       };
+      foundRefIds.add(item.refId);
+    }
+  }
+
+  // Find remaining refIds that might be aliases
+  const remainingRefIds = limitedRefIds.filter(refId => !foundRefIds.has(refId));
+  
+  if (remainingRefIds.length > 0) {
+    // Look up aliases to find the primary source refIds
+    const aliases = await prisma.mediaSourceAlias.findMany({
+      where: {
+        refId: { in: remainingRefIds },
+      },
+      select: {
+        refId: true,
+        mediaSource: {
+          select: {
+            refId: true,
+          },
+        },
+      },
+    });
+
+    // Map alias refId -> primary source refId
+    const aliasToSourceRefId = new Map<string, string>();
+    for (const alias of aliases) {
+      aliasToSourceRefId.set(alias.refId, alias.mediaSource.refId);
+    }
+
+    // Get the primary source refIds for the aliases
+    const primaryRefIds = Array.from(new Set(aliases.map(a => a.mediaSource.refId)));
+    
+    if (primaryRefIds.length > 0) {
+      // Find items with those primary refIds
+      const aliasItems = await prisma.mediaItem.findMany({
+        where: {
+          userId,
+          refId: { in: primaryRefIds },
+        },
+        select: {
+          refId: true,
+          status: true,
+          current: true,
+          total: true,
+        },
+      });
+
+      // Create a map of primary refId -> item data
+      const primaryItemMap = new Map<string, typeof aliasItems[0]>();
+      for (const item of aliasItems) {
+        if (item.refId) {
+          primaryItemMap.set(item.refId, item);
+        }
+      }
+
+      // Map back to the alias refIds that were requested
+      for (const [aliasRefId, primaryRefId] of aliasToSourceRefId) {
+        const item = primaryItemMap.get(primaryRefId);
+        if (item) {
+          result[aliasRefId] = {
+            refId: aliasRefId,
+            status: item.status,
+            current: item.current,
+            total: item.total,
+          };
+        }
+      }
     }
   }
 

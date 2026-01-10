@@ -1,6 +1,20 @@
 import type { MediaType } from '@prisma/client';
 import * as commentService from './commentService.js';
 import * as cheerio from 'cheerio';
+import {
+  calculateSimilarity,
+  findBestMatch,
+  normalizeTitle,
+  type MatchableItem,
+  type SimilarityResult,
+} from '@shared/matching.js';
+import {
+  searchAnilistAnime,
+  searchAnilistManga,
+  searchMAL,
+  searchTMDB,
+} from './consumet/metaProviders.js';
+import type { UnifiedSearchResult } from './consumet/types.js';
 
 // ============================================================================
 // Types
@@ -74,6 +88,61 @@ export interface ImportResult {
   imported: number;
   providers: string[];
   errors: Array<{ provider: string; error: string }>;
+}
+
+/**
+ * Parameters for smart comment fetching with resolution
+ */
+export interface CommentFetchWithResolutionParams {
+  title: string;
+  mediaType: 'ANIME' | 'MOVIE' | 'TV' | 'MANGA';
+  year?: number;
+  /** Reference ID - may be from a provider we don't support for comments */
+  refId?: string;
+  /** Season number for episode-level comments */
+  seasonNumber?: number;
+  /** Episode number for episode-level comments */
+  episodeNumber?: number;
+  /** Provider-specific IDs */
+  providerIds?: {
+    hianimeEpisodeId?: string;
+    [key: string]: string | undefined;
+  };
+  limit?: number;
+}
+
+/**
+ * A resolved provider match from title search
+ */
+export interface ResolvedProviderMatch {
+  provider: string;
+  providerId: string;
+  title: string;
+  matchScore: number;
+  alternativeTitles?: string[];
+  year?: number;
+}
+
+/**
+ * Result of comment fetching with resolution
+ */
+export interface AggregatedComments {
+  comments: ExternalComment[];
+  resolvedMatches: ResolvedProviderMatch[];
+  errors: Array<{ provider: string; error: string }>;
+  /** Overall confidence in the resolution (0-1) */
+  confidence: number;
+  /** Whether any ID-based direct fetch was used */
+  usedDirectFetch: boolean;
+}
+
+/**
+ * Result of a resolution preview (without fetching comments)
+ */
+export interface ResolutionPreviewResult {
+  resolvedMatches: ResolvedProviderMatch[];
+  titleBasedProviders: string[];
+  confidence: number;
 }
 
 // ============================================================================
@@ -583,6 +652,528 @@ export async function fetchFromProvider(
     ...options,
     providerNames: [providerName],
   });
+}
+
+// ============================================================================
+// Smart Comment Fetching with Resolution
+// ============================================================================
+
+/** Providers that support direct ID-based comment fetching */
+const SUPPORTED_COMMENT_PROVIDER_PREFIXES = ['mal:', 'anilist:', 'hianime:'];
+
+/** Match threshold for accepting a resolved match */
+const MATCH_THRESHOLD = 0.8;
+
+/**
+ * Check if a refId belongs to a supported comment provider
+ */
+function isRefIdFromSupportedProvider(refId: string): boolean {
+  return SUPPORTED_COMMENT_PROVIDER_PREFIXES.some((prefix) =>
+    refId.toLowerCase().startsWith(prefix)
+  );
+}
+
+/**
+ * Extract provider name and ID from a refId
+ * @example "mal:12345" -> { provider: "mal", id: "12345" }
+ */
+function parseRefId(refId: string): { provider: string; id: string } | null {
+  const colonIndex = refId.indexOf(':');
+  if (colonIndex === -1) return null;
+
+  const provider = refId.substring(0, colonIndex).toLowerCase();
+  const id = refId.substring(colonIndex + 1);
+
+  return { provider, id };
+}
+
+/**
+ * Convert a UnifiedSearchResult to a MatchableItem for similarity comparison
+ */
+function toMatchableItem(result: UnifiedSearchResult): MatchableItem {
+  return {
+    title: result.title,
+    year: result.year ?? null,
+    alternativeTitles: result.altTitles,
+  };
+}
+
+/**
+ * Search meta providers and find the best match for a given title
+ */
+async function searchAndMatchProviders(
+  title: string,
+  mediaType: 'ANIME' | 'MOVIE' | 'TV' | 'MANGA',
+  year?: number
+): Promise<ResolvedProviderMatch[]> {
+  const target: MatchableItem = {
+    title,
+    year: year ?? null,
+  };
+
+  const resolvedMatches: ResolvedProviderMatch[] = [];
+  const searchPromises: Promise<void>[] = [];
+
+  // Search Anilist for anime/manga
+  if (mediaType === 'ANIME' || mediaType === 'MANGA') {
+    const searchFn =
+      mediaType === 'ANIME' ? searchAnilistAnime : searchAnilistManga;
+    const providerName = mediaType === 'ANIME' ? 'anilist' : 'anilist-manga';
+
+    searchPromises.push(
+      (async () => {
+        try {
+          const results = await searchFn(title, { page: 1, perPage: 10 });
+          console.log(
+            `[Resolution] Anilist returned ${results.results.length} results for "${title}"`
+          );
+
+          const matchableResults = results.results.map((r) => ({
+            original: r,
+            matchable: toMatchableItem(r),
+          }));
+
+          const bestMatch = findBestMatch(
+            matchableResults.map((m) => m.matchable),
+            target,
+            MATCH_THRESHOLD
+          );
+
+          if (bestMatch) {
+            const matchedResult = matchableResults.find(
+              (m) => m.matchable === bestMatch
+            );
+            if (matchedResult) {
+              const similarity = calculateSimilarity(bestMatch, target);
+              console.log(
+                `[Resolution] Anilist match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`
+              );
+              resolvedMatches.push({
+                provider: providerName,
+                providerId: matchedResult.original.id,
+                title: matchedResult.original.title,
+                matchScore: similarity.score,
+                alternativeTitles: matchedResult.original.altTitles,
+                year: matchedResult.original.year,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`[Resolution] Anilist search error:`, error);
+        }
+      })()
+    );
+  }
+
+  // Search MAL for anime/manga
+  if (mediaType === 'ANIME' || mediaType === 'MANGA') {
+    searchPromises.push(
+      (async () => {
+        try {
+          const results = await searchMAL(title, { page: 1 });
+          console.log(
+            `[Resolution] MAL returned ${results.results.length} results for "${title}"`
+          );
+
+          const matchableResults = results.results.map((r) => ({
+            original: r,
+            matchable: toMatchableItem(r),
+          }));
+
+          const bestMatch = findBestMatch(
+            matchableResults.map((m) => m.matchable),
+            target,
+            MATCH_THRESHOLD
+          );
+
+          if (bestMatch) {
+            const matchedResult = matchableResults.find(
+              (m) => m.matchable === bestMatch
+            );
+            if (matchedResult) {
+              const similarity = calculateSimilarity(bestMatch, target);
+              console.log(
+                `[Resolution] MAL match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`
+              );
+              resolvedMatches.push({
+                provider: 'myanimelist',
+                providerId: matchedResult.original.id,
+                title: matchedResult.original.title,
+                matchScore: similarity.score,
+                alternativeTitles: matchedResult.original.altTitles,
+                year: matchedResult.original.year,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`[Resolution] MAL search error:`, error);
+        }
+      })()
+    );
+  }
+
+  // Search TMDB for movies/TV
+  if (mediaType === 'MOVIE' || mediaType === 'TV') {
+    searchPromises.push(
+      (async () => {
+        try {
+          const results = await searchTMDB(title, { page: 1 });
+          console.log(
+            `[Resolution] TMDB returned ${results.results.length} results for "${title}"`
+          );
+
+          const matchableResults = results.results.map((r) => ({
+            original: r,
+            matchable: toMatchableItem(r),
+          }));
+
+          const bestMatch = findBestMatch(
+            matchableResults.map((m) => m.matchable),
+            target,
+            MATCH_THRESHOLD
+          );
+
+          if (bestMatch) {
+            const matchedResult = matchableResults.find(
+              (m) => m.matchable === bestMatch
+            );
+            if (matchedResult) {
+              const similarity = calculateSimilarity(bestMatch, target);
+              console.log(
+                `[Resolution] TMDB match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`
+              );
+              resolvedMatches.push({
+                provider: 'tmdb',
+                providerId: matchedResult.original.id,
+                title: matchedResult.original.title,
+                matchScore: similarity.score,
+                alternativeTitles: matchedResult.original.altTitles,
+                year: matchedResult.original.year,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`[Resolution] TMDB search error:`, error);
+        }
+      })()
+    );
+  }
+
+  await Promise.all(searchPromises);
+
+  // Sort by match score descending
+  resolvedMatches.sort((a, b) => b.matchScore - a.matchScore);
+
+  return resolvedMatches;
+}
+
+/**
+ * Get title-based providers that can search by title without needing a specific ID
+ */
+function getTitleBasedProviders(
+  mediaType: 'ANIME' | 'MOVIE' | 'TV' | 'MANGA'
+): string[] {
+  // Reddit can search by title for all media types
+  const providers: string[] = ['reddit'];
+
+  // Add other title-based providers based on media type
+  if (mediaType === 'MOVIE') {
+    providers.push('letterboxd');
+  }
+
+  return providers;
+}
+
+/**
+ * Preview what providers would be matched for a given title without fetching comments.
+ * Useful for debugging and UI previews.
+ */
+export async function previewResolution(
+  params: CommentFetchWithResolutionParams
+): Promise<ResolutionPreviewResult> {
+  const { title, mediaType, year, refId } = params;
+
+  console.log(
+    `[Resolution] Preview for "${title}" (${mediaType}), year: ${year ?? 'unknown'}, refId: ${refId ?? 'none'}`
+  );
+
+  let resolvedMatches: ResolvedProviderMatch[] = [];
+
+  // Check if refId is from a supported provider
+  if (refId && isRefIdFromSupportedProvider(refId)) {
+    const parsed = parseRefId(refId);
+    if (parsed) {
+      console.log(
+        `[Resolution] RefId "${refId}" is from supported provider: ${parsed.provider}`
+      );
+      resolvedMatches.push({
+        provider: parsed.provider,
+        providerId: parsed.id,
+        title: title,
+        matchScore: 1.0, // Direct ID match has perfect score
+        year,
+      });
+    }
+  }
+
+  // Search for matches from meta providers
+  const searchedMatches = await searchAndMatchProviders(title, mediaType, year);
+  resolvedMatches = [...resolvedMatches, ...searchedMatches];
+
+  // Deduplicate by provider (keep highest score)
+  const providerMap = new Map<string, ResolvedProviderMatch>();
+  for (const match of resolvedMatches) {
+    const existing = providerMap.get(match.provider);
+    if (!existing || match.matchScore > existing.matchScore) {
+      providerMap.set(match.provider, match);
+    }
+  }
+  resolvedMatches = Array.from(providerMap.values());
+
+  // Get title-based providers
+  const titleBasedProviders = getTitleBasedProviders(mediaType);
+
+  // Calculate overall confidence
+  const maxScore = resolvedMatches.reduce(
+    (max, m) => Math.max(max, m.matchScore),
+    0
+  );
+  const confidence =
+    resolvedMatches.length > 0
+      ? Math.min(1, (maxScore + resolvedMatches.length * 0.1) / 1.5)
+      : 0;
+
+  return {
+    resolvedMatches,
+    titleBasedProviders,
+    confidence,
+  };
+}
+
+/**
+ * Fetch comments with smart resolution.
+ * This function resolves content even when the specific provider ID isn't known,
+ * using title-based search and matching.
+ *
+ * Flow:
+ * 1. If refId is provided and belongs to a supported comment provider, fetch directly
+ * 2. If refId is unsupported or missing:
+ *    a. Search supported meta providers (MAL, Anilist) using the title
+ *    b. Use findBestMatch to find the best result
+ *    c. If match score > 0.8, use that ID to fetch comments
+ *    d. Also search on title-based providers (Reddit) directly
+ * 3. Aggregate all found comments
+ * 4. Return merged results
+ */
+export async function fetchCommentsWithResolution(
+  params: CommentFetchWithResolutionParams
+): Promise<AggregatedComments> {
+  const {
+    title,
+    mediaType,
+    year,
+    refId,
+    seasonNumber,
+    episodeNumber,
+    providerIds,
+    limit = 50,
+  } = params;
+
+  console.log(
+    `[Resolution] Fetching comments for "${title}" (${mediaType}), year: ${year ?? 'unknown'}`
+  );
+
+  const result: AggregatedComments = {
+    comments: [],
+    resolvedMatches: [],
+    errors: [],
+    confidence: 0,
+    usedDirectFetch: false,
+  };
+
+  const commentPromises: Promise<{
+    provider: string;
+    comments: ExternalComment[];
+    error: string | null;
+  }>[] = [];
+
+  // Step 1: Check if refId is from a supported provider
+  if (refId && isRefIdFromSupportedProvider(refId)) {
+    const parsed = parseRefId(refId);
+    if (parsed) {
+      console.log(
+        `[Resolution] Using direct fetch with provider: ${parsed.provider}, id: ${parsed.id}`
+      );
+      result.usedDirectFetch = true;
+
+      result.resolvedMatches.push({
+        provider: parsed.provider,
+        providerId: parsed.id,
+        title,
+        matchScore: 1.0,
+        year,
+      });
+
+      // Fetch from the provider directly using its ID
+      const provider = getProvider(parsed.provider);
+      if (provider) {
+        commentPromises.push(
+          (async () => {
+            try {
+              const comments = await provider.fetchComments({
+                title,
+                mediaType,
+                year,
+                seasonNumber,
+                episodeNumber,
+                limit,
+                providerIds: {
+                  ...providerIds,
+                  [`${parsed.provider}Id`]: parsed.id,
+                },
+              });
+              return { provider: parsed.provider, comments, error: null };
+            } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              return { provider: parsed.provider, comments: [], error: errorMessage };
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  // Step 2: Search and match with meta providers
+  const searchedMatches = await searchAndMatchProviders(title, mediaType, year);
+
+  for (const match of searchedMatches) {
+    // Skip if we already have a direct fetch for this provider
+    if (result.resolvedMatches.some((m) => m.provider === match.provider)) {
+      continue;
+    }
+
+    result.resolvedMatches.push(match);
+
+    // Only fetch if score is above threshold
+    if (match.matchScore >= MATCH_THRESHOLD) {
+      const provider = getProvider(match.provider);
+      if (provider) {
+        console.log(
+          `[Resolution] Fetching from ${match.provider} with resolved ID: ${match.providerId}`
+        );
+        commentPromises.push(
+          (async () => {
+            try {
+              const comments = await provider.fetchComments({
+                title: match.title, // Use the matched title
+                mediaType,
+                year: match.year,
+                seasonNumber,
+                episodeNumber,
+                limit,
+                providerIds: {
+                  ...providerIds,
+                  [`${match.provider}Id`]: match.providerId,
+                },
+              });
+              return { provider: match.provider, comments, error: null };
+            } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              return { provider: match.provider, comments: [], error: errorMessage };
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  // Step 3: Fetch from title-based providers (like Reddit)
+  const titleBasedProviders = getTitleBasedProviders(mediaType);
+  for (const providerName of titleBasedProviders) {
+    // Skip if already fetching from this provider
+    if (result.resolvedMatches.some((m) => m.provider === providerName)) {
+      continue;
+    }
+
+    const provider = getProvider(providerName);
+    if (provider && provider.supportedMediaTypes.includes(mediaType)) {
+      console.log(`[Resolution] Fetching from title-based provider: ${providerName}`);
+      commentPromises.push(
+        (async () => {
+          try {
+            const comments = await provider.fetchComments({
+              title,
+              mediaType,
+              year,
+              seasonNumber,
+              episodeNumber,
+              limit,
+              providerIds,
+            });
+            return { provider: providerName, comments, error: null };
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+            return { provider: providerName, comments: [], error: errorMessage };
+          }
+        })()
+      );
+    }
+  }
+
+  // Step 4: Wait for all fetches to complete
+  const fetchResults = await Promise.all(commentPromises);
+
+  // Aggregate results
+  const seenCommentIds = new Set<string>();
+  for (const fetchResult of fetchResults) {
+    if (fetchResult.error) {
+      result.errors.push({
+        provider: fetchResult.provider,
+        error: fetchResult.error,
+      });
+      continue;
+    }
+
+    for (const comment of fetchResult.comments) {
+      // Deduplicate by external source + ID
+      const key = `${comment.externalSource}:${comment.externalId}`;
+      if (!seenCommentIds.has(key)) {
+        seenCommentIds.add(key);
+        result.comments.push(comment);
+      }
+    }
+  }
+
+  // Sort comments by score (highest first), then by date (newest first)
+  result.comments.sort((a, b) => {
+    if ((b.score ?? 0) !== (a.score ?? 0)) {
+      return (b.score ?? 0) - (a.score ?? 0);
+    }
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+
+  // Limit total comments
+  result.comments = result.comments.slice(0, limit);
+
+  // Calculate overall confidence
+  const maxScore = result.resolvedMatches.reduce(
+    (max, m) => Math.max(max, m.matchScore),
+    0
+  );
+  result.confidence = result.usedDirectFetch
+    ? 1.0
+    : result.resolvedMatches.length > 0
+      ? Math.min(1, (maxScore + result.resolvedMatches.length * 0.1) / 1.5)
+      : 0;
+
+  console.log(
+    `[Resolution] Fetched ${result.comments.length} comments from ${result.resolvedMatches.length} providers (confidence: ${result.confidence.toFixed(2)})`
+  );
+
+  return result;
 }
 
 // ============================================================================

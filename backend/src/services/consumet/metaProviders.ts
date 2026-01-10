@@ -1,14 +1,14 @@
 /**
- * Meta Providers - Anilist (anime & manga) and TMDB
+ * Meta Providers - Anilist (anime & manga), TMDB, and MyAnimeList
  * These are "meta" providers that aggregate data from multiple sources
  */
 
 import { META } from '@consumet/extensions';
 import type { IAnimeResult, IAnimeInfo, IMangaResult, IMangaInfo, IMovieResult, IMovieInfo, ISource, ISearch } from '@consumet/extensions';
-import { 
-  MetaProviderName, 
-  UnifiedSearchResult, 
-  UnifiedMediaInfo, 
+import {
+  MetaProviderName,
+  UnifiedSearchResult,
+  UnifiedMediaInfo,
   UnifiedEpisode,
   UnifiedChapter,
   UnifiedSeason,
@@ -28,7 +28,7 @@ function getAnilistProvider() {
 function getAnilistMangaProvider() {
   // Note: Anilist.Manga may not exist in all SDK versions
   try {
-    return new (META.Anilist as any).Manga();
+    return new META.Anilist.Manga();
   } catch {
     // Fallback: return main Anilist provider
     return new META.Anilist();
@@ -37,6 +37,10 @@ function getAnilistMangaProvider() {
 
 function getTMDBProvider() {
   return new META.TMDB(TMDB_API_KEY);
+}
+
+function getMALProvider() {
+  return new META.Myanimelist();
 }
 
 // ============ Helper Functions ============
@@ -216,7 +220,7 @@ function convertTMDBInfo(info: IMovieInfo): UnifiedMediaInfo {
 
   if (info.episodes && Array.isArray(info.episodes)) {
     const hasSeasons = info.episodes.some((ep: any) => ep.season !== undefined);
-    
+
     if (hasSeasons) {
       const seasonMap = new Map<number, UnifiedEpisode[]>();
       for (const ep of info.episodes) {
@@ -235,7 +239,7 @@ function convertTMDBInfo(info: IMovieInfo): UnifiedMediaInfo {
           season: seasonNum,
         });
       }
-      
+
       seasons = Array.from(seasonMap.entries())
         .sort(([a], [b]) => a - b)
         .map(([season, eps]) => ({
@@ -300,6 +304,65 @@ function convertSources(source: ISource): UnifiedSourceResult {
   };
 }
 
+// ============ MyAnimeList Result Converters ============
+
+function convertMALSearchResult(result: IAnimeResult): UnifiedSearchResult {
+  return {
+    id: String(result.id),
+    title: extractTitle(result.title),
+    altTitles: extractAltTitles(result.title),
+    image: result.image,
+    cover: result.cover,
+    description: extractDescription(result.description),
+    type: result.type,
+    status: result.status as string | undefined,
+    releaseDate: result.releaseDate as string | number | undefined,
+    year: typeof result.releaseDate === 'number' ? result.releaseDate : undefined,
+    rating: typeof result.rating === 'number' ? result.rating : undefined,
+    genres: Array.isArray(result.genres) ? result.genres : undefined,
+    totalEpisodes: result.totalEpisodes ?? null,
+    duration: result.duration as string | number | undefined,
+    subOrDub: result.subOrDub as 'sub' | 'dub' | 'both' | undefined,
+    provider: 'myanimelist',
+    url: result.url,
+  };
+}
+
+function convertMALAnimeInfo(info: IAnimeInfo): UnifiedMediaInfo {
+  return {
+    id: String(info.id),
+    title: extractTitle(info.title),
+    altTitles: extractAltTitles(info.title),
+    image: info.image,
+    cover: info.cover,
+    description: extractDescription(info.description),
+    type: info.type,
+    status: info.status as string | undefined,
+    releaseDate: info.releaseDate as string | number | undefined,
+    year: typeof info.releaseDate === 'number' ? info.releaseDate : undefined,
+    rating: typeof info.rating === 'number' ? info.rating : undefined,
+    genres: Array.isArray(info.genres) ? info.genres : undefined,
+    studios: info.studios,
+    totalEpisodes: info.totalEpisodes ?? null,
+    duration: info.duration as string | number | undefined,
+    subOrDub: info.subOrDub as 'sub' | 'dub' | 'both' | undefined,
+    episodes: info.episodes?.map((ep): UnifiedEpisode => ({
+      id: String(ep.id),
+      number: ep.number ?? 0,
+      title: ep.title,
+      description: ep.description,
+      image: ep.image,
+      releaseDate: ep.releaseDate,
+      isFiller: ep.isFiller,
+      url: ep.url,
+    })),
+    similar: info.recommendations?.map(r => convertMALSearchResult(r as IAnimeResult)),
+    recommendations: info.recommendations?.map(r => convertMALSearchResult(r as IAnimeResult)),
+    provider: 'myanimelist',
+    url: info.url,
+  };
+}
+
 // ============ Anilist Anime Functions ============
 
 /**
@@ -313,7 +376,7 @@ export async function searchAnilistAnime(
     const provider = getAnilistProvider();
     const result = await provider.search(query, options.page, options.perPage);
     const searchResult = result as ISearch<IAnimeResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -371,7 +434,7 @@ export async function getTrendingAnime(
     const provider = getAnilistProvider();
     const result = await provider.fetchTrendingAnime(page, perPage);
     const searchResult = result as ISearch<IAnimeResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -394,7 +457,7 @@ export async function getPopularAnime(
     const provider = getAnilistProvider();
     const result = await provider.fetchPopularAnime(page, perPage);
     const searchResult = result as ISearch<IAnimeResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -418,7 +481,7 @@ export async function getAnimeByGenres(
     const provider = getAnilistProvider();
     const result = await provider.fetchAnimeGenres(genres, page, perPage);
     const searchResult = result as ISearch<IAnimeResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -443,7 +506,7 @@ export async function getAiringSchedule(
     const provider = getAnilistProvider();
     const result = await provider.fetchAiringSchedule(page, perPage, weekStart, weekEnd);
     const searchResult = result as ISearch<IAnimeResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -468,7 +531,7 @@ export async function searchAnilistManga(
     const provider = getAnilistMangaProvider();
     const result = await provider.search(query, options.page, options.perPage);
     const searchResult = result as ISearch<IMangaResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -512,11 +575,11 @@ export async function searchTMDB(
       console.warn('TMDB API key not configured');
       return { currentPage: 1, hasNextPage: false, results: [] };
     }
-    
+
     const provider = getTMDBProvider();
     const result = await provider.search(query, options.page);
     const searchResult = result as ISearch<IMovieResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -542,7 +605,7 @@ export async function getTMDBInfo(
       console.warn('TMDB API key not configured');
       return null;
     }
-    
+
     const provider = getTMDBProvider();
     const info = await provider.fetchMediaInfo(id, type);
     return convertTMDBInfo(info as IMovieInfo);
@@ -564,7 +627,7 @@ export async function getTMDBEpisodeSources(
       console.warn('TMDB API key not configured');
       return null;
     }
-    
+
     const provider = getTMDBProvider();
     const sources = await provider.fetchEpisodeSources(episodeId, mediaId);
     return convertSources(sources);
@@ -587,11 +650,11 @@ export async function getTMDBTrending(
       console.warn('TMDB API key not configured');
       return { currentPage: 1, hasNextPage: false, results: [] };
     }
-    
+
     const provider = getTMDBProvider();
     const result = await provider.fetchTrending(type, timePeriod, page);
     const searchResult = result as ISearch<IMovieResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -600,6 +663,67 @@ export async function getTMDBTrending(
   } catch (error) {
     console.error('TMDB trending error:', error);
     return { currentPage: 1, hasNextPage: false, results: [] };
+  }
+}
+
+// ============ MyAnimeList Functions ============
+
+/**
+ * Search anime using MyAnimeList
+ */
+export async function searchMAL(
+  query: string,
+  options: SearchOptions = {}
+): Promise<PaginatedResults<UnifiedSearchResult>> {
+  try {
+    const provider = getMALProvider();
+    // Note: MAL search only accepts query and page, not perPage
+    const result = await provider.search(query, options.page);
+    const searchResult = result as ISearch<IAnimeResult>;
+
+    return {
+      currentPage: searchResult.currentPage ?? 1,
+      hasNextPage: searchResult.hasNextPage ?? false,
+      totalPages: searchResult.totalPages,
+      totalResults: searchResult.totalResults,
+      results: searchResult.results?.map(r => convertMALSearchResult(r)) ?? [],
+    };
+  } catch (error) {
+    console.error('MyAnimeList search error:', error);
+    return { currentPage: 1, hasNextPage: false, results: [] };
+  }
+}
+
+/**
+ * Get anime info from MyAnimeList
+ */
+export async function getMALAnimeInfo(
+  id: string,
+  dub: boolean = false
+): Promise<UnifiedMediaInfo | null> {
+  try {
+    const provider = getMALProvider();
+    const info = await provider.fetchAnimeInfo(id, dub);
+    return convertMALAnimeInfo(info);
+  } catch (error) {
+    console.error('MyAnimeList anime info error:', error);
+    return null;
+  }
+}
+
+/**
+ * Get episode sources from MyAnimeList
+ */
+export async function getMALEpisodeSources(
+  episodeId: string
+): Promise<UnifiedSourceResult | null> {
+  try {
+    const provider = getMALProvider();
+    const sources = await provider.fetchEpisodeSources(episodeId);
+    return convertSources(sources);
+  } catch (error) {
+    console.error('MyAnimeList episode sources error:', error);
+    return null;
   }
 }
 
@@ -620,6 +744,8 @@ export async function searchMeta(
       return searchAnilistManga(query, options);
     case 'tmdb':
       return searchTMDB(query, options);
+    case 'myanimelist':
+      return searchMAL(query, options);
     default:
       return { currentPage: 1, hasNextPage: false, results: [] };
   }
@@ -640,6 +766,8 @@ export async function getMetaInfo(
       return getAnilistMangaInfo(id);
     case 'tmdb':
       return getTMDBInfo(id, mediaType ?? 'movie');
+    case 'myanimelist':
+      return getMALAnimeInfo(id);
     default:
       return null;
   }
