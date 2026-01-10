@@ -108,7 +108,6 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const [mediaSource, setMediaSource] = useState<MediaSourceWithAliases | null>(null);
   const [linkedSourcesExpanded, setLinkedSourcesExpanded] = useState(false);
   const [showAddLinkModal, setShowAddLinkModal] = useState(false);
-  const [newLinkRefId, setNewLinkRefId] = useState('');
   const [addingLink, setAddingLink] = useState(false);
   const [activeSourceRefId, setActiveSourceRefId] = useState<string>(mediaId);
 
@@ -742,25 +741,81 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     return names[providerStr.toLowerCase()] || providerStr;
   }, []);
 
-  // Get icon/emoji for provider
-  const getProviderIcon = useCallback((providerStr: string): string => {
-    const icons: Record<string, string> = {
-      tmdb: '🎬',
-      anilist: '📺',
-      'anilist-manga': '📖',
-      hianime: '🎌',
-      animepahe: '🎌',
-      animekai: '🎌',
-      kickassanime: '🎌',
-      flixhq: '🎥',
-      goku: '🎥',
-      sflix: '🎥',
-      himovies: '🎥',
-      dramacool: '🎭',
-      mangadex: '📖',
-      mal: '📋',
-    };
-    return icons[providerStr.toLowerCase()] || '🔗';
+  // Get icon for provider (returns JSX element)
+  const getProviderIcon = useCallback((providerStr: string): React.ReactNode => {
+    const key = providerStr.toLowerCase();
+    
+    // TMDB - Film icon
+    if (key === 'tmdb') {
+      return (
+        <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+        </svg>
+      );
+    }
+    
+    // AniList - TV/Monitor icon
+    if (key === 'anilist') {
+      return (
+        <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      );
+    }
+    
+    // AniList Manga - Book icon
+    if (key === 'anilist-manga' || key === 'mangadex' || key === 'mangapill' || key === 'mangahere' || 
+        key === 'mangakakalot' || key === 'mangareader' || key === 'asurascans' || key === 'comick') {
+      return (
+        <svg className="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      );
+    }
+    
+    // Anime providers - Play circle icon
+    if (key === 'hianime' || key === 'animepahe' || key === 'animekai' || key === 'kickassanime') {
+      return (
+        <svg className="w-5 h-5 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      );
+    }
+    
+    // Movie/TV providers - Video camera icon
+    if (key === 'flixhq' || key === 'goku' || key === 'sflix' || key === 'himovies') {
+      return (
+        <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      );
+    }
+    
+    // DramaCool - Theater masks icon
+    if (key === 'dramacool') {
+      return (
+        <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      );
+    }
+    
+    // MAL - Clipboard list icon
+    if (key === 'mal' || key === 'myanimelist') {
+      return (
+        <svg className="w-5 h-5 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+      );
+    }
+    
+    // Default - Link icon
+    return (
+      <svg className="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      </svg>
+    );
   }, []);
 
   // Extract provider from refId
@@ -772,19 +827,21 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     return 'unknown';
   }, []);
 
-  // Handle adding a new linked source
-  const handleAddLink = useCallback(async () => {
-    if (!mediaSource || !newLinkRefId.trim()) return;
+  // Handle adding a new linked source from search
+  const handleAddLinkFromSearch = useCallback(async (result: SearchResult, selectedProvider: ProviderName) => {
+    if (!mediaSource) return;
+    
+    // Build refId from the selected result
+    const newRefId = `${selectedProvider}:${result.id}`;
     
     setAddingLink(true);
     try {
-      await linkMediaSource(mediaSource.id, newLinkRefId.trim());
+      await linkMediaSource(mediaSource.id, newRefId);
       // Refresh the media source to show the new alias
       const updatedSource = await findMediaSourceByRefId(mediaId);
       if (updatedSource) {
         setMediaSource(updatedSource);
       }
-      setNewLinkRefId('');
       setShowAddLinkModal(false);
       showToast('Source linked successfully', 'success');
     } catch (err) {
@@ -793,7 +850,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     } finally {
       setAddingLink(false);
     }
-  }, [mediaSource, newLinkRefId, mediaId, showToast]);
+  }, [mediaSource, mediaId, showToast]);
 
   // Handle removing a linked source
   const handleRemoveLink = useCallback(async (aliasId: string) => {
@@ -1182,8 +1239,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               {/* Primary Source */}
               <div className={`p-3 border ${activeSourceRefId === mediaSource.refId ? 'border-green-700 bg-green-900/10' : 'border-neutral-800'}`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{getProviderIcon(extractProvider(mediaSource.refId))}</span>
+<div className="flex items-center gap-2">
+                                    <span className="flex-shrink-0">{getProviderIcon(extractProvider(mediaSource.refId))}</span>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-white">
@@ -1222,7 +1279,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{getProviderIcon(alias.provider)}</span>
+                                      <span className="flex-shrink-0">{getProviderIcon(alias.provider)}</span>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-white">
@@ -1279,43 +1336,16 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </div>
       )}
 
-      {/* Add Link Modal */}
+      {/* Add Link Modal - Using SourceSearchModal for search-based linking */}
       {showAddLinkModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-neutral-950 border border-neutral-800 p-6 max-w-md w-full">
-            <h3 className="text-lg font-bold uppercase tracking-tight mb-4">
-              Link Another Source
-            </h3>
-            <p className="text-sm text-neutral-500 mb-4">
-              Enter a refId to link to this media (e.g., "hianime:abc-xyz", "anilist:12345")
-            </p>
-            <input
-              type="text"
-              value={newLinkRefId}
-              onChange={(e) => setNewLinkRefId(e.target.value)}
-              placeholder="provider:id"
-              className="w-full px-3 py-2 bg-black border border-neutral-700 text-white text-sm mb-4 focus:border-neutral-500 focus:outline-none font-mono"
-            />
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowAddLinkModal(false);
-                  setNewLinkRefId('');
-                }}
-                className="px-4 py-2 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddLink}
-                disabled={!newLinkRefId.trim() || addingLink}
-                className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 disabled:opacity-50 transition-colors"
-              >
-                {addingLink ? 'Linking...' : 'Link Source'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SourceSearchModal
+          title={initialTitle || mediaInfo?.title || ''}
+          mediaType={mediaType === 'anime' ? 'ANIME' : mediaType === 'tv' ? 'TV' : mediaType === 'movie' ? 'MOVIE' : 'ANIME'}
+          refId={mediaId}
+          onClose={() => setShowAddLinkModal(false)}
+          onSourceSelected={handleAddLinkFromSearch}
+          mode="link"
+        />
       )}
 
       {/* Comments Section - Overall media comments */}

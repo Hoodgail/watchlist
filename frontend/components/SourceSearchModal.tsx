@@ -64,6 +64,8 @@ interface SourceSearchModalProps {
   onSourceSelected: (result: SearchResult, provider: ProviderName) => void;
   /** Called to close the modal */
   onClose: () => void;
+  /** Mode: 'change' for switching sources, 'link' for adding linked sources */
+  mode?: 'change' | 'link';
 }
 
 export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
@@ -72,6 +74,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
   refId,
   onSourceSelected,
   onClose,
+  mode = 'change',
 }) => {
   const [searchQuery, setSearchQuery] = useState(title);
   const [selectedProvider, setSelectedProvider] = useState<ProviderName | null>(null);
@@ -165,10 +168,12 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
         <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
-              CHANGE SOURCE
+              {mode === 'link' ? 'LINK ANOTHER SOURCE' : 'CHANGE SOURCE'}
             </h3>
             <p className="text-xs text-neutral-500 mt-1">
-              Search and link a different provider for this title
+              {mode === 'link' 
+                ? 'Search and add a linked source for this title'
+                : 'Search and switch to a different provider for this title'}
             </p>
           </div>
           <button
