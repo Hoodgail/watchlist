@@ -10,7 +10,7 @@ Watchlist is a progressive web application (PWA) designed for tracking, streamin
 
 | Readlist UI | Download Manager | Reader Interface |
 |:---:|:---:|:---:|
-| ![Readlist UI](assets/IMG_8825.png) | ![Download Manager](assets/IMG_8830.png) | ![Reader Interface](assets\IMG_8829.png) |
+| ![Readlist UI](assets/IMG_8825.png) | ![Download Manager](assets/IMG_8830.png) | ![Reader Interface](assets/IMG_8829.png) |
 
 ## Features
 
