@@ -1074,7 +1074,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                     onClick={() => onAddToMyList(item)}
                     className="text-xs px-3 py-1.5 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white uppercase tracking-wider transition-colors"
                   >
-                    + ADD TO MY LIST
+                    + MY LIST
                   </button>
                 )}
 
