@@ -52,9 +52,11 @@ model User {
   receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
   refreshTokens          RefreshToken[]
   oauthAccounts          OAuthAccount[]
-  sentSuggestions        Suggestion[]    @relation("SentSuggestions")
-  receivedSuggestions    Suggestion[]    @relation("ReceivedSuggestions")
+  sentSuggestions        Suggestion[]       @relation("SentSuggestions")
+  receivedSuggestions    Suggestion[]       @relation("ReceivedSuggestions")
   watchProgress          WatchProgress[]
+  comments               Comment[]
+  commentReactions       CommentReaction[]
 
   @@map("users")
 }
@@ -216,4 +218,60 @@ model ProviderMapping {
   @@index([refId])
   @@index([provider])
   @@map("provider_mappings")
+}
+
+enum ReactionType {
+  LIKE
+  HELPFUL
+  FUNNY
+  INSIGHTFUL
+  SPOILER
+}
+
+model Comment {
+  id                   String      @id @default(uuid())
+  userId               String?     @map("user_id") // Nullable for external comments
+  content              String      @db.VarChar(2000)
+  refId                String      @map("ref_id") @db.VarChar(100) // Media reference (e.g., "tmdb:12345", "anilist:98765")
+  mediaType            MediaType   @map("media_type")
+  seasonNumber         Int?        @map("season_number") // For season-level comments
+  episodeNumber        Int?        @map("episode_number") // For episode-level comments
+  chapterNumber        Int?        @map("chapter_number") // For manga chapter comments
+  volumeNumber         Int?        @map("volume_number") // For manga volume comments
+  externalSource       String?     @map("external_source") @db.VarChar(50) // e.g., "reddit", "mal", "anilist", "letterboxd"
+  externalId           String?     @map("external_id") @db.VarChar(255) // ID from external source
+  externalAuthor       String?     @map("external_author") @db.VarChar(100) // Username from external source
+  externalAuthorAvatar String?     @map("external_author_avatar") @db.VarChar(500) // Avatar URL from external
+  externalUrl          String?     @map("external_url") @db.VarChar(500) // Link to original comment
+  isPublic             Boolean     @default(true) @map("is_public") // Inherits from user's isPublic by default
+  isSpoiler            Boolean     @default(false) @map("is_spoiler") // Marks comment as containing spoilers
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions CommentReaction[]
+
+  @@index([refId, mediaType])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([externalSource, externalId])
+  @@map("comments")
+}
+
+model CommentReaction {
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  commentId    String       @map("comment_id")
+  reactionType ReactionType @map("reaction_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId, reactionType])
+  @@index([commentId])
+  @@index([userId])
+  @@map("comment_reactions")
 }

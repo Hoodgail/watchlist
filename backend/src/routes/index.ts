@@ -8,6 +8,8 @@ import mangaRoutes from './manga.js';
 import mediaRoutes from './media.js';
 import watchProgressRoutes from './watchProgress.js';
 import providerMappingRoutes from './providerMappings.js';
+import commentRoutes from './commentRoutes.js';
+import externalCommentRoutes from './externalCommentRoutes.js';
 
 const router = Router();
 
@@ -20,6 +22,8 @@ router.use('/manga', mangaRoutes);
 router.use('/media', mediaRoutes);
 router.use('/watch-progress', watchProgressRoutes);
 router.use('/provider-mappings', providerMappingRoutes);
+router.use('/comments', commentRoutes);
+router.use('/external-comments', externalCommentRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

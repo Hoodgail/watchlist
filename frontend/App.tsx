@@ -906,7 +906,36 @@ const MainApp: React.FC = () => {
       case 'SEARCH':
         return <SearchMedia onAdd={handleAddMedia} onOpenMedia={handleOpenMedia} />;
       case 'TRENDING':
-        return <TrendingPage onAdd={handleAddMedia} />;
+        return (
+          <TrendingPage
+            onAdd={handleAddMedia}
+            onViewMedia={(refId, mediaType) => {
+              // Determine the provider and media type for navigation
+              const parsed = parseVideoRefId(refId);
+              const lowerType = mediaType.toLowerCase() as 'movie' | 'tv' | 'anime';
+              const isManga = mediaType === 'MANGA';
+              
+              if (isManga) {
+                // Handle manga navigation
+                const mangaParsed = parseMangaRefId(refId);
+                if (mangaParsed) {
+                  handleOpenManga(mangaParsed.mangaId, mangaParsed.provider);
+                } else {
+                  // Legacy: assume mangadex if no provider prefix
+                  const mangaId = refId.includes(':') ? refId.split(':')[1] : refId;
+                  handleOpenManga(mangaId, 'mangadex');
+                }
+              } else if (parsed) {
+                // Already a video provider ID
+                handleOpenMedia(parsed.mediaId, parsed.provider, undefined, lowerType);
+              } else {
+                // External ID (tmdb, anilist, etc.) - use default provider
+                const defaultProvider = mediaType === 'ANIME' ? DEFAULT_ANIME_PROVIDER : DEFAULT_MOVIE_PROVIDER;
+                handleOpenMedia(refId, defaultProvider, undefined, lowerType);
+              }
+            }}
+          />
+        );
       case 'FRIENDS':
         return (
           <FriendList
@@ -916,6 +945,31 @@ const MainApp: React.FC = () => {
             onFollowUser={handleFollowUser}
             onUnfollowUser={handleUnfollowUser}
             isLoading={friendsLoading}
+            onViewMedia={(refId, mediaType) => {
+              // Determine the provider and media type for navigation
+              const parsed = parseVideoRefId(refId);
+              const lowerType = mediaType.toLowerCase() as 'movie' | 'tv' | 'anime';
+              const isManga = mediaType === 'MANGA';
+              
+              if (isManga) {
+                // Handle manga navigation
+                const mangaParsed = parseMangaRefId(refId);
+                if (mangaParsed) {
+                  handleOpenManga(mangaParsed.mangaId, mangaParsed.provider);
+                } else {
+                  // Legacy: assume mangadex if no provider prefix
+                  const mangaId = refId.includes(':') ? refId.split(':')[1] : refId;
+                  handleOpenManga(mangaId, 'mangadex');
+                }
+              } else if (parsed) {
+                // Already a video provider ID
+                handleOpenMedia(parsed.mediaId, parsed.provider, undefined, lowerType);
+              } else {
+                // External ID (tmdb, anilist, etc.) - use default provider
+                const defaultProvider = mediaType === 'ANIME' ? DEFAULT_ANIME_PROVIDER : DEFAULT_MOVIE_PROVIDER;
+                handleOpenMedia(refId, defaultProvider, undefined, lowerType);
+              }
+            }}
           />
         );
       case 'FRIEND_VIEW':

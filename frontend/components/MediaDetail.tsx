@@ -14,6 +14,7 @@ import ConfidenceCheckModal from './ConfidenceCheckModal';
 import SourceSearchModal from './SourceSearchModal';
 import { VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
 import { SearchResult, ProviderName } from '../types';
+import { CommentSection } from './CommentSection';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -987,6 +988,15 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Comments Section - Overall media comments */}
+      <div className="px-4 py-4 border-b border-neutral-800">
+        <CommentSection
+          refId={mediaId}
+          mediaType={(mediaType?.toUpperCase() || 'TV') as 'TV' | 'MOVIE' | 'ANIME' | 'MANGA'}
+          mediaTitle={mediaInfo.title}
+        />
       </div>
 
       {/* Download Progress */}

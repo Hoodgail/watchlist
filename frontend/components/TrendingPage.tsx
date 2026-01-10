@@ -8,11 +8,13 @@ import {
 import { SuggestToFriendModal } from './SuggestToFriendModal';
 import { QuickAddModal } from './QuickAddModal';
 import { getStatusesByRefIds, BulkStatusItem } from '../services/api';
+import PublicCommentsFeed from './PublicCommentsFeed';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
 
 interface TrendingPageProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
+  onViewMedia?: (refId: string, mediaType: string) => void;
 }
 
 // Helper to get full image URL
@@ -255,7 +257,7 @@ const TrendingCard: React.FC<{
   );
 };
 
-export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
+export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }) => {
   const [categories, setCategories] = useState<TrendingCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
@@ -397,6 +399,12 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd }) => {
       <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
         TRENDING
       </h2>
+
+      {/* Public Comments Feed - Hot Discussions */}
+      <PublicCommentsFeed 
+        onViewMedia={onViewMedia}
+        title="HOT DISCUSSIONS"
+      />
 
       {categories.length === 0 ? (
         <div className="text-center py-20 text-neutral-600">

@@ -5,6 +5,7 @@ import * as manga from '../services/manga';
 import { MangaProviderName } from '../services/manga';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
+import { CommentSection } from './CommentSection';
 
 // ============================================================================
 // VIRTUALIZED LONG STRIP - Types and Constants
@@ -439,7 +440,11 @@ interface ChapterReaderProps {
   onClose: () => void;
   onChapterChange: (chapterId: string) => void;
   provider?: MangaProviderName;
+  mangaTitle?: string;
 }
+
+// LocalStorage key for comments panel state
+const COMMENTS_PANEL_KEY = 'chapterReader_showComments';
 
 // Helper to check if URL is a MangaPlus URL
 function isMangaPlusUrl(url: string | null | undefined): boolean {
@@ -454,6 +459,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   onClose,
   onChapterChange,
   provider = 'mangadex',
+  mangaTitle = 'Manga',
 }) => {
   const { showToast } = useToast();
   const {
@@ -481,6 +487,24 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isMangaPlusChapter, setIsMangaPlusChapter] = useState(false);
+  
+  // Comments panel state - restore from localStorage
+  const [showComments, setShowComments] = useState(() => {
+    try {
+      return localStorage.getItem(COMMENTS_PANEL_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  
+  // Persist comments panel state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(COMMENTS_PANEL_KEY, String(showComments));
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [showComments]);
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -909,7 +933,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+<div className="flex items-center gap-2">
               {!isChapterDownloaded(chapterId) && isOnline && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDownloadChapter(); }}
@@ -921,6 +945,16 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   </svg>
                 </button>
               )}
+              
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }}
+                className={`p-2 hover:bg-white/20 rounded transition-colors ${showComments ? 'text-yellow-400' : 'text-white'}`}
+                title="Comments"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
               
               <button
                 onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
@@ -1138,11 +1172,57 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         </div>
       )}
 
-      {/* Loading indicator for images */}
+{/* Loading indicator for images */}
       {imageLoading.size > 0 && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
           <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
         </div>
+      )}
+
+      {/* Comments Slide-out Panel */}
+      <div
+        className={`fixed inset-y-0 right-0 w-80 max-w-full bg-zinc-900 border-l border-zinc-700 z-30 transform transition-transform duration-300 ease-in-out ${
+          showComments ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="h-full flex flex-col">
+          {/* Panel Header */}
+          <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+              Chapter Comments
+            </h3>
+            <button
+              onClick={() => setShowComments(false)}
+              className="p-1 text-neutral-400 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Comments Content */}
+          <div className="flex-1 overflow-y-auto">
+            {showComments && (
+              <CommentSection
+                refId={`anilist-manga:${mangaId}`}
+                mediaType="MANGA"
+                mediaTitle={mangaTitle}
+                chapterNumber={currentChapter?.chapter ? parseFloat(currentChapter.chapter) : undefined}
+                volumeNumber={currentChapter?.volume ? parseFloat(currentChapter.volume) : undefined}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Comments Panel Backdrop (mobile) */}
+      {showComments && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          onClick={() => setShowComments(false)}
+        />
       )}
     </div>
   );

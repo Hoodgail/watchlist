@@ -74,7 +74,7 @@ function useSwipeGesture(options: UseSwipeGestureOptions = {}) {
     };
     setIsTriggered(false);
     setShowSuccess(false);
-    
+
     // Add swiping class for CSS
     if (cardRef.current) {
       cardRef.current.classList.remove('snap-back', 'swipe-success');
@@ -121,7 +121,7 @@ function useSwipeGesture(options: UseSwipeGestureOptions = {}) {
       // Check if we've crossed the trigger threshold
       const wasTriggered = isTriggered;
       const nowTriggered = Math.abs(offset) >= minDistance;
-      
+
       if (nowTriggered && !wasTriggered) {
         setIsTriggered(true);
         triggerHaptic();
@@ -165,7 +165,7 @@ function useSwipeGesture(options: UseSwipeGestureOptions = {}) {
       onSwipeLeft();
       triggerHaptic();
       setShowSuccess(true);
-      
+
       // Add success animation class
       if (cardRef.current) {
         cardRef.current.classList.add('swipe-success');
@@ -175,7 +175,7 @@ function useSwipeGesture(options: UseSwipeGestureOptions = {}) {
     // Reset state
     setSwipeOffset(0);
     setIsTriggered(false);
-    
+
     // Reset swipe state
     swipeStateRef.current = {
       startX: 0,
@@ -822,11 +822,11 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   const imageUrl = getImageUrl(item.imageUrl, item.refId);
   const config = getStatusConfig(item.status);
-  
+
   // Determine if this item is a spoiler (friend is ahead of user)
   // This is only relevant when viewing a friend's list (readonly=true) and user has progress on this item
   const isSpoiler = readonly && spoilerProtectionEnabled && userProgress !== undefined && item.current > userProgress;
-  
+
   // Calculate playback progress percent for the ProxiedImage overlay
   const playbackProgressPercent = item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0
     ? item.activeProgress.percentComplete
@@ -923,7 +923,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
         ref={cardRef}
         className={`swipe-card group relative border border-neutral-800 bg-black transition-colors hover:border-neutral-600 ${config.borderColor} border-l-2`}
         {...(!readonly ? swipeHandlers : {})}
-        style={{ 
+        style={{
           transform: `translateX(${swipeOffset}px)`,
         }}
       >
@@ -945,339 +945,339 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
             <div className="flex flex-col gap-2">
 
               {/* Poster Image - uses ProxiedImage for CLS-safe consistent sizing */}
-              <SpoilerBlur 
-                itemId={`poster-${item.id}`} 
-                isSpoiler={isSpoiler} 
+              <SpoilerBlur
+                itemId={`poster-${item.id}`}
+                isSpoiler={isSpoiler}
                 type="image"
                 showIcon={true}
               >
                 <ProxiedImage
                   src={imageUrl}
                   alt={item.title}
-                widthClass="w-20"
-                width={80}
-                height={120}
-                progressPercent={playbackProgressPercent}
-              />
-            </SpoilerBlur>
-            <div className="flex flex-col   text-xs uppercase mt-1">
-              {/* Spoiler indicator */}
-              {isSpoiler && <SpoilerIndicator className="mb-1" />}
-              {/* Resume indicator for video content with active progress */}
-              {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
-                <span
-                  className="text-red-400 py-0.5 flex items-center gap-1 text-[12px] "
-                  title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
-                >
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                  </svg>
-                  {item.activeProgress.seasonNumber
-                    ? `RES S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
-                    : `RES E${item.activeProgress.episodeNumber || '?'}`
-                  }
-                </span>
-              )}
+                  widthClass="w-20"
+                  width={80}
+                  height={120}
+                  progressPercent={playbackProgressPercent}
+                />
+              </SpoilerBlur>
+              <div className="flex flex-col   text-xs uppercase mt-1">
+                {/* Spoiler indicator */}
+                {isSpoiler && <SpoilerIndicator className="mb-1" />}
+                {/* Resume indicator for video content with active progress */}
+                {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
+                  <span
+                    className="text-red-400 py-0.5 flex items-center gap-1 text-[12px] "
+                    title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
+                  >
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                    </svg>
+                    {item.activeProgress.seasonNumber
+                      ? `RES S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
+                      : `RES E${item.activeProgress.episodeNumber || '?'}`
+                    }
+                  </span>
+                )}
 
+
+              </div>
 
             </div>
 
-          </div>
 
-
-          <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4 overflow-hidden">
-            {/* Main Info */}
-            <div className="flex-grow  h-fit flex flex-col w-full">
-              <div className="flex items-start justify-between h-fit w-full">
-                <div className="flex items-center h-fit gap-2 flex-wrap">
-                  {onItemClick ? (
+            <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4 overflow-hidden">
+              {/* Main Info */}
+              <div className="flex-grow  h-fit flex flex-col w-fit">
+                <div className="flex items-start justify-between h-fit w-full">
+                  <div className="flex items-center h-fit gap-2 flex-wrap">
+                    {onItemClick ? (
+                      <button
+                        onClick={() => onItemClick(item)}
+                        className={`font-bold text-lg leading-tight uppercase tracking-tight text-left hover:underline ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}
+                      >
+                        {highlightText(item.title, searchQuery || '')}
+                      </button>
+                    ) : (
+                      <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
+                        {highlightText(item.title, searchQuery || '')}
+                      </h3>
+                    )}
+                    {/* Rating Badge */}
+                    {item.rating != null && (
+                      <span className="text-xs bg-neutral-900 border border-neutral-700 px-1.5 py-0.5 text-neutral-300 font-mono flex items-center gap-1">
+                        <StarIcon filled />
+                        {item.rating}
+                      </span>
+                    )}
+                  </div>
+                  {/* Mobile Delete Button */}
+                  {!readonly && onDelete && (
                     <button
-                      onClick={() => onItemClick(item)}
-                      className={`font-bold text-lg leading-tight uppercase tracking-tight text-left hover:underline ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}
+                      onClick={() => onDelete(item.id)}
+                      className="sm:hidden text-neutral-700 hover:text-red-500 px-2 text-xl"
                     >
-                      {highlightText(item.title, searchQuery || '')}
+                      ×
                     </button>
-                  ) : (
-                    <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
-                      {highlightText(item.title, searchQuery || '')}
-                    </h3>
-                  )}
-                  {/* Rating Badge */}
-                  {item.rating != null && (
-                    <span className="text-xs bg-neutral-900 border border-neutral-700 px-1.5 py-0.5 text-neutral-300 font-mono flex items-center gap-1">
-                      <StarIcon filled />
-                      {item.rating}
-                    </span>
                   )}
                 </div>
-                {/* Mobile Delete Button */}
-                {!readonly && onDelete && (
-                  <button
-                    onClick={() => onDelete(item.id)}
-                    className="sm:hidden text-neutral-700 hover:text-red-500 px-2 text-xl"
-                  >
-                    ×
-                  </button>
+
+                <div className="flex gap-2 justify-between ">
+
+
+                  <div className="flex gap-1">
+
+
+                    <span className="bg-neutral-900 text-neutral-400 px-1.5 h-fit text-[10px] m-auto border border-neutral-800">
+                      {item.type}
+                    </span>
+                    {item.total ? (
+                      <span className="text-neutral-500 py-0.5 m-auto">
+                        {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
+                      </span>
+                    ) : (
+                      <span className="text-neutral-500 py-0.5 m-auto">ONGOING</span>
+                    )}
+                    {item.notes && (
+                      <span className="text-neutral-600 py-0.5" title="Has notes">
+                        [NOTE]
+                      </span>
+                    )}
+
+                  </div>
+
+                </div>
+
+                {/* Friends status summary */}
+                {item.friendsStatuses && item.friendsStatuses.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {(Object.entries(friendsByStatus) as [MediaStatus, FriendStatus[]][]).map(([status, friends]) => (
+                      <div
+                        key={status}
+                        className="flex items-center gap-1.5 px-1.5 py-1 pl-[5px]   border border-neutral-700 rounded-[50px]"
+                        title={friends.map(f => f.displayName || f.username).join(', ')}
+                      >
+                        <FriendAvatarStack friends={friends} maxVisible={5} />
+                        <span className="text-[10px] text-neutral-400 uppercase">
+                          {getShortStatus(status)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              <div className="flex gap-2 justify-between ">
+              {/* Controls */}
+              <div className="flex flex-col sm:items-end gap-3 min-w-[140px]">
+                {/* Add to My List button */}
+                {readonly && onAddToMyList && (
+                  <button
+                    onClick={() => onAddToMyList(item)}
+                    className="text-xs px-3 py-1.5 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white uppercase tracking-wider transition-colors"
+                  >
+                    + ADD TO MY LIST
+                  </button>
+                )}
 
+                <div className="flex gap-2 w-full justify-between">
 
-                <div className="flex gap-1">
-
-
-                  <span className="bg-neutral-900 text-neutral-400 px-1.5 h-fit text-[10px] m-auto border border-neutral-800">
-                    {item.type}
-                  </span>
-                  {item.total ? (
-                    <span className="text-neutral-500 py-0.5 m-auto">
-                      {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
-                    </span>
+                  {/* Status Select */}
+                  {readonly ? (
+                    <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
+                      {item.status}
+                    </div>
                   ) : (
-                    <span className="text-neutral-500 py-0.5 m-auto">ONGOING</span>
+                    <select
+                      value={item.status}
+                      onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
+                      className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
+                    >
+                      {STATUS_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value} className="bg-black text-white">
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   )}
-                  {item.notes && (
-                    <span className="text-neutral-600 py-0.5" title="Has notes">
-                      [NOTE]
-                    </span>
-                  )}
+
+                  {/* Progress Input */}
+                  <div className="flex items-center gap-2 justify-between sm:justify-end w-fit ">
+
+                    {readonly ? (
+                      <SpoilerBlur
+                        itemId={`progress-${item.id}`}
+                        isSpoiler={isSpoiler}
+                        type="text"
+                        showIcon={false}
+                      >
+                        <span className="font-mono text-white text-lg">
+                          {isSpoiler ? `${userProgress ?? 0}+` : item.current}
+                          {item.total && <span className="text-neutral-600">/{item.total}</span>}
+                        </span>
+                      </SpoilerBlur>
+                    ) : (
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
+                          className="w-8 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
+                        >-</button>
+                        <input
+                          type="number"
+                          value={item.current}
+                          onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
+                          className="w-14 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
+                        />
+                        <button
+                          onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
+                          className="w-8 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
+                        >+</button>
+                      </div>
+                    )}
+                  </div>
 
                 </div>
 
-              </div>
+                <div className="flex gap-1 w-full justify-between">
 
-              {/* Friends status summary */}
-              {item.friendsStatuses && item.friendsStatuses.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {(Object.entries(friendsByStatus) as [MediaStatus, FriendStatus[]][]).map(([status, friends]) => (
-                    <div
-                      key={status}
-                      className="flex items-center gap-1.5 px-1.5 py-1 pl-[5px]   border border-neutral-700 rounded-[50px]"
-                      title={friends.map(f => f.displayName || f.username).join(', ')}
-                    >
-                      <FriendAvatarStack friends={friends} maxVisible={5} />
-                      <span className="text-[10px] text-neutral-400 uppercase">
-                        {getShortStatus(status)}
-                      </span>
+                  {/* Quick Rating (inline) */}
+                  {!readonly && !isExpanded && (
+                    <div className="flex items-center gap-1">
+                      {[2, 4, 6, 8, 10].map(rating => (
+                        <button
+                          key={rating}
+                          onClick={() => handleRatingChange(item.rating === rating ? null : rating)}
+                          className={`w-6 h-6 text-xs border transition-colors ${item.rating != null && item.rating >= rating
+                            ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10'
+                            : 'border-neutral-700 text-neutral-600 hover:border-neutral-500'
+                            }`}
+                        >
+                          {rating}
+                        </button>
+                      ))}
                     </div>
+                  )}
+
+                  {/* Suggest to Friend Button */}
+                  {showSuggestButton && item.refId && onSuggest && (
+                    <button
+                      onClick={() => onSuggest(item)}
+                      className="text-xs px-3 py-1.5 border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors w-full"
+                    >
+                      SUGGEST
+                    </button>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* Expand Button */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="mt-3 text-xs text-neutral-600 hover:text-neutral-400 uppercase tracking-wider flex items-center gap-1"
+          >
+            <ChevronIcon expanded={isExpanded} />
+            <span>{isExpanded ? 'HIDE DETAILS' : (hasDetails ? 'SHOW DETAILS' : 'ADD DETAILS')}</span>
+          </button>
+        </div>
+
+        {/* Expanded Details Section */}
+        {isExpanded && (
+          <div className="border-t border-neutral-800 p-4 bg-neutral-950 space-y-4 animate-fadeIn">
+            {/* Rating */}
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-neutral-600 uppercase tracking-wider w-16">RATING:</span>
+              {readonly ? (
+                <span className="font-mono text-white">
+                  {item.rating != null ? `${item.rating}/10` : '-'}
+                </span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  {RATING_OPTIONS.map(opt => (
+                    <button
+                      key={opt.label}
+                      onClick={() => handleRatingChange(opt.value)}
+                      className={`w-7 h-7 text-xs border transition-colors ${item.rating === opt.value
+                        ? 'border-white text-white bg-white/10'
+                        : 'border-neutral-700 text-neutral-500 hover:border-neutral-500'
+                        }`}
+                    >
+                      {opt.label}
+                    </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Controls */}
-            <div className="flex flex-col sm:items-end gap-3 min-w-[140px]">
-              {/* Add to My List button */}
-              {readonly && onAddToMyList && (
-                <button
-                  onClick={() => onAddToMyList(item)}
-                  className="text-xs px-3 py-1.5 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white uppercase tracking-wider transition-colors"
+            {/* Notes */}
+            <div className="space-y-2">
+              <span className="text-xs text-neutral-600 uppercase tracking-wider">NOTES:</span>
+              {readonly ? (
+                <p className="text-sm text-neutral-400 whitespace-pre-wrap">
+                  {item.notes || <span className="text-neutral-700 italic">No notes</span>}
+                </p>
+              ) : isEditingNotes ? (
+                <textarea
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                  onBlur={handleNotesBlur}
+                  placeholder="Add your notes here..."
+                  autoFocus
+                  className="w-full bg-black border border-neutral-700 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none resize-none min-h-[80px]"
+                />
+              ) : (
+                <div
+                  onClick={() => setIsEditingNotes(true)}
+                  className="w-full min-h-[40px] border border-dashed border-neutral-800 p-3 text-sm cursor-text hover:border-neutral-600 transition-colors"
                 >
-                  + ADD TO MY LIST
-                </button>
-              )}
-
-              <div className="flex gap-2 w-full justify-between">
-
-                {/* Status Select */}
-                {readonly ? (
-                  <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
-                    {item.status}
-                  </div>
-                ) : (
-                  <select
-                    value={item.status}
-                    onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
-                    className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
-                  >
-                    {STATUS_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value} className="bg-black text-white">
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Progress Input */}
-                <div className="flex items-center gap-2 justify-between sm:justify-end w-fit ">
-
-                  {readonly ? (
-                    <SpoilerBlur 
-                      itemId={`progress-${item.id}`} 
-                      isSpoiler={isSpoiler} 
-                      type="text"
-                      showIcon={false}
-                    >
-                      <span className="font-mono text-white text-lg">
-                        {isSpoiler ? `${userProgress ?? 0}+` : item.current}
-                        {item.total && <span className="text-neutral-600">/{item.total}</span>}
-                      </span>
-                    </SpoilerBlur>
+                  {notesValue ? (
+                    <span className="text-neutral-400 whitespace-pre-wrap">{notesValue}</span>
                   ) : (
-                    <div className="flex items-center">
-                      <button
-                        onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
-                        className="w-8 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
-                      >-</button>
-                      <input
-                        type="number"
-                        value={item.current}
-                        onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
-                        className="w-14 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
-                      />
-                      <button
-                        onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
-                        className="w-8 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
-                      >+</button>
-                    </div>
+                    <span className="text-neutral-700 italic">Click to add notes...</span>
                   )}
                 </div>
-
-              </div>
-
-              <div className="flex gap-1 w-full justify-between">
-
-                {/* Quick Rating (inline) */}
-                {!readonly && !isExpanded && (
-                  <div className="flex items-center gap-1">
-                    {[2, 4, 6, 8, 10].map(rating => (
-                      <button
-                        key={rating}
-                        onClick={() => handleRatingChange(item.rating === rating ? null : rating)}
-                        className={`w-6 h-6 text-xs border transition-colors ${item.rating != null && item.rating >= rating
-                          ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10'
-                          : 'border-neutral-700 text-neutral-600 hover:border-neutral-500'
-                          }`}
-                      >
-                        {rating}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Suggest to Friend Button */}
-                {showSuggestButton && item.refId && onSuggest && (
-                  <button
-                    onClick={() => onSuggest(item)}
-                    className="text-xs px-3 py-1.5 border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors w-full"
-                  >
-                    SUGGEST
-                  </button>
-                )}
-              </div>
-
+              )}
             </div>
-          </div>
-        </div>
 
-        {/* Expand Button */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="mt-3 text-xs text-neutral-600 hover:text-neutral-400 uppercase tracking-wider flex items-center gap-1"
-        >
-          <ChevronIcon expanded={isExpanded} />
-          <span>{isExpanded ? 'HIDE DETAILS' : (hasDetails ? 'SHOW DETAILS' : 'ADD DETAILS')}</span>
-        </button>
-      </div>
-
-      {/* Expanded Details Section */}
-      {isExpanded && (
-        <div className="border-t border-neutral-800 p-4 bg-neutral-950 space-y-4 animate-fadeIn">
-          {/* Rating */}
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-neutral-600 uppercase tracking-wider w-16">RATING:</span>
-            {readonly ? (
-              <span className="font-mono text-white">
-                {item.rating != null ? `${item.rating}/10` : '-'}
-              </span>
-            ) : (
-              <div className="flex items-center gap-1">
-                {RATING_OPTIONS.map(opt => (
-                  <button
-                    key={opt.label}
-                    onClick={() => handleRatingChange(opt.value)}
-                    className={`w-7 h-7 text-xs border transition-colors ${item.rating === opt.value
-                      ? 'border-white text-white bg-white/10'
-                      : 'border-neutral-700 text-neutral-500 hover:border-neutral-500'
-                      }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            {/* Friends who have this item */}
+            {item.friendsStatuses && item.friendsStatuses.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-xs text-neutral-600 uppercase tracking-wider">FRIENDS:</span>
+                <div className="flex flex-wrap gap-2">
+                  {item.friendsStatuses.map((friend) => (
+                    <div
+                      key={friend.id}
+                      className="text-xs px-2 py-1 bg-neutral-900 border border-neutral-800 flex items-center gap-2"
+                    >
+                      <span className="text-neutral-300">{friend.displayName || friend.username}</span>
+                      <span className={`uppercase ${friend.status === 'WATCHING' || friend.status === 'READING'
+                        ? 'text-white'
+                        : friend.status === 'COMPLETED'
+                          ? 'text-neutral-500'
+                          : 'text-neutral-600'
+                        }`}>
+                        {friend.status}
+                      </span>
+                      {friend.rating != null && (
+                        <span className="text-neutral-500 font-mono">{friend.rating}/10</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
+        )}
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <span className="text-xs text-neutral-600 uppercase tracking-wider">NOTES:</span>
-            {readonly ? (
-              <p className="text-sm text-neutral-400 whitespace-pre-wrap">
-                {item.notes || <span className="text-neutral-700 italic">No notes</span>}
-              </p>
-            ) : isEditingNotes ? (
-              <textarea
-                value={notesValue}
-                onChange={(e) => setNotesValue(e.target.value)}
-                onBlur={handleNotesBlur}
-                placeholder="Add your notes here..."
-                autoFocus
-                className="w-full bg-black border border-neutral-700 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none resize-none min-h-[80px]"
-              />
-            ) : (
-              <div
-                onClick={() => setIsEditingNotes(true)}
-                className="w-full min-h-[40px] border border-dashed border-neutral-800 p-3 text-sm cursor-text hover:border-neutral-600 transition-colors"
-              >
-                {notesValue ? (
-                  <span className="text-neutral-400 whitespace-pre-wrap">{notesValue}</span>
-                ) : (
-                  <span className="text-neutral-700 italic">Click to add notes...</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Friends who have this item */}
-          {item.friendsStatuses && item.friendsStatuses.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-xs text-neutral-600 uppercase tracking-wider">FRIENDS:</span>
-              <div className="flex flex-wrap gap-2">
-                {item.friendsStatuses.map((friend) => (
-                  <div
-                    key={friend.id}
-                    className="text-xs px-2 py-1 bg-neutral-900 border border-neutral-800 flex items-center gap-2"
-                  >
-                    <span className="text-neutral-300">{friend.displayName || friend.username}</span>
-                    <span className={`uppercase ${friend.status === 'WATCHING' || friend.status === 'READING'
-                      ? 'text-white'
-                      : friend.status === 'COMPLETED'
-                        ? 'text-neutral-500'
-                        : 'text-neutral-600'
-                      }`}>
-                      {friend.status}
-                    </span>
-                    {friend.rating != null && (
-                      <span className="text-neutral-500 font-mono">{friend.rating}/10</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Desktop Delete (Hover) */}
-      {!readonly && onDelete && (
-        <button
-          onClick={() => onDelete(item.id)}
-          className="hidden sm:flex absolute -top-2 -right-2 w-6 h-6 bg-black border border-neutral-800 text-neutral-500 hover:text-red-500 hover:border-red-900 opacity-0 group-hover:opacity-100 transition-opacity items-center justify-center text-lg leading-none z-10"
-        >
-          ×
-        </button>
-      )}
+        {/* Desktop Delete (Hover) */}
+        {!readonly && onDelete && (
+          <button
+            onClick={() => onDelete(item.id)}
+            className="hidden sm:flex absolute -top-2 -right-2 w-6 h-6 bg-black border border-neutral-800 text-neutral-500 hover:text-red-500 hover:border-red-900 opacity-0 group-hover:opacity-100 transition-opacity items-center justify-center text-lg leading-none z-10"
+          >
+            ×
+          </button>
+        )}
       </div>
     </div>
   );

@@ -44,6 +44,21 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const [isPublic, setIsPublic] = useState<boolean>(user?.isPublic ?? false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
   
+  // Comment visibility settings (stored locally until backend support is added)
+  // Options: 'public' | 'friends' | 'private'
+  const [commentVisibility, setCommentVisibility] = useState<'public' | 'friends' | 'private'>(() => {
+    const stored = localStorage.getItem('commentVisibility');
+    if (stored === 'public' || stored === 'friends' || stored === 'private') {
+      return stored;
+    }
+    // Default based on user's public profile setting
+    return user?.isPublic ? 'public' : 'friends';
+  });
+  const [showInActivityFeed, setShowInActivityFeed] = useState<boolean>(() => {
+    const stored = localStorage.getItem('showInActivityFeed');
+    return stored !== null ? stored === 'true' : true;
+  });
+  
   // Recovery email state
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryEmailLoading, setRecoveryEmailLoading] = useState(false);
@@ -357,6 +372,108 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 <>
                   <span className="text-neutral-400 font-semibold">Private:</span> Only users who follow you can see your watchlist.
                   Others will see a "private profile" message.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Comment Visibility */}
+        <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="font-bold uppercase text-sm">Comment Visibility</p>
+              <p className="text-xs text-neutral-500 mt-1">
+                Who can see your comments
+              </p>
+            </div>
+            
+            <select
+              value={commentVisibility}
+              onChange={(e) => {
+                const newValue = e.target.value as 'public' | 'friends' | 'private';
+                setCommentVisibility(newValue);
+                localStorage.setItem('commentVisibility', newValue);
+                showToast(
+                  newValue === 'public' 
+                    ? 'Comments will be visible to everyone' 
+                    : newValue === 'friends'
+                      ? 'Comments will be visible to friends only'
+                      : 'Comments will be visible only to you',
+                  'success'
+                );
+              }}
+              className="bg-black border border-neutral-700 px-3 py-2 text-sm text-neutral-300 focus:border-white focus:outline-none uppercase tracking-wider"
+            >
+              <option value="public">Everyone (if account is public)</option>
+              <option value="friends">Friends only</option>
+              <option value="private">Only me</option>
+            </select>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-neutral-800">
+            <p className="text-xs text-neutral-600">
+              {commentVisibility === 'public' ? (
+                <>
+                  <span className="text-green-500 font-semibold">Public:</span> Your comments will be visible to everyone if your account is public.
+                </>
+              ) : commentVisibility === 'friends' ? (
+                <>
+                  <span className="text-blue-500 font-semibold">Friends:</span> Your comments will only be visible to users who follow you.
+                </>
+              ) : (
+                <>
+                  <span className="text-neutral-400 font-semibold">Private:</span> Your comments will only be visible to you.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Show in Activity Feeds */}
+        <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="font-bold uppercase text-sm">Show in Activity Feeds</p>
+              <p className="text-xs text-neutral-500 mt-1">
+                Allow your comments to appear in friends' activity feeds
+              </p>
+            </div>
+            
+            <button
+              onClick={() => {
+                const newValue = !showInActivityFeed;
+                setShowInActivityFeed(newValue);
+                localStorage.setItem('showInActivityFeed', String(newValue));
+                showToast(
+                  newValue 
+                    ? 'Your comments will appear in activity feeds' 
+                    : 'Your comments will be hidden from activity feeds',
+                  'success'
+                );
+              }}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${
+                showInActivityFeed ? 'bg-green-600' : 'bg-neutral-700'
+              }`}
+              aria-label={showInActivityFeed ? 'Disable activity feed appearance' : 'Enable activity feed appearance'}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 ${
+                  showInActivityFeed ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-neutral-800">
+            <p className="text-xs text-neutral-600">
+              {showInActivityFeed ? (
+                <>
+                  <span className="text-green-500 font-semibold">Enabled:</span> Your comments will appear in your friends' activity feeds.
+                </>
+              ) : (
+                <>
+                  <span className="text-neutral-400 font-semibold">Disabled:</span> Your comments won't appear in friends' activity feeds.
                 </>
               )}
             </p>
