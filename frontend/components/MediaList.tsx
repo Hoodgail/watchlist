@@ -134,11 +134,11 @@ const VIEW_MODE_KEY = 'medialist-view-mode';
 // Format time as "H:MM:SS" or "MM:SS"
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
-  
+
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  
+
   if (h > 0) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
@@ -344,11 +344,11 @@ const StatisticsSummary: React.FC<{
       <button
         onClick={() => onStatusClick('')}
         className={`text-xs px-2.5 py-1.5 border transition-colors ${activeStatus === ''
-            ? 'border-white text-white bg-neutral-800'
-            : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
+          ? 'border-white text-white bg-neutral-800'
+          : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
           }`}
       >
-        ALL: {stats.total}
+        {stats.total}
       </button>
 
       {/* Status chips */}
@@ -361,12 +361,12 @@ const StatisticsSummary: React.FC<{
             key={config.status}
             onClick={() => onStatusClick(isActive ? '' : config.status)}
             className={`text-xs px-2.5 py-1.5 border transition-colors flex items-center gap-1.5 ${isActive
-                ? `${config.color} border-current bg-neutral-800`
-                : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
+              ? `${config.color} border-current bg-neutral-800`
+              : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
               }`}
           >
             {config.icon}
-            <span className="uppercase">{config.label}: {count}</span>
+            <span className="uppercase"> {count}</span>
           </button>
         );
       })}
@@ -423,8 +423,8 @@ const ViewToggle: React.FC<{
       <button
         onClick={() => onChange('grouped')}
         className={`p-2 transition-colors ${viewMode === 'grouped'
-            ? 'bg-neutral-800 text-white'
-            : 'text-neutral-500 hover:text-white hover:bg-neutral-900'
+          ? 'bg-neutral-800 text-white'
+          : 'text-neutral-500 hover:text-white hover:bg-neutral-900'
           }`}
         title="Grouped view"
       >
@@ -433,8 +433,8 @@ const ViewToggle: React.FC<{
       <button
         onClick={() => onChange('compact')}
         className={`p-2 transition-colors border-l border-neutral-800 ${viewMode === 'compact'
-            ? 'bg-neutral-800 text-white'
-            : 'text-neutral-500 hover:text-white hover:bg-neutral-900'
+          ? 'bg-neutral-800 text-white'
+          : 'text-neutral-500 hover:text-white hover:bg-neutral-900'
           }`}
         title="Compact view"
       >
@@ -566,14 +566,14 @@ const RATING_OPTIONS = [
   ...Array.from({ length: 11 }, (_, i) => ({ value: i, label: String(i) })),
 ];
 
-const MediaItemCard: React.FC<MediaItemCardProps> = ({ 
-  item, 
-  onUpdate, 
-  onDelete, 
+const MediaItemCard: React.FC<MediaItemCardProps> = ({
+  item,
+  onUpdate,
+  onDelete,
   onAddToMyList,
   onItemClick,
-  readonly, 
-  showSuggestButton, 
+  readonly,
+  showSuggestButton,
   searchQuery,
   onSuggest,
 }) => {
@@ -687,32 +687,41 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
       {/* Main Content */}
       <div className="p-4 pb-5">
         <div className="flex gap-4">
-          {/* Poster Image */}
-          {imageUrl && !imageError && (
-            <div className="flex-shrink-0 w-16 sm:w-20 relative">
-              <img
-                src={imageUrl}
-                alt={item.title}
-                onError={() => setImageError(true)}
-                className="w-full aspect-[2/3] object-cover border border-neutral-800"
-              />
-              {/* Playback progress bar overlay on poster */}
-              {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-800/80">
-                  <div
-                    className="h-full bg-red-500 transition-all duration-300"
-                    style={{ width: `${item.activeProgress.percentComplete}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
 
-          <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4">
+          <div className="flex flex-col gap-2">
+
+            {/* Poster Image */}
+            {imageUrl && !imageError && (
+              <div className="flex-shrink-0 w-20 sm:w-20 relative">
+                <img
+                  src={imageUrl}
+                  alt={item.title}
+                  onError={() => setImageError(true)}
+                  className="w-full aspect-[2/3] object-cover border border-neutral-800"
+                />
+                {/* Playback progress bar overlay on poster */}
+                {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-800/80">
+                    <div
+                      className="h-full bg-red-500 transition-all duration-300"
+                      style={{ width: `${item.activeProgress.percentComplete}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex flex-col   text-xs uppercase mt-1">
+
+            </div>
+
+          </div>
+
+
+          <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4 overflow-hidden">
             {/* Main Info */}
-            <div className="flex-grow">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex-grow w-full h-fit flex flex-col w-fit">
+              <div className="flex items-start justify-between h-fit w-full">
+                <div className="flex items-center h-fit gap-2 flex-wrap">
                   {onItemClick ? (
                     <button
                       onClick={() => onItemClick(item)}
@@ -744,37 +753,46 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2 text-xs uppercase mt-1">
-                <span className="bg-neutral-900 text-neutral-400 px-1.5 py-0.5 border border-neutral-800">
-                  {item.type}
-                </span>
-                {item.total ? (
-                  <span className="text-neutral-500 py-0.5">
-                    {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
-                  </span>
-                ) : (
-                  <span className="text-neutral-500 py-0.5">ONGOING</span>
-                )}
-                {item.notes && (
-                  <span className="text-neutral-600 py-0.5" title="Has notes">
-                    [NOTE]
-                  </span>
-                )}
+              <div className="flex gap-2 justify-between ">
+
                 {/* Resume indicator for video content with active progress */}
                 {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
-                  <span 
-                    className="text-red-400 py-0.5 flex items-center gap-1"
+                  <span
+                    className="text-red-400 py-0.5 flex items-center gap-1 text-[12px] "
                     title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
                   >
                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                     </svg>
-                    {item.activeProgress.seasonNumber 
+                    {item.activeProgress.seasonNumber
                       ? `RESUME S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
                       : `RESUME E${item.activeProgress.episodeNumber || '?'}`
                     }
                   </span>
                 )}
+
+
+                <div className="flex gap-1">
+
+
+                  <span className="bg-neutral-900 text-neutral-400 px-1.5 h-fit text-[10px] m-auto border border-neutral-800">
+                    {item.type}
+                  </span>
+                  {item.total ? (
+                    <span className="text-neutral-500 py-0.5 m-auto">
+                      {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
+                    </span>
+                  ) : (
+                    <span className="text-neutral-500 py-0.5 m-auto">ONGOING</span>
+                  )}
+                  {item.notes && (
+                    <span className="text-neutral-600 py-0.5" title="Has notes">
+                      [NOTE]
+                    </span>
+                  )}
+
+                </div>
+
               </div>
 
               {/* Friends status summary */}
@@ -805,80 +823,88 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                 </button>
               )}
 
-              {/* Status Select */}
-              {readonly ? (
-                <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
-                  {item.status}
-                </div>
-              ) : (
-                <select
-                  value={item.status}
-                  onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
-                  className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
-                >
-                  {STATUS_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value} className="bg-black text-white">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <div className="flex gap-2 w-full justify-between">
 
-              {/* Progress Input */}
-              <div className="flex items-center gap-2 justify-between sm:justify-end w-full">
-                <span className="text-xs text-neutral-600 font-mono">PROG:</span>
+                {/* Status Select */}
                 {readonly ? (
-                  <span className="font-mono text-white text-lg">
-                    {item.current}
-                    {item.total && <span className="text-neutral-600">/{item.total}</span>}
-                  </span>
-                ) : (
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
-                      className="w-8 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
-                    >-</button>
-                    <input
-                      type="number"
-                      value={item.current}
-                      onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
-                      className="w-14 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
-                    />
-                    <button
-                      onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
-                      className="w-8 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
-                    >+</button>
+                  <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
+                    {item.status}
                   </div>
+                ) : (
+                  <select
+                    value={item.status}
+                    onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
+                    className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
+                  >
+                    {STATUS_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value} className="bg-black text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Progress Input */}
+                <div className="flex items-center gap-2 justify-between sm:justify-end w-fit ">
+
+                  {readonly ? (
+                    <span className="font-mono text-white text-lg">
+                      {item.current}
+                      {item.total && <span className="text-neutral-600">/{item.total}</span>}
+                    </span>
+                  ) : (
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
+                        className="w-8 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
+                      >-</button>
+                      <input
+                        type="number"
+                        value={item.current}
+                        onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
+                        className="w-14 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
+                      />
+                      <button
+                        onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
+                        className="w-8 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
+                      >+</button>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              <div className="flex gap-1 w-full justify-between">
+
+                {/* Quick Rating (inline) */}
+                {!readonly && !isExpanded && (
+                  <div className="flex items-center gap-1">
+                    {[2, 4, 6, 8, 10].map(rating => (
+                      <button
+                        key={rating}
+                        onClick={() => handleRatingChange(item.rating === rating ? null : rating)}
+                        className={`w-6 h-6 text-xs border transition-colors ${item.rating != null && item.rating >= rating
+                          ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10'
+                          : 'border-neutral-700 text-neutral-600 hover:border-neutral-500'
+                          }`}
+                      >
+                        {rating}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Suggest to Friend Button */}
+                {showSuggestButton && item.refId && onSuggest && (
+                  <button
+                    onClick={() => onSuggest(item)}
+                    className="text-xs px-3 py-1.5 border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors w-full"
+                  >
+                    SUGGEST
+                  </button>
                 )}
               </div>
 
-              {/* Quick Rating (inline) */}
-              {!readonly && !isExpanded && (
-                <div className="flex items-center gap-1">
-                  {[2, 4, 6, 8, 10].map(rating => (
-                    <button
-                      key={rating}
-                      onClick={() => handleRatingChange(item.rating === rating ? null : rating)}
-                      className={`w-6 h-6 text-xs border transition-colors ${item.rating != null && item.rating >= rating
-                          ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10'
-                          : 'border-neutral-700 text-neutral-600 hover:border-neutral-500'
-                        }`}
-                    >
-                      {rating}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Suggest to Friend Button */}
-              {showSuggestButton && item.refId && onSuggest && (
-                <button
-                  onClick={() => onSuggest(item)}
-                  className="text-xs px-3 py-1.5 border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors"
-                >
-                  SUGGEST
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -910,8 +936,8 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                     key={opt.label}
                     onClick={() => handleRatingChange(opt.value)}
                     className={`w-7 h-7 text-xs border transition-colors ${item.rating === opt.value
-                        ? 'border-white text-white bg-white/10'
-                        : 'border-neutral-700 text-neutral-500 hover:border-neutral-500'
+                      ? 'border-white text-white bg-white/10'
+                      : 'border-neutral-700 text-neutral-500 hover:border-neutral-500'
                       }`}
                   >
                     {opt.label}
@@ -963,10 +989,10 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                   >
                     <span className="text-neutral-300">{friend.displayName || friend.username}</span>
                     <span className={`uppercase ${friend.status === 'WATCHING' || friend.status === 'READING'
-                        ? 'text-white'
-                        : friend.status === 'COMPLETED'
-                          ? 'text-neutral-500'
-                          : 'text-neutral-600'
+                      ? 'text-white'
+                      : friend.status === 'COMPLETED'
+                        ? 'text-neutral-500'
+                        : 'text-neutral-600'
                       }`}>
                       {friend.status}
                     </span>
@@ -1117,33 +1143,33 @@ const PaginationControls: React.FC<{
   const getPageNumbers = () => {
     const pages: (number | 'ellipsis')[] = [];
     const maxVisible = 5;
-    
+
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       // Always show first page
       pages.push(1);
-      
+
       if (currentPage > 3) {
         pages.push('ellipsis');
       }
-      
+
       // Show pages around current
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
-      
+
       for (let i = start; i <= end; i++) {
         if (!pages.includes(i)) pages.push(i);
       }
-      
+
       if (currentPage < totalPages - 2) {
         pages.push('ellipsis');
       }
-      
+
       // Always show last page
       if (!pages.includes(totalPages)) pages.push(totalPages);
     }
-    
+
     return pages;
   };
 
@@ -1174,11 +1200,10 @@ const PaginationControls: React.FC<{
               key={page}
               onClick={() => onPageChange(page)}
               disabled={isLoading}
-              className={`min-w-[28px] px-2 py-1 border transition-colors ${
-                page === currentPage
-                  ? 'border-white text-white bg-neutral-800'
-                  : 'border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white'
-              } disabled:opacity-50`}
+              className={`min-w-[28px] px-2 py-1 border transition-colors ${page === currentPage
+                ? 'border-white text-white bg-neutral-800'
+                : 'border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white'
+                } disabled:opacity-50`}
             >
               {page}
             </button>
@@ -1400,7 +1425,7 @@ export const MediaList: React.FC<MediaListProps> = ({
 
       {/* Filter and Sort Controls */}
       {!readonly && (onFilterChange || onSortChange || onFriendActivityFilterChange) && (
-        <div className="flex flex-wrap items-center gap-4 text-xs py-2">
+        <div className="flex flex-wrap items-center gap-4 text-xs py-2 mt-0">
           {/* Filter by Friend Activity */}
           {onFriendActivityFilterChange && (
             <div className="flex items-center gap-2">
@@ -1479,7 +1504,7 @@ export const MediaList: React.FC<MediaListProps> = ({
             const isLoading = loadingStatuses?.has(config.status) ?? false;
             // Use pagination total if available, otherwise use local items length
             const totalCount = pagination?.total ?? statusItems.length;
-            
+
             return (
               <StatusGroup
                 key={config.status}

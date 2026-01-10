@@ -234,6 +234,34 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       provider,
     };
     
+    // Ensure manga exists in IndexedDB (required for refresh to find chapters)
+    const existingManga = await offlineStorage.getOfflineManga(mangaId);
+    if (!existingManga) {
+      // Create a minimal manga entry so chapters can be found during refresh
+      const minimalManga: MangaDetails = {
+        id: mangaId,
+        title: mangaTitle,
+        altTitles: [],
+        description: '',
+        coverUrl: null,
+        coverUrlSmall: null,
+        author: null,
+        artist: null,
+        status: 'ongoing',
+        year: null,
+        contentRating: 'safe',
+        tags: [],
+        originalLanguage: 'en',
+        availableLanguages: ['en'],
+        lastChapter: null,
+        lastVolume: null,
+        demographic: null,
+        provider: provider,
+      };
+      await offlineStorage.saveMangaOffline(minimalManga);
+      console.log('[Download] Created minimal manga entry for:', mangaTitle);
+    }
+    
     // Save chapter info to IndexedDB
     for (const chapter of chapters) {
       await offlineStorage.saveChapterOffline(mangaId, chapter);
