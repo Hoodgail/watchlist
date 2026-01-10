@@ -719,7 +719,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
 
           <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4 overflow-hidden">
             {/* Main Info */}
-            <div className="flex-grow w-full h-fit flex flex-col w-fit">
+            <div className="flex-grow  h-fit flex flex-col w-fit">
               <div className="flex items-start justify-between h-fit w-full">
                 <div className="flex items-center h-fit gap-2 flex-wrap">
                   {onItemClick ? (
