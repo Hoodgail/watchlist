@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MediaItem, SearchResult, ProviderInfo, ProviderName } from '../types';
-import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders } from '../services/mediaSearch';
+import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders, searchWithProvider } from '../services/mediaSearch';
 import { QuickAddModal } from './QuickAddModal';
+import { FormatSelectionModal } from './FormatSelectionModal';
 
 // Provider base URLs for referer headers
 const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
@@ -114,6 +115,12 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
   const [quickAddItem, setQuickAddItem] = useState<SearchResult | null>(null);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+  
+  // Multi-format selection state
+  const [formatSelectionItem, setFormatSelectionItem] = useState<SearchResult | null>(null);
+  const [animeVariant, setAnimeVariant] = useState<SearchResult | null>(null);
+  const [mangaVariant, setMangaVariant] = useState<SearchResult | null>(null);
+  const [checkingFormats, setCheckingFormats] = useState<Set<string>>(new Set());
 
   // Get available providers for current category
   const availableProviders = CATEGORY_PROVIDERS[category] || [];
@@ -185,6 +192,118 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
       });
     }
   };
+  
+  // Check if a title exists in both anime and manga formats
+  const checkMultiFormat = useCallback(async (result: SearchResult): Promise<{ hasAnime: boolean; hasManga: boolean; animeResult: SearchResult | null; mangaResult: SearchResult | null }> => {
+    const normalizedTitle = result.title.toLowerCase().trim();
+    
+    // Skip check for titles that are clearly one format
+    // or if we already know the type from the result
+    if (result.type === 'TV' || result.type === 'MOVIE' || result.type === 'BOOK' || 
+        result.type === 'LIGHT_NOVEL' || result.type === 'COMIC') {
+      return { hasAnime: false, hasManga: false, animeResult: null, mangaResult: null };
+    }
+    
+    try {
+      // Search in parallel for anime and manga versions
+      const [animeResults, mangaResults] = await Promise.all([
+        result.type === 'ANIME' 
+          ? Promise.resolve({ results: [result] })
+          : searchWithProvider(result.title, 'anilist'),
+        result.type === 'MANGA'
+          ? Promise.resolve({ results: [result] })
+          : searchWithProvider(result.title, 'anilist-manga'),
+      ]);
+      
+      // Find close title matches
+      const findMatch = (searchResults: SearchResult[]): SearchResult | null => {
+        for (const r of searchResults) {
+          const rTitle = r.title.toLowerCase().trim();
+          // Exact match or very close match
+          if (rTitle === normalizedTitle || 
+              rTitle.includes(normalizedTitle) || 
+              normalizedTitle.includes(rTitle)) {
+            return r;
+          }
+        }
+        return null;
+      };
+      
+      const animeMatch = result.type === 'ANIME' ? result : findMatch(animeResults.results);
+      const mangaMatch = result.type === 'MANGA' ? result : findMatch(mangaResults.results);
+      
+      return {
+        hasAnime: animeMatch !== null,
+        hasManga: mangaMatch !== null,
+        animeResult: animeMatch,
+        mangaResult: mangaMatch,
+      };
+    } catch (error) {
+      console.error('[checkMultiFormat] Error checking formats:', error);
+      return { hasAnime: false, hasManga: false, animeResult: null, mangaResult: null };
+    }
+  }, []);
+  
+  // Handle add with multi-format check
+  const handleAddWithFormatCheck = useCallback(async (result: SearchResult) => {
+    if (addedItems.has(result.id) || addingItems.has(result.id) || checkingFormats.has(result.id)) return;
+    
+    // Only check for multi-format if this is an anime or manga result and we're in "all" category
+    const shouldCheckFormats = (result.type === 'ANIME' || result.type === 'MANGA') && category === 'all';
+    
+    if (!shouldCheckFormats) {
+      // Direct add without format check
+      handleQuickAdd(result);
+      return;
+    }
+    
+    // Check for multi-format availability
+    setCheckingFormats(prev => new Set(prev).add(result.id));
+    
+    try {
+      const { hasAnime, hasManga, animeResult, mangaResult } = await checkMultiFormat(result);
+      
+      // If both formats exist and they're different results, show selection modal
+      if (hasAnime && hasManga && animeResult && mangaResult) {
+        setFormatSelectionItem(result);
+        setAnimeVariant(animeResult);
+        setMangaVariant(mangaResult);
+      } else {
+        // Only one format exists, add directly
+        handleQuickAdd(result);
+      }
+    } finally {
+      setCheckingFormats(prev => {
+        const next = new Set(prev);
+        next.delete(result.id);
+        return next;
+      });
+    }
+  }, [addedItems, addingItems, checkingFormats, category, checkMultiFormat, handleQuickAdd]);
+  
+  // Handle format selection from modal
+  const handleFormatSelection = useCallback(async (selectedResult: SearchResult) => {
+    setFormatSelectionItem(null);
+    setAnimeVariant(null);
+    setMangaVariant(null);
+    
+    // Add the selected format
+    if (addedItems.has(selectedResult.id) || addingItems.has(selectedResult.id)) return;
+    
+    setAddingItems(prev => new Set(prev).add(selectedResult.id));
+    
+    try {
+      const mediaItem = searchResultToMediaItem(selectedResult);
+      await onAdd({ ...mediaItem, status: 'PLAN_TO_WATCH', current: 0 });
+      setAddedItems(prev => new Set(prev).add(selectedResult.id));
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev);
+        next.delete(selectedResult.id);
+        return next;
+      });
+    }
+  }, [addedItems, addingItems, onAdd]);
 
   // Handle add from modal
   const handleModalAdd = async (mediaItem: Omit<MediaItem, 'id'>) => {
@@ -439,11 +558,11 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                       </button>
                     )}
                     <button
-                      onClick={() => handleQuickAdd(item)}
-                      disabled={addingItems.has(item.id)}
+                      onClick={() => handleAddWithFormatCheck(item)}
+                      disabled={addingItems.has(item.id) || checkingFormats.has(item.id)}
                       className="text-sm bg-white text-black px-3 py-2 hover:bg-neutral-200 transition-all uppercase rounded-none disabled:opacity-50 font-bold"
                     >
-                      {addingItems.has(item.id) ? '...' : '+ Planned'}
+                      {checkingFormats.has(item.id) ? '...' : addingItems.has(item.id) ? '...' : '+ Planned'}
                     </button>
                     <button
                       onClick={() => setQuickAddItem(item)}
@@ -475,6 +594,21 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
           item={quickAddItem}
           onAdd={handleModalAdd}
           onClose={() => setQuickAddItem(null)}
+        />
+      )}
+      
+      {/* Format Selection Modal */}
+      {formatSelectionItem && (animeVariant || mangaVariant) && (
+        <FormatSelectionModal
+          result={formatSelectionItem}
+          animeResult={animeVariant}
+          mangaResult={mangaVariant}
+          onSelect={handleFormatSelection}
+          onClose={() => {
+            setFormatSelectionItem(null);
+            setAnimeVariant(null);
+            setMangaVariant(null);
+          }}
         />
       )}
     </div>

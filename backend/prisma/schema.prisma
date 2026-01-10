@@ -30,15 +30,19 @@ enum FriendRequestStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  username     String   @unique @db.VarChar(32)
-  email        String   @unique @db.VarChar(255)
-  passwordHash String?  @map("password_hash") @db.VarChar(255)
-  displayName  String?  @map("display_name") @db.VarChar(64)
-  avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
-  isPublic     Boolean  @default(false) @map("is_public")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                     String    @id @default(uuid())
+  username               String    @unique @db.VarChar(32)
+  email                  String    @unique @db.VarChar(255)
+  passwordHash           String?   @map("password_hash") @db.VarChar(255)
+  displayName            String?   @map("display_name") @db.VarChar(64)
+  avatarUrl              String?   @map("avatar_url") @db.VarChar(500)
+  isPublic               Boolean   @default(false) @map("is_public")
+  recoveryEmail          String?   @map("recovery_email") @db.VarChar(255)
+  recoveryEmailVerified  Boolean   @default(false) @map("recovery_email_verified")
+  recoveryEmailToken     String?   @map("recovery_email_token") @db.VarChar(255)
+  recoveryEmailTokenExp  DateTime? @map("recovery_email_token_exp")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   // Relations
   mediaItems             MediaItem[]

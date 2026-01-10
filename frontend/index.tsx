@@ -6,6 +6,7 @@ import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { OfflineProvider } from './context/OfflineContext';
+import { SpoilerProvider } from './context/SpoilerContext';
 
 // Register service worker for offline support
 if ('serviceWorker' in navigator) {
@@ -37,9 +38,11 @@ root.render(
       <BrowserRouter>
         <ToastProvider>
           <OfflineProvider>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
+            <SpoilerProvider>
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </SpoilerProvider>
           </OfflineProvider>
         </ToastProvider>
       </BrowserRouter>

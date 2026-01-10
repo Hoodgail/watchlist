@@ -178,6 +178,17 @@ function titleSimilarity(a: string, b: string): number {
   return matchCount / Math.max(wordsA.size, wordsB.size);
 }
 
+/** Match result with metadata for confidence checking */
+export interface MatchResult {
+  id: string;
+  title: string;
+  score: number;
+  year?: number;
+  type?: string;
+  imageUrl?: string;
+  description?: string;
+}
+
 /**
  * Find the best matching result from search results
  */
@@ -228,6 +239,60 @@ function findBestMatch(
   }
   
   return null;
+}
+
+/**
+ * Find top N matching results from search results, sorted by score
+ * Returns all matches above minimum threshold with full metadata
+ */
+export function findTopMatches(
+  searchTitle: string,
+  results: PaginatedSearchResults,
+  mediaType?: 'movie' | 'tv' | 'anime',
+  limit: number = 5
+): MatchResult[] {
+  if (results.results.length === 0) return [];
+  
+  const matches: MatchResult[] = [];
+  
+  for (const result of results.results) {
+    // Type filtering - if mediaType specified, prefer matching types
+    let typeBonus = 0;
+    if (mediaType) {
+      const resultType = result.type?.toLowerCase();
+      if (mediaType === 'anime' && resultType === 'anime') typeBonus = 0.1;
+      else if (mediaType === 'movie' && resultType === 'movie') typeBonus = 0.1;
+      else if (mediaType === 'tv' && (resultType === 'tv' || resultType === 'tv series')) typeBonus = 0.1;
+    }
+    
+    const similarity = titleSimilarity(searchTitle, result.title) + typeBonus;
+    
+    // Only include results above minimum threshold
+    if (similarity >= MIN_SIMILARITY_THRESHOLD) {
+      // Extract just the ID portion if it's in refId format (provider:id)
+      let id = result.id;
+      const colonIndex = id.indexOf(':');
+      if (colonIndex !== -1) {
+        const prefix = id.substring(0, colonIndex);
+        if (VIDEO_PROVIDER_SOURCES.includes(prefix as VideoProviderName)) {
+          id = id.substring(colonIndex + 1);
+        }
+      }
+      
+      matches.push({
+        id,
+        title: result.title,
+        score: similarity,
+        year: result.year,
+        type: result.type,
+        imageUrl: result.imageUrl,
+        description: result.description || result.overview,
+      });
+    }
+  }
+  
+  // Sort by score descending and limit
+  return matches.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 /**
@@ -695,3 +760,123 @@ export {
 
 // Re-export search function for components that need direct access
 export { searchWithProvider } from './mediaSearch';
+
+// ============ Resolution with Alternatives ============
+
+/**
+ * Extended resolution result that includes alternative matches
+ * Used for confidence checking UI
+ */
+export interface ResolutionWithAlternatives {
+  /** Primary match result */
+  primary: ResolvedMedia;
+  /** Alternative matches (top 3-5 results excluding primary) */
+  alternatives: MatchResult[];
+  /** Raw search results for manual search fallback */
+  searchResults: PaginatedSearchResults;
+}
+
+/**
+ * Resolve to provider and return alternatives for confidence checking
+ * 
+ * This function is specifically for the confidence check flow where
+ * we need to show the user alternative matches if confidence is low.
+ * 
+ * @param refId - The reference ID to resolve
+ * @param provider - The video provider to resolve to  
+ * @param title - Title to search for
+ * @param mediaType - Media type hint
+ * @returns Resolution result with alternatives, or null if failed
+ */
+export async function resolveWithAlternatives(
+  refId: string,
+  provider: VideoProviderName,
+  title: string,
+  mediaType?: 'movie' | 'tv' | 'anime'
+): Promise<ResolutionWithAlternatives | null> {
+  const parsed = parseRefId(refId);
+  if (!parsed) {
+    console.error('[videoResolver] Invalid refId format:', refId);
+    return null;
+  }
+  
+  const source = parsed.source;
+  
+  // If already a video provider ID for this provider, use directly (no alternatives)
+  if (VIDEO_PROVIDER_SOURCES.includes(source as VideoProviderName) && source === provider) {
+    return {
+      primary: {
+        providerId: parsed.id,
+        provider,
+        title,
+        originalRefId: refId,
+        confidence: 1.0,
+        isVerified: true,
+      },
+      alternatives: [],
+      searchResults: { currentPage: 1, hasNextPage: false, results: [] },
+    };
+  }
+  
+  // Check database for existing verified mapping
+  try {
+    const dbMapping = await getProviderMapping(refId, provider);
+    if (dbMapping && dbMapping.verifiedBy !== null) {
+      // Verified mapping - no need for alternatives
+      return {
+        primary: {
+          providerId: dbMapping.providerId,
+          provider,
+          title: dbMapping.providerTitle,
+          originalRefId: refId,
+          confidence: dbMapping.confidence,
+          isVerified: true,
+        },
+        alternatives: [],
+        searchResults: { currentPage: 1, hasNextPage: false, results: [] },
+      };
+    }
+  } catch (err) {
+    console.warn('[videoResolver] Failed to check database mapping:', err);
+  }
+  
+  // Search the provider and get top matches
+  console.log(`[videoResolver] Searching ${provider} for "${title}" with alternatives`);
+  
+  try {
+    const searchResults = await searchWithProvider(title, provider);
+    const topMatches = findTopMatches(title, searchResults, mediaType, 5);
+    
+    if (topMatches.length === 0) {
+      console.warn(`[videoResolver] No matches found in ${provider} for "${title}"`);
+      return null;
+    }
+    
+    const bestMatch = topMatches[0];
+    console.log(`[videoResolver] Found ${topMatches.length} matches. Best: "${bestMatch.title}" (score: ${bestMatch.score.toFixed(2)})`);
+    
+    // Cache the primary match
+    cacheProviderId(refId, provider, bestMatch.id);
+    
+    // Save auto-mapping to database (non-blocking)
+    saveAutoMapping(refId, provider, bestMatch.id, bestMatch.title, bestMatch.score).catch(err => {
+      console.warn('[videoResolver] Failed to save auto-mapping:', err);
+    });
+    
+    return {
+      primary: {
+        providerId: bestMatch.id,
+        provider,
+        title: bestMatch.title,
+        originalRefId: refId,
+        confidence: bestMatch.score,
+        isVerified: false,
+      },
+      alternatives: topMatches.slice(1), // Exclude primary
+      searchResults,
+    };
+  } catch (err) {
+    console.error('[videoResolver] Search failed:', err);
+    return null;
+  }
+}

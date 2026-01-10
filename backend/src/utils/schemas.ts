@@ -107,3 +107,39 @@ export type UpdateMediaItemInput = z.infer<typeof updateMediaItemSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type CreateSuggestionInput = z.infer<typeof createSuggestionSchema>;
 export type UpdateWatchProgressInput = z.infer<typeof updateWatchProgressSchema>;
+
+// Recovery email schemas
+export const setRecoveryEmailSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+export const verifyRecoveryEmailSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+});
+
+// Password schemas
+export const setPasswordSchema = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+});
+
+// Account recovery schemas
+export const initiateRecoverySchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+export const completeRecoverySchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+export type SetRecoveryEmailInput = z.infer<typeof setRecoveryEmailSchema>;
+export type VerifyRecoveryEmailInput = z.infer<typeof verifyRecoveryEmailSchema>;
+export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type InitiateRecoveryInput = z.infer<typeof initiateRecoverySchema>;
+export type CompleteRecoveryInput = z.infer<typeof completeRecoverySchema>;

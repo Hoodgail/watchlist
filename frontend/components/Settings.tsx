@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useSpoilerProtection } from '../context/SpoilerContext';
 import * as api from '../services/api';
 import { UserAvatar } from './Layout';
 
@@ -13,6 +14,20 @@ const DiscordIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+// Warning icon component
+const WarningIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  </svg>
+);
+
+// Check icon component
+const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+  </svg>
+);
+
 interface SettingsProps {
   onBack: () => void;
 }
@@ -20,6 +35,7 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const { user, refreshUser, initiateOAuthLogin } = useAuth();
   const { showToast } = useToast();
+  const { spoilerProtectionEnabled, setSpoilerProtectionEnabled } = useSpoilerProtection();
   
   const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +43,18 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState<boolean>(user?.isPublic ?? false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
+  
+  // Recovery email state
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryEmailLoading, setRecoveryEmailLoading] = useState(false);
+  const [showRecoveryEmailForm, setShowRecoveryEmailForm] = useState(false);
+  
+  // Password state
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // Load linked providers
   useEffect(() => {
@@ -55,6 +83,17 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
       setIsPublic(user.isPublic);
     }
   }, [user?.isPublic]);
+
+  // Calculate account security status
+  const hasPassword = user?.hasPassword ?? false;
+  const hasRecoveryEmail = !!user?.recoveryEmail;
+  const recoveryEmailVerified = user?.recoveryEmailVerified ?? false;
+  const hasOAuth = linkedProviders.length > 0;
+  const authMethodCount = (hasPassword ? 1 : 0) + linkedProviders.length;
+  const hasRecoveryOption = hasPassword || (hasRecoveryEmail && recoveryEmailVerified);
+  
+  // Account is at risk if: OAuth only + no password + no verified recovery email
+  const accountAtRisk = hasOAuth && !hasPassword && !recoveryEmailVerified;
 
   const handlePrivacyToggle = async () => {
     setPrivacyLoading(true);
@@ -92,11 +131,13 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
 
   const handleUnlinkProvider = async (provider: string) => {
     // Check if this would leave the user without any auth method
-    const hasPassword = user?.hasPassword ?? false;
     const otherProviders = linkedProviders.filter(p => p !== provider);
     
-    if (!hasPassword && otherProviders.length === 0) {
-      showToast('Cannot unlink - you need at least one way to sign in. Set a password first.', 'error');
+    // Can unlink if: has password OR has other OAuth providers OR has verified recovery email
+    const canUnlink = hasPassword || otherProviders.length > 0;
+    
+    if (!canUnlink) {
+      showToast('Cannot unlink - you need at least one way to sign in. Set a password or recovery email first.', 'error');
       return;
     }
 
@@ -114,8 +155,83 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     }
   };
 
+  const handleSetRecoveryEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryEmail.trim()) return;
+    
+    setRecoveryEmailLoading(true);
+    try {
+      await api.setRecoveryEmail(recoveryEmail.trim());
+      await refreshUser();
+      showToast('Recovery email set. Please check your inbox to verify.', 'success');
+      setRecoveryEmail('');
+      setShowRecoveryEmailForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set recovery email';
+      showToast(message, 'error');
+    } finally {
+      setRecoveryEmailLoading(false);
+    }
+  };
+
+  const handleRemoveRecoveryEmail = async () => {
+    if (!hasPassword && linkedProviders.length === 0) {
+      showToast('Cannot remove recovery email - it is your only recovery method', 'error');
+      return;
+    }
+    
+    setRecoveryEmailLoading(true);
+    try {
+      await api.removeRecoveryEmail();
+      await refreshUser();
+      showToast('Recovery email removed', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove recovery email';
+      showToast(message, 'error');
+    } finally {
+      setRecoveryEmailLoading(false);
+    }
+  };
+
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword.length < 8) {
+      showToast('Password must be at least 8 characters', 'error');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+    
+    setPasswordLoading(true);
+    try {
+      if (hasPassword) {
+        // Change password
+        await api.changePassword(currentPassword, newPassword);
+        showToast('Password changed successfully', 'success');
+      } else {
+        // Set new password
+        await api.setPassword(newPassword);
+        showToast('Password set successfully', 'success');
+      }
+      await refreshUser();
+      setNewPassword('');
+      setConfirmPassword('');
+      setCurrentPassword('');
+      setShowPasswordForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update password';
+      showToast(message, 'error');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const isDiscordLinked = linkedProviders.includes('discord');
-  const canUnlinkDiscord = (user?.hasPassword || linkedProviders.length > 1);
+  const canUnlinkDiscord = hasPassword || linkedProviders.length > 1;
 
   if (loading) {
     return (
@@ -140,6 +256,24 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
         </button>
         <h2 className="text-2xl font-bold uppercase tracking-tighter">Settings</h2>
       </div>
+
+      {/* Account Security Warning Banner */}
+      {accountAtRisk && (
+        <div className="bg-yellow-900/30 border border-yellow-700/50 p-4">
+          <div className="flex items-start gap-3">
+            <WarningIcon className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-yellow-500 uppercase tracking-wider">
+                Account at Risk
+              </h3>
+              <p className="text-xs text-yellow-600 mt-1">
+                You're signed in with Discord only. If you lose access to your Discord account, 
+                you won't be able to recover this account. Set up a password or recovery email below.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Profile Section */}
       {user && (
@@ -228,6 +362,63 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
             </p>
           </div>
         </div>
+
+        {/* Spoiler Protection */}
+        <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="font-bold uppercase text-sm">Spoiler Protection</p>
+                <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                {spoilerProtectionEnabled 
+                  ? 'Friend activity that may contain spoilers is blurred.'
+                  : 'All friend activity is shown without blur.'}
+              </p>
+            </div>
+            
+            <button
+              onClick={() => {
+                setSpoilerProtectionEnabled(!spoilerProtectionEnabled);
+                showToast(
+                  !spoilerProtectionEnabled 
+                    ? 'Spoiler protection enabled' 
+                    : 'Spoiler protection disabled',
+                  'success'
+                );
+              }}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${
+                spoilerProtectionEnabled ? 'bg-green-600' : 'bg-neutral-700'
+              }`}
+              aria-label={spoilerProtectionEnabled ? 'Disable spoiler protection' : 'Enable spoiler protection'}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 ${
+                  spoilerProtectionEnabled ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-neutral-800">
+            <p className="text-xs text-neutral-600">
+              {spoilerProtectionEnabled ? (
+                <>
+                  <span className="text-green-500 font-semibold">Protected:</span> Episode titles and thumbnails from friends who are ahead of you on a show will be blurred. 
+                  Tap "Reveal" to temporarily unblur spoiler content.
+                </>
+              ) : (
+                <>
+                  <span className="text-neutral-400 font-semibold">Unprotected:</span> All friend activity is visible.
+                  You may see episode titles and thumbnails that spoil shows you're watching.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Connected Accounts Section */}
@@ -301,25 +492,190 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
           Security
         </h3>
         
+        {/* Password */}
         <div className="p-4 border border-neutral-800 bg-neutral-900/50">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="font-bold uppercase text-sm">Password</p>
-              <p className="text-xs text-neutral-500">
-                {user?.hasPassword ? 'Password is set' : 'No password set (OAuth only)'}
-              </p>
+            <div className="flex items-center gap-2">
+              {hasPassword ? (
+                <CheckIcon className="w-4 h-4 text-green-500" />
+              ) : (
+                <WarningIcon className="w-4 h-4 text-yellow-500" />
+              )}
+              <div>
+                <p className="font-bold uppercase text-sm">Password</p>
+                <p className="text-xs text-neutral-500">
+                  {hasPassword ? 'Password is set' : 'No password set (OAuth only)'}
+                </p>
+              </div>
             </div>
             <button
-              disabled
-              className="text-xs border border-neutral-800 px-3 py-2 text-neutral-600 uppercase tracking-wider cursor-not-allowed"
-              title="Coming soon"
+              onClick={() => setShowPasswordForm(!showPasswordForm)}
+              className="text-xs border border-neutral-700 px-3 py-2 text-neutral-400 hover:border-neutral-600 hover:text-white uppercase tracking-wider transition-colors"
             >
-              {user?.hasPassword ? 'Change' : 'Set Password'}
+              {hasPassword ? 'Change' : 'Set Password'}
             </button>
           </div>
-          {!user?.hasPassword && (
+          
+          {showPasswordForm && (
+            <form onSubmit={handleSetPassword} className="mt-4 pt-4 border-t border-neutral-800 space-y-3">
+              {hasPassword && (
+                <div>
+                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-black border border-neutral-700 px-3 py-2 text-sm focus:border-white focus:outline-none"
+                    required={hasPassword}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-1">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-black border border-neutral-700 px-3 py-2 text-sm focus:border-white focus:outline-none"
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-1">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-black border border-neutral-700 px-3 py-2 text-sm focus:border-white focus:outline-none"
+                  placeholder="Repeat password"
+                  required
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="text-xs bg-white text-black px-4 py-2 uppercase tracking-wider font-bold hover:bg-neutral-200 transition-colors disabled:opacity-50"
+                >
+                  {passwordLoading ? 'Saving...' : (hasPassword ? 'Change Password' : 'Set Password')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setCurrentPassword('');
+                  }}
+                  className="text-xs border border-neutral-700 px-4 py-2 text-neutral-400 uppercase tracking-wider hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+          
+          {!hasPassword && !showPasswordForm && (
             <p className="text-xs text-neutral-600 mt-3 border-t border-neutral-800 pt-3">
-              Setting a password allows you to sign in with email and disconnect OAuth providers.
+              Setting a password allows you to sign in with email and provides a backup if you lose OAuth access.
+            </p>
+          )}
+        </div>
+
+        {/* Recovery Email */}
+        <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {recoveryEmailVerified ? (
+                <CheckIcon className="w-4 h-4 text-green-500" />
+              ) : hasRecoveryEmail ? (
+                <WarningIcon className="w-4 h-4 text-yellow-500" />
+              ) : (
+                <WarningIcon className="w-4 h-4 text-neutral-600" />
+              )}
+              <div>
+                <p className="font-bold uppercase text-sm">Recovery Email</p>
+                <p className="text-xs text-neutral-500">
+                  {hasRecoveryEmail 
+                    ? (recoveryEmailVerified 
+                        ? `${user?.recoveryEmail} (verified)` 
+                        : `${user?.recoveryEmail} (pending verification)`)
+                    : 'Not set'}
+                </p>
+              </div>
+            </div>
+            {hasRecoveryEmail ? (
+              <button
+                onClick={handleRemoveRecoveryEmail}
+                disabled={recoveryEmailLoading}
+                className="text-xs border border-neutral-700 px-3 py-2 text-neutral-400 hover:border-red-900 hover:text-red-500 uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                {recoveryEmailLoading ? '...' : 'Remove'}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowRecoveryEmailForm(!showRecoveryEmailForm)}
+                className="text-xs border border-neutral-700 px-3 py-2 text-neutral-400 hover:border-neutral-600 hover:text-white uppercase tracking-wider transition-colors"
+              >
+                Add
+              </button>
+            )}
+          </div>
+          
+          {showRecoveryEmailForm && !hasRecoveryEmail && (
+            <form onSubmit={handleSetRecoveryEmail} className="mt-4 pt-4 border-t border-neutral-800 space-y-3">
+              <div>
+                <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-1">
+                  Recovery Email Address
+                </label>
+                <input
+                  type="email"
+                  value={recoveryEmail}
+                  onChange={(e) => setRecoveryEmail(e.target.value)}
+                  className="w-full bg-black border border-neutral-700 px-3 py-2 text-sm focus:border-white focus:outline-none"
+                  placeholder="backup@example.com"
+                  required
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={recoveryEmailLoading || !recoveryEmail.trim()}
+                  className="text-xs bg-white text-black px-4 py-2 uppercase tracking-wider font-bold hover:bg-neutral-200 transition-colors disabled:opacity-50"
+                >
+                  {recoveryEmailLoading ? 'Saving...' : 'Set Recovery Email'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecoveryEmailForm(false);
+                    setRecoveryEmail('');
+                  }}
+                  className="text-xs border border-neutral-700 px-4 py-2 text-neutral-400 uppercase tracking-wider hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+          
+          {hasRecoveryEmail && !recoveryEmailVerified && (
+            <p className="text-xs text-yellow-600 mt-3 border-t border-neutral-800 pt-3">
+              Please check your email inbox and verify your recovery email address to complete setup.
+            </p>
+          )}
+          
+          {!hasRecoveryEmail && !showRecoveryEmailForm && (
+            <p className="text-xs text-neutral-600 mt-3 border-t border-neutral-800 pt-3">
+              A recovery email allows you to regain access if you lose your password and OAuth access.
             </p>
           )}
         </div>
@@ -339,9 +695,27 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
             <span className="text-neutral-500 uppercase">Auth Methods</span>
             <span className="text-neutral-400">
               {[
-                user?.hasPassword && 'Password',
+                hasPassword && 'Password',
                 ...linkedProviders.map(p => p.charAt(0).toUpperCase() + p.slice(1))
               ].filter(Boolean).join(', ') || 'None'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500 uppercase">Recovery Options</span>
+            <span className={recoveryEmailVerified ? 'text-green-500' : 'text-yellow-500'}>
+              {recoveryEmailVerified 
+                ? 'Email verified' 
+                : hasRecoveryEmail 
+                  ? 'Email pending' 
+                  : hasPassword 
+                    ? 'Password set'
+                    : 'None set'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-500 uppercase">Account Status</span>
+            <span className={accountAtRisk ? 'text-yellow-500' : 'text-green-500'}>
+              {accountAtRisk ? 'At Risk' : 'Secure'}
             </span>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import * as api from '../services/api';
 
 interface OAuthCallbackProps {
-  onComplete: () => void;
+  onComplete: (isNewUser?: boolean) => void;
   onError: (error: string) => void;
 }
 
@@ -11,6 +11,7 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
   const { refreshUser } = useAuth();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -20,7 +21,7 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
         const accessToken = params.get('accessToken');
         const refreshToken = params.get('refreshToken');
         const error = params.get('error');
-        const isNewUser = params.get('isNewUser');
+        const newUserParam = params.get('isNewUser');
 
         // Clear URL params for security
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -45,11 +46,13 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
         // Refresh user data
         await refreshUser();
         
+        const isNew = newUserParam === 'true';
+        setIsNewUser(isNew);
         setStatus('success');
         
         // Small delay to show success state, then redirect
         setTimeout(() => {
-          onComplete();
+          onComplete(isNew);
         }, 500);
       } catch (err) {
         console.error('OAuth callback error:', err);
@@ -82,7 +85,7 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
             </svg>
           </div>
           <p className="text-green-500 uppercase tracking-wider text-sm">
-            Success! Redirecting...
+            {isNewUser ? 'Account created! Redirecting...' : 'Success! Redirecting...'}
           </p>
         </div>
       )}

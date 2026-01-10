@@ -11,6 +11,11 @@ import {
   createOfflineHLSConfig, 
   isHLSEpisodeOffline 
 } from '../services/hlsOfflineLoader';
+import {
+  getWorkingProviders,
+  getProviderDisplayName,
+  isProviderWorking,
+} from '../services/providerConfig';
 
 interface VideoPlayerProps {
   mediaId: string;
@@ -22,21 +27,92 @@ interface VideoPlayerProps {
   mediaTitle: string;
   episodeNumber?: number;
   seasonNumber?: number;
+  /** Callback when user wants to switch providers */
+  onProviderChange?: (provider: VideoProviderName) => void;
+  /** Media type for determining available providers */
+  mediaType?: 'anime' | 'movie' | 'tv';
 }
+
+// Error types for better error messages
+type StreamErrorType = 'network' | 'source' | 'provider' | 'offline' | 'unknown';
 
 // Playback speed options
 const PLAYBACK_SPEEDS = [0.5, 1, 1.25, 1.5, 2];
+
+// Subtitle offset range and step
+const SUBTITLE_OFFSET_MIN = -10;
+const SUBTITLE_OFFSET_MAX = 10;
+const SUBTITLE_OFFSET_STEP = 0.5;
+
+// Character encoding options
+const ENCODING_OPTIONS = ['UTF-8', 'Windows-1252', 'ISO-8859-1'] as const;
+type EncodingOption = typeof ENCODING_OPTIONS[number];
 
 // ============ Proxy URL Helpers ============
 
 /**
  * Convert a subtitle URL to proxy URL if referer is provided
  */
-function getSubtitleProxyUrl(url: string, referer: string | undefined): string {
+function getSubtitleProxyUrl(url: string, referer: string | undefined, encoding?: string): string {
   if (!referer) {
     return url;
   }
-  return `/api/video/subtitle?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`;
+  let proxyUrl = `/api/video/subtitle?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`;
+  if (encoding && encoding !== 'UTF-8') {
+    proxyUrl += `&encoding=${encodeURIComponent(encoding)}`;
+  }
+  return proxyUrl;
+}
+
+// localStorage keys for subtitle preferences
+function getSubtitleOffsetKey(mediaId: string, episodeId: string): string {
+  return `subtitle_offset_${mediaId}_${episodeId}`;
+}
+
+function getSubtitleEncodingKey(mediaId: string, episodeId: string): string {
+  return `subtitle_encoding_${mediaId}_${episodeId}`;
+}
+
+function loadSubtitleOffset(mediaId: string, episodeId: string): number {
+  try {
+    const stored = localStorage.getItem(getSubtitleOffsetKey(mediaId, episodeId));
+    if (stored !== null) {
+      const parsed = parseFloat(stored);
+      if (!isNaN(parsed) && parsed >= SUBTITLE_OFFSET_MIN && parsed <= SUBTITLE_OFFSET_MAX) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return 0;
+}
+
+function saveSubtitleOffset(mediaId: string, episodeId: string, offset: number): void {
+  try {
+    localStorage.setItem(getSubtitleOffsetKey(mediaId, episodeId), String(offset));
+  } catch {}
+}
+
+function loadSubtitleEncoding(mediaId: string, episodeId: string): EncodingOption {
+  try {
+    const stored = localStorage.getItem(getSubtitleEncodingKey(mediaId, episodeId));
+    if (stored && ENCODING_OPTIONS.includes(stored as EncodingOption)) {
+      return stored as EncodingOption;
+    }
+  } catch {}
+  return 'UTF-8';
+}
+
+function saveSubtitleEncoding(mediaId: string, episodeId: string, encoding: EncodingOption): void {
+  try {
+    localStorage.setItem(getSubtitleEncodingKey(mediaId, episodeId), encoding);
+  } catch {}
+}
+
+// Format subtitle offset for display
+function formatOffset(offset: number): string {
+  if (offset === 0) return '0s';
+  const sign = offset > 0 ? '+' : '';
+  return `${sign}${offset.toFixed(1)}s`;
 }
 
 // Format time as "H:MM:SS" or "MM:SS"
@@ -121,6 +197,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   mediaTitle,
   episodeNumber: initialEpisodeNumber,
   seasonNumber: initialSeasonNumber,
+  onProviderChange,
+  mediaType = 'anime',
 }) => {
   const {
     isOnline,
@@ -152,12 +230,33 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showAutoPlayCountdown, setShowAutoPlayCountdown] = useState(false);
   const [autoPlayCountdown, setAutoPlayCountdown] = useState(10);
+  
+  // Subtitle settings
+  const [subtitleOffset, setSubtitleOffset] = useState(() => loadSubtitleOffset(mediaId, episodeId));
+  const [subtitleEncoding, setSubtitleEncoding] = useState<EncodingOption>(() => loadSubtitleEncoding(mediaId, episodeId));
+  
+  // Store original subtitle URLs for re-fetching with different encoding
+  const [originalSubtitleUrls, setOriginalSubtitleUrls] = useState<{ url: string; lang: string }[]>([]);
+  const [subtitleReferer, setSubtitleReferer] = useState<string | undefined>(undefined);
   
   // HLS quality levels
   const [hlsLevels, setHlsLevels] = useState<{ height: number; bitrate: number }[]>([]);
   const [currentHlsLevel, setCurrentHlsLevel] = useState(-1); // -1 = auto
+
+  // Error tracking for provider switching
+  const [errorType, setErrorType] = useState<StreamErrorType>('unknown');
+  const [failedSegments, setFailedSegments] = useState(0);
+  const [showProviderMenu, setShowProviderMenu] = useState(false);
+
+  // Available alternative providers (computed from mediaType)
+  const availableProviders = useMemo(() => {
+    const working = getWorkingProviders(mediaType);
+    // Filter out current provider
+    return working.filter(p => p !== provider);
+  }, [mediaType, provider]);
 
   // ============ Refs ============
   const containerRef = useRef<HTMLDivElement>(null);
@@ -258,6 +357,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setBuffered(0);
     setIsPlaying(false);
     setShowAutoPlayCountdown(false);
+    
+    // Load saved subtitle preferences for this episode
+    setSubtitleOffset(loadSubtitleOffset(currentMediaId, currentEpisodeId));
+    setSubtitleEncoding(loadSubtitleEncoding(currentMediaId, currentEpisodeId));
 
     try {
       // Check for offline version first
@@ -322,6 +425,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       // Get referer header for proxy (if sources need it)
       const referer = streamingSources.headers?.Referer;
       
+      // Store original subtitle URLs and referer for encoding changes
+      if (streamingSources.subtitles && streamingSources.subtitles.length > 0) {
+        setOriginalSubtitleUrls(streamingSources.subtitles.map(sub => ({ url: sub.url, lang: sub.lang })));
+        setSubtitleReferer(referer);
+      } else {
+        setOriginalSubtitleUrls([]);
+        setSubtitleReferer(undefined);
+      }
+      
+      // Load saved encoding for this episode
+      const savedEncoding = loadSubtitleEncoding(currentMediaId, currentEpisodeId);
+      
       // Convert source URLs to proxy URLs if needed
       const proxiedSources: StreamingSources = {
         ...streamingSources,
@@ -331,7 +446,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         })),
         subtitles: streamingSources.subtitles?.map(sub => ({
           ...sub,
-          url: getSubtitleProxyUrl(sub.url, referer),
+          url: getSubtitleProxyUrl(sub.url, referer, savedEncoding),
         })),
       };
       
@@ -416,8 +531,45 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
+        console.log('[VideoPlayer] HLS error:', data.type, data.details, data.fatal);
+        
+        // Categorize error type
+        let detectedErrorType: StreamErrorType = 'unknown';
+        
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          // Check if we're offline
+          if (!navigator.onLine) {
+            detectedErrorType = 'offline';
+          } else if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+                     data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT) {
+            // Segment loading failed - track failures
+            setFailedSegments(prev => {
+              const newCount = prev + 1;
+              console.log('[VideoPlayer] Segment failure count:', newCount);
+              // After 3 consecutive segment failures, show error
+              if (newCount >= 3) {
+                detectedErrorType = 'source';
+                setErrorType(detectedErrorType);
+                setError('Video segments failed to load. The source may be unavailable.');
+              }
+              return newCount;
+            });
+            // Don't immediately fail - HLS.js will retry
+            if (!data.fatal) return;
+            detectedErrorType = 'source';
+          } else if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+                     data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT) {
+            detectedErrorType = 'provider';
+          } else {
+            detectedErrorType = 'network';
+          }
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          detectedErrorType = 'source';
+        }
+        
         if (data.fatal) {
-          console.error('[VideoPlayer] HLS error:', data);
+          console.error('[VideoPlayer] Fatal HLS error:', data);
+          setErrorType(detectedErrorType);
           handleSourceError();
         }
       });
@@ -447,10 +599,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (nextIndex < sources.sources.length) {
       console.log('[VideoPlayer] Trying next source:', nextIndex);
       setCurrentSourceIndex(nextIndex);
+      setFailedSegments(0); // Reset segment failures for new source
       const nextSource = sources.sources[nextIndex];
       initializePlayer(nextSource.url, nextSource.isM3U8 || false, episodeId, mediaId);
     } else {
-      setError('All video sources failed. Please try again later.');
+      // All sources failed - set appropriate error type
+      if (!navigator.onLine) {
+        setErrorType('offline');
+        setError('You are offline. This episode is not available offline.');
+      } else {
+        setErrorType('provider');
+        setError('All video sources failed. Try switching to a different provider.');
+      }
     }
   }, [sources, currentSourceIndex, episodeId, mediaId]);
 
@@ -465,6 +625,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         setShowQualityMenu(false);
         setShowSubtitleMenu(false);
         setShowSpeedMenu(false);
+        setShowSettingsMenu(false);
       }, 3000);
     }
 
@@ -736,6 +897,95 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, []);
 
+  // ============ Subtitle Settings Handlers ============
+  const handleSubtitleOffsetChange = useCallback((newOffset: number) => {
+    // Clamp to valid range
+    const clampedOffset = Math.max(SUBTITLE_OFFSET_MIN, Math.min(SUBTITLE_OFFSET_MAX, newOffset));
+    // Round to nearest step
+    const roundedOffset = Math.round(clampedOffset / SUBTITLE_OFFSET_STEP) * SUBTITLE_OFFSET_STEP;
+    
+    setSubtitleOffset(roundedOffset);
+    saveSubtitleOffset(mediaId, episodeId, roundedOffset);
+    
+    // Apply offset to all text tracks in real-time
+    if (videoRef.current) {
+      const tracks = videoRef.current.textTracks;
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        if (track.cues) {
+          // Note: VTTCue timing cannot be modified directly after creation
+          // We need to shift cue timing by adjusting when cues appear
+          // This is done via the cue's startTime and endTime properties
+          for (let j = 0; j < track.cues.length; j++) {
+            const cue = track.cues[j] as VTTCue;
+            // Store original times on first adjustment
+            if ((cue as any)._originalStartTime === undefined) {
+              (cue as any)._originalStartTime = cue.startTime;
+              (cue as any)._originalEndTime = cue.endTime;
+            }
+            // Apply offset (negative offset = subtitles appear earlier)
+            cue.startTime = (cue as any)._originalStartTime + roundedOffset;
+            cue.endTime = (cue as any)._originalEndTime + roundedOffset;
+          }
+        }
+      }
+    }
+  }, [mediaId, episodeId]);
+
+  const handleEncodingChange = useCallback((newEncoding: EncodingOption) => {
+    if (newEncoding === subtitleEncoding) return;
+    
+    setSubtitleEncoding(newEncoding);
+    saveSubtitleEncoding(mediaId, episodeId, newEncoding);
+    
+    // Re-fetch subtitles with new encoding
+    if (originalSubtitleUrls.length > 0 && subtitleReferer) {
+      const newSubtitles = originalSubtitleUrls.map(sub => ({
+        ...sub,
+        url: getSubtitleProxyUrl(sub.url, subtitleReferer, newEncoding),
+      }));
+      setSubtitles(newSubtitles);
+      
+      // Force video to reload subtitle tracks
+      // The track elements will be re-rendered with new URLs
+      // We need to preserve the current subtitle selection
+      const currentIndex = currentSubtitleIndex;
+      setCurrentSubtitleIndex(-1);
+      
+      // Use setTimeout to allow React to update the DOM
+      setTimeout(() => {
+        if (currentIndex >= 0 && currentIndex < newSubtitles.length) {
+          setCurrentSubtitleIndex(currentIndex);
+          // Re-apply offset to new tracks
+          if (subtitleOffset !== 0) {
+            setTimeout(() => handleSubtitleOffsetChange(subtitleOffset), 100);
+          }
+        }
+      }, 50);
+    }
+  }, [subtitleEncoding, mediaId, episodeId, originalSubtitleUrls, subtitleReferer, currentSubtitleIndex, subtitleOffset, handleSubtitleOffsetChange]);
+
+  const closeAllMenus = useCallback(() => {
+    setShowQualityMenu(false);
+    setShowSubtitleMenu(false);
+    setShowSpeedMenu(false);
+    setShowSettingsMenu(false);
+    setShowProviderMenu(false);
+  }, []);
+
+  // Handle switching to a different provider
+  const handleProviderChange = useCallback((newProvider: VideoProviderName) => {
+    if (onProviderChange) {
+      // Clear error state
+      setError(null);
+      setErrorType('unknown');
+      setFailedSegments(0);
+      setShowProviderMenu(false);
+      // Call parent callback to switch provider
+      onProviderChange(newProvider);
+    }
+  }, [onProviderChange]);
+
   // ============ Touch Handlers ============
   const handleContainerClick = useCallback((e: React.MouseEvent) => {
     // Don't toggle controls if clicking on control elements
@@ -779,18 +1029,154 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // ============ Render ============
   // Always render video element so ref is available, show overlays for loading/error states
   
+  // Helper to get error icon based on error type
+  const getErrorIcon = () => {
+    switch (errorType) {
+      case 'offline':
+        return (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" />
+          </svg>
+        );
+      case 'network':
+        return (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        );
+      case 'source':
+      case 'provider':
+        return (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+        );
+      default:
+        return (
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+        );
+    }
+  };
+
+  // Helper to get error title based on error type
+  const getErrorTitle = () => {
+    switch (errorType) {
+      case 'offline':
+        return 'You\'re Offline';
+      case 'network':
+        return 'Network Error';
+      case 'source':
+        return 'Source Unavailable';
+      case 'provider':
+        return 'Provider Error';
+      default:
+        return 'Playback Error';
+    }
+  };
+
   if (error) {
     return (
       <div style={styles.container}>
-        <div style={styles.errorContainer}>
-          <div style={styles.errorText}>{error}</div>
-          <div style={styles.errorButtons}>
-            <button onClick={() => loadEpisodeSources(episodeId, mediaId, provider)} style={styles.retryButton}>
-              Retry
-            </button>
-            <button onClick={onClose} style={styles.backButton}>
-              Go Back
-            </button>
+        <div style={styles.errorOverlay}>
+          {/* Close button */}
+          <button onClick={onClose} style={styles.errorCloseButton}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Error Content */}
+          <div style={styles.errorContent}>
+            {/* Error Icon */}
+            <div style={styles.errorIcon}>
+              {getErrorIcon()}
+            </div>
+
+            {/* Error Title */}
+            <div style={styles.errorTitle}>{getErrorTitle()}</div>
+
+            {/* Error Message */}
+            <div style={styles.errorMessage}>{error}</div>
+
+            {/* Provider Switching Section - only show if we have alternatives */}
+            {availableProviders.length > 0 && errorType !== 'offline' && onProviderChange && (
+              <div style={styles.providerSection}>
+                <div style={styles.providerLabel}>Try a different provider:</div>
+                
+                {/* Quick provider buttons */}
+                <div style={styles.providerButtons}>
+                  {availableProviders.slice(0, 3).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => handleProviderChange(p)}
+                      style={styles.providerButton}
+                    >
+                      {getProviderDisplayName(p)}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Show more providers dropdown if more than 3 */}
+                {availableProviders.length > 3 && (
+                  <div style={styles.moreProvidersContainer}>
+                    <button
+                      onClick={() => setShowProviderMenu(!showProviderMenu)}
+                      style={styles.moreProvidersButton}
+                    >
+                      More providers
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '4px' }}>
+                        <path d={showProviderMenu ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
+                      </svg>
+                    </button>
+                    {showProviderMenu && (
+                      <div style={styles.providerDropdown}>
+                        {availableProviders.slice(3).map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => handleProviderChange(p)}
+                            style={styles.providerDropdownItem}
+                          >
+                            {getProviderDisplayName(p)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div style={styles.errorActions}>
+              <button 
+                onClick={() => {
+                  setError(null);
+                  setErrorType('unknown');
+                  setFailedSegments(0);
+                  loadEpisodeSources(episodeId, mediaId, provider);
+                }} 
+                style={styles.retryButtonLarge}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                  <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                Retry
+              </button>
+              <button onClick={onClose} style={styles.backButtonLarge}>
+                Go Back
+              </button>
+            </div>
+
+            {/* Current provider info */}
+            <div style={styles.currentProvider}>
+              Current: {getProviderDisplayName(provider)}
+            </div>
           </div>
         </div>
       </div>
@@ -873,6 +1259,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                   setShowSpeedMenu(!showSpeedMenu);
                   setShowQualityMenu(false);
                   setShowSubtitleMenu(false);
+                  setShowSettingsMenu(false);
                 }}
                 style={styles.iconButton}
               >
@@ -904,6 +1291,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                     setShowQualityMenu(!showQualityMenu);
                     setShowSubtitleMenu(false);
                     setShowSpeedMenu(false);
+                    setShowSettingsMenu(false);
                   }}
                   style={styles.iconButton}
                 >
@@ -945,6 +1333,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                     setShowSubtitleMenu(!showSubtitleMenu);
                     setShowQualityMenu(false);
                     setShowSpeedMenu(false);
+                    setShowSettingsMenu(false);
                   }}
                   style={styles.iconButton}
                 >
@@ -976,6 +1365,100 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                         {sub.lang}
                       </button>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Settings Menu (Gear Icon) - Subtitle Offset & Encoding */}
+            {subtitles.length > 0 && (
+              <div style={styles.menuContainer}>
+                <button
+                  onClick={() => {
+                    setShowSettingsMenu(!showSettingsMenu);
+                    setShowQualityMenu(false);
+                    setShowSubtitleMenu(false);
+                    setShowSpeedMenu(false);
+                  }}
+                  style={styles.iconButton}
+                  title="Subtitle Settings"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+                  </svg>
+                </button>
+                {showSettingsMenu && (
+                  <div style={styles.settingsMenu}>
+                    <div style={styles.settingsTitle}>Subtitle Settings</div>
+                    
+                    {/* Subtitle Offset */}
+                    <div style={styles.settingsSection}>
+                      <div style={styles.settingsLabel}>Timing Offset</div>
+                      <div style={styles.offsetControls}>
+                        <button
+                          onClick={() => handleSubtitleOffsetChange(subtitleOffset - SUBTITLE_OFFSET_STEP)}
+                          style={styles.offsetButton}
+                          disabled={subtitleOffset <= SUBTITLE_OFFSET_MIN}
+                        >
+                          -
+                        </button>
+                        <span style={styles.offsetValue}>{formatOffset(subtitleOffset)}</span>
+                        <button
+                          onClick={() => handleSubtitleOffsetChange(subtitleOffset + SUBTITLE_OFFSET_STEP)}
+                          style={styles.offsetButton}
+                          disabled={subtitleOffset >= SUBTITLE_OFFSET_MAX}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <input
+                        type="range"
+                        min={SUBTITLE_OFFSET_MIN}
+                        max={SUBTITLE_OFFSET_MAX}
+                        step={SUBTITLE_OFFSET_STEP}
+                        value={subtitleOffset}
+                        onChange={(e) => handleSubtitleOffsetChange(parseFloat(e.target.value))}
+                        style={styles.offsetSlider}
+                      />
+                      <div style={styles.offsetHint}>
+                        {subtitleOffset < 0 ? 'Earlier' : subtitleOffset > 0 ? 'Later' : 'Synced'}
+                      </div>
+                    </div>
+                    
+                    {/* Character Encoding */}
+                    <div style={styles.settingsSection}>
+                      <div style={styles.settingsLabel}>Character Encoding</div>
+                      <div style={styles.encodingOptions}>
+                        {ENCODING_OPTIONS.map(enc => (
+                          <button
+                            key={enc}
+                            onClick={() => handleEncodingChange(enc)}
+                            style={{
+                              ...styles.encodingButton,
+                              backgroundColor: subtitleEncoding === enc ? '#f97316' : 'rgba(255,255,255,0.1)',
+                              color: subtitleEncoding === enc ? '#fff' : '#a3a3a3',
+                            }}
+                          >
+                            {enc}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={styles.encodingHint}>
+                        Try different encodings if text appears garbled
+                      </div>
+                    </div>
+                    
+                    {/* Reset Button */}
+                    <button
+                      onClick={() => {
+                        handleSubtitleOffsetChange(0);
+                        handleEncodingChange('UTF-8');
+                      }}
+                      style={styles.resetButton}
+                    >
+                      Reset to Defaults
+                    </button>
                   </div>
                 )}
               </div>
@@ -1230,6 +1713,156 @@ const styles: { [key: string]: React.CSSProperties } = {
     letterSpacing: '0.1em',
     cursor: 'pointer',
   },
+  // Enhanced error overlay styles
+  errorOverlay: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    zIndex: 50,
+  },
+  errorCloseButton: {
+    position: 'absolute',
+    top: '16px',
+    left: '16px',
+    padding: '8px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  errorContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    maxWidth: '400px',
+    padding: '24px',
+    textAlign: 'center',
+  },
+  errorIcon: {
+    color: '#ef4444',
+    marginBottom: '16px',
+  },
+  errorTitle: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#fff',
+    marginBottom: '8px',
+  },
+  errorMessage: {
+    fontSize: '14px',
+    color: '#a3a3a3',
+    marginBottom: '24px',
+    lineHeight: 1.5,
+  },
+  providerSection: {
+    width: '100%',
+    marginBottom: '24px',
+    padding: '16px',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '8px',
+    border: '1px solid #262626',
+  },
+  providerLabel: {
+    fontSize: '12px',
+    color: '#737373',
+    marginBottom: '12px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  providerButtons: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    justifyContent: 'center',
+  },
+  providerButton: {
+    padding: '10px 16px',
+    backgroundColor: '#f97316',
+    border: 'none',
+    borderRadius: '6px',
+    color: '#fff',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  },
+  moreProvidersContainer: {
+    marginTop: '8px',
+    position: 'relative',
+  },
+  moreProvidersButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '8px 12px',
+    backgroundColor: 'transparent',
+    border: '1px solid #404040',
+    borderRadius: '4px',
+    color: '#a3a3a3',
+    fontSize: '12px',
+    cursor: 'pointer',
+    width: '100%',
+  },
+  providerDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: '4px',
+    backgroundColor: 'rgba(23, 23, 23, 0.98)',
+    border: '1px solid #262626',
+    borderRadius: '6px',
+    overflow: 'hidden',
+    zIndex: 10,
+  },
+  providerDropdownItem: {
+    display: 'block',
+    width: '100%',
+    padding: '10px 16px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#fff',
+    fontSize: '13px',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+  errorActions: {
+    display: 'flex',
+    gap: '12px',
+    marginBottom: '16px',
+  },
+  retryButtonLarge: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '12px 24px',
+    backgroundColor: '#262626',
+    border: '1px solid #404040',
+    borderRadius: '6px',
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  },
+  backButtonLarge: {
+    padding: '12px 24px',
+    backgroundColor: 'transparent',
+    border: '1px solid #404040',
+    borderRadius: '6px',
+    color: '#a3a3a3',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
+  currentProvider: {
+    fontSize: '11px',
+    color: '#525252',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
   controlsOverlay: {
     position: 'absolute',
     inset: 0,
@@ -1306,6 +1939,103 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: 'left',
     fontSize: '12px',
     cursor: 'pointer',
+  },
+  settingsMenu: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    backgroundColor: 'rgba(23,23,23,0.98)',
+    border: '1px solid #262626',
+    borderRadius: '8px',
+    minWidth: '220px',
+    zIndex: 10,
+    padding: '12px',
+  },
+  settingsTitle: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#737373',
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    marginBottom: '12px',
+    paddingBottom: '8px',
+    borderBottom: '1px solid #262626',
+  },
+  settingsSection: {
+    marginBottom: '16px',
+  },
+  settingsLabel: {
+    fontSize: '12px',
+    color: '#a3a3a3',
+    marginBottom: '8px',
+  },
+  offsetControls: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    marginBottom: '8px',
+  },
+  offsetButton: {
+    width: '28px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    border: '1px solid #404040',
+    borderRadius: '4px',
+    color: '#fff',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  offsetValue: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#f97316',
+    minWidth: '50px',
+    textAlign: 'center',
+  },
+  offsetSlider: {
+    width: '100%',
+    accentColor: '#f97316',
+    cursor: 'pointer',
+  },
+  offsetHint: {
+    fontSize: '10px',
+    color: '#525252',
+    textAlign: 'center',
+    marginTop: '4px',
+  },
+  encodingOptions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+  },
+  encodingButton: {
+    padding: '6px 10px',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '11px',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  },
+  encodingHint: {
+    fontSize: '10px',
+    color: '#525252',
+    marginTop: '8px',
+  },
+  resetButton: {
+    width: '100%',
+    padding: '8px',
+    backgroundColor: 'transparent',
+    border: '1px solid #404040',
+    borderRadius: '4px',
+    color: '#a3a3a3',
+    fontSize: '11px',
+    cursor: 'pointer',
+    marginTop: '4px',
   },
   centerControls: {
     display: 'flex',

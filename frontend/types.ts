@@ -74,6 +74,8 @@ export interface AuthUser {
   isPublic?: boolean;
   hasPassword?: boolean;
   oauthProviders?: string[];
+  recoveryEmail?: string | null;
+  recoveryEmailVerified?: boolean;
 }
 
 export interface LoginCredentials {
@@ -213,7 +215,7 @@ export interface ChapterPages {
   pages: ChapterPage[];
 }
 
-export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS';
+export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS' | 'RECOVERY';
 
 // Suggestion types
 export type SuggestionStatus = 'PENDING' | 'ACCEPTED' | 'DISMISSED';

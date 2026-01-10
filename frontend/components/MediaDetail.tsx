@@ -3,15 +3,17 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress } from '../types';
 import * as videoService from '../services/video';
 import { VideoMediaInfo } from '../services/video';
-import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider } from '../services/videoResolver';
+import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider, MatchResult, resolveWithAlternatives, ResolutionWithAlternatives } from '../services/videoResolver';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
 import { getWatchProgressForMedia, WatchProgressData, getAccessToken } from '../services/api';
 import { getOfflineEpisodesForMedia, OfflineVideoEpisode } from '../services/offlineVideoStorage';
 import ProviderMappingModal from './ProviderMappingModal';
 import MediaSelectionModal from './MediaSelectionModal';
+import ConfidenceCheckModal from './ConfidenceCheckModal';
+import SourceSearchModal from './SourceSearchModal';
 import { VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
-import { SearchResult } from '../types';
+import { SearchResult, ProviderName } from '../types';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -23,7 +25,7 @@ interface MediaDetailProps {
   /** Media type hint for better resolution */
   mediaType?: 'movie' | 'tv' | 'anime';
   onClose: () => void;
-  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName, mediaTitle: string, episodeNumber?: number, seasonNumber?: number) => void;
+  onWatchEpisode: (mediaId: string, episodeId: string, episodes: VideoEpisode[], provider: VideoProviderName, mediaTitle: string, episodeNumber?: number, seasonNumber?: number, mediaType?: 'anime' | 'movie' | 'tv') => void;
 }
 
 // Helper to proxy image URLs with provider referer
@@ -88,6 +90,18 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Multi-match selection modal state
   const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [selectionModalResults, setSelectionModalResults] = useState<SearchResult[]>([]);
+
+  // Confidence check modal state (for Watch/Play action)
+  const [showConfidenceCheckModal, setShowConfidenceCheckModal] = useState(false);
+  const [confidenceCheckAlternatives, setConfidenceCheckAlternatives] = useState<MatchResult[]>([]);
+  const [pendingWatchAction, setPendingWatchAction] = useState<{
+    episodeId: string;
+    episode: VideoEpisode;
+    seasonNumber?: number;
+  } | null>(null);
+
+  // Change Source modal state
+  const [showSourceSearchModal, setShowSourceSearchModal] = useState(false);
 
   // Track if we've loaded for this mediaId to prevent duplicate loads
   const loadedForRef = useRef<string | null>(null);
@@ -200,29 +214,37 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           }
           
           // Single match or no exact matches - proceed with normal resolution
-          const resolved = await resolveAndGetMediaInfo(
+          // Use resolveWithAlternatives to get alternatives for confidence checking
+          const resolutionResult = await resolveWithAlternatives(
             mediaId,
             provider,
             initialTitle,
             mediaType
           );
           
-          if (resolved) {
+          if (resolutionResult) {
+            const resolved = resolutionResult.primary;
             setResolvedProviderId(resolved.providerId);
             setResolvedProvider(resolved.provider);
-            setMediaInfo(resolved.mediaInfo);
             setConfidence(resolved.confidence);
             setIsVerified(resolved.isVerified);
+            
+            // Store alternatives for confidence check modal
+            setConfidenceCheckAlternatives(resolutionResult.alternatives);
             
             // Show confidence warning if match quality is low
             if (resolved.confidence < LOW_CONFIDENCE_THRESHOLD && !resolved.isVerified) {
               setShowConfidenceWarning(true);
             }
             
+            // Fetch full media info
+            const info = await videoService.getMediaInfo(provider, resolved.providerId);
+            setMediaInfo(info);
+            
             // Expand first season by default
-            if (resolved.mediaInfo.seasons && resolved.mediaInfo.seasons.length > 0) {
-              setExpandedSeasons(new Set([resolved.mediaInfo.seasons[0].season]));
-            } else if (resolved.mediaInfo.episodes && resolved.mediaInfo.episodes.length > 0) {
+            if (info.seasons && info.seasons.length > 0) {
+              setExpandedSeasons(new Set([info.seasons[0].season]));
+            } else if (info.episodes && info.episodes.length > 0) {
               setExpandedSeasons(new Set([1]));
             }
           } else {
@@ -246,28 +268,35 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             // Direct fetch failed - try resolution if we have a title
             if (initialTitle) {
               console.log(`[MediaDetail] Direct fetch failed, trying title search: "${initialTitle}"`);
-              const resolved = await resolveAndGetMediaInfo(
+              const resolutionResult = await resolveWithAlternatives(
                 `fallback:${mediaId}`,
                 provider,
                 initialTitle,
                 mediaType
               );
               
-              if (resolved) {
+              if (resolutionResult) {
+                const resolved = resolutionResult.primary;
                 setResolvedProviderId(resolved.providerId);
                 setResolvedProvider(resolved.provider);
-                setMediaInfo(resolved.mediaInfo);
                 setConfidence(resolved.confidence);
                 setIsVerified(resolved.isVerified);
+                
+                // Store alternatives for confidence check modal
+                setConfidenceCheckAlternatives(resolutionResult.alternatives);
                 
                 // Show confidence warning if match quality is low
                 if (resolved.confidence < LOW_CONFIDENCE_THRESHOLD && !resolved.isVerified) {
                   setShowConfidenceWarning(true);
                 }
                 
-                if (resolved.mediaInfo.seasons && resolved.mediaInfo.seasons.length > 0) {
-                  setExpandedSeasons(new Set([resolved.mediaInfo.seasons[0].season]));
-                } else if (resolved.mediaInfo.episodes && resolved.mediaInfo.episodes.length > 0) {
+                // Fetch full media info
+                const info = await videoService.getMediaInfo(provider, resolved.providerId);
+                setMediaInfo(info);
+                
+                if (info.seasons && info.seasons.length > 0) {
+                  setExpandedSeasons(new Set([info.seasons[0].season]));
+                } else if (info.episodes && info.episodes.length > 0) {
                   setExpandedSeasons(new Set([1]));
                 }
               } else {
@@ -561,6 +590,67 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     loadMediaDetails();
   }, [showToast]);
 
+  // Handle watch action with confidence check
+  // This intercepts the watch action and shows confirmation if confidence is low
+  const handleWatchWithConfidenceCheck = useCallback((
+    episodeId: string,
+    episode: VideoEpisode,
+    allEps: VideoEpisode[],
+    seasonNumber?: number
+  ) => {
+    // If confidence is high or already verified, proceed directly
+    if (isVerified || confidence >= LOW_CONFIDENCE_THRESHOLD) {
+      onWatchEpisode(resolvedProviderId, episodeId, allEps, resolvedProvider, mediaInfo?.title || '', episode.number, seasonNumber, mediaType);
+      return;
+    }
+
+    // Low confidence and not verified - show confirmation modal
+    setPendingWatchAction({ episodeId, episode, seasonNumber });
+    setShowConfidenceCheckModal(true);
+  }, [confidence, isVerified, resolvedProviderId, resolvedProvider, mediaInfo, onWatchEpisode]);
+
+  // Handle confirmation from confidence check modal
+  const handleConfidenceCheckConfirm = useCallback(async (providerId: string, providerTitle: string) => {
+    setShowConfidenceCheckModal(false);
+    
+    // Update the resolved provider ID if user selected a different match
+    if (providerId !== resolvedProviderId) {
+      setResolvedProviderId(providerId);
+      // Reload media info for the new selection
+      try {
+        const info = await videoService.getMediaInfo(resolvedProvider, providerId);
+        setMediaInfo(info);
+      } catch (err) {
+        console.warn('[MediaDetail] Failed to reload media info after confirmation:', err);
+      }
+    }
+    
+    // Mark as verified
+    setConfidence(1.0);
+    setIsVerified(true);
+    setShowConfidenceWarning(false);
+    
+    // Proceed with the pending watch action
+    if (pendingWatchAction && mediaInfo) {
+      const allEps = getAllEpisodes();
+      onWatchEpisode(providerId, pendingWatchAction.episodeId, allEps, resolvedProvider, mediaInfo.title, pendingWatchAction.episode.number, pendingWatchAction.seasonNumber, mediaType);
+    }
+    setPendingWatchAction(null);
+  }, [resolvedProviderId, resolvedProvider, pendingWatchAction, mediaInfo, getAllEpisodes, onWatchEpisode]);
+
+  // Handle search manually from confidence check modal
+  const handleConfidenceCheckSearchManually = useCallback(() => {
+    setShowConfidenceCheckModal(false);
+    setPendingWatchAction(null);
+    setShowLinkSourceModal(true);
+  }, []);
+
+  // Handle cancel from confidence check modal  
+  const handleConfidenceCheckClose = useCallback(() => {
+    setShowConfidenceCheckModal(false);
+    setPendingWatchAction(null);
+  }, []);
+
   // Handle when user selects from multiple matches modal
   const handleMediaSelection = useCallback(async (result: SearchResult, selectedProvider: VideoProviderName) => {
     setShowSelectionModal(false);
@@ -844,7 +934,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           ) : null}
           
           {isMovie ? (
-            // Movie: Single watch button
+            // Movie: Single watch button with confidence check
             <button
               onClick={() => {
                 // For movies, create a single "episode" to watch using resolved provider ID
@@ -853,8 +943,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                   number: 1,
                   title: mediaInfo.title,
                 };
-                // Movies: episodeNumber=1, no season
-                onWatchEpisode(resolvedProviderId, resolvedProviderId, [movieEpisode], resolvedProvider, mediaInfo.title, 1, undefined);
+                // Movies: use confidence check wrapper
+                handleWatchWithConfidenceCheck(resolvedProviderId, movieEpisode, [movieEpisode], undefined);
               }}
               className="px-4 py-2 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
             >
@@ -881,6 +971,19 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               className="px-4 py-2 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
             >
               Link Source
+            </button>
+          )}
+          
+          {/* Change Source button - switch to a different provider */}
+          {isOnline && (
+            <button
+              onClick={() => setShowSourceSearchModal(true)}
+              className="px-4 py-2 text-xs uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Change Source
             </button>
           )}
         </div>
@@ -1160,9 +1263,8 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                     if (isSelectionMode) {
                                       toggleEpisodeSelection(episode.id);
                                     } else {
-                                      // Use resolved provider ID and provider for watching
-                                      // Pass episode number and season number for progress tracking
-                                      onWatchEpisode(resolvedProviderId, episode.id, allEpisodes, resolvedProvider, mediaInfo.title, episode.number, season.season);
+                                      // Use confidence check wrapper for watching
+                                      handleWatchWithConfidenceCheck(episode.id, episode, allEpisodes, season.season);
                                     }
                                   }}
                                   className="flex-1 text-left min-w-0"
@@ -1264,6 +1366,52 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           currentProvider={provider}
           onClose={() => setShowLinkSourceModal(false)}
           onMappingSaved={handleMappingSaved}
+        />
+      )}
+
+      {/* Confidence Check Modal */}
+      {showConfidenceCheckModal && mediaInfo && (
+        <ConfidenceCheckModal
+          refId={mediaId}
+          matchedTitle={mediaInfo.title}
+          confidence={confidence}
+          matchedProviderId={resolvedProviderId}
+          alternatives={confidenceCheckAlternatives}
+          provider={resolvedProvider}
+          originalTitle={initialTitle || ''}
+          mediaType={mediaType}
+          onConfirm={handleConfidenceCheckConfirm}
+          onSearchManually={handleConfidenceCheckSearchManually}
+          onClose={handleConfidenceCheckClose}
+        />
+      )}
+
+      {/* Source Search Modal - for switching providers */}
+      {showSourceSearchModal && (
+        <SourceSearchModal
+          title={initialTitle || mediaInfo?.title || ''}
+          mediaType={mediaType === 'anime' ? 'ANIME' : mediaType === 'tv' ? 'TV' : mediaType === 'movie' ? 'MOVIE' : 'ANIME'}
+          refId={mediaId}
+          onClose={() => setShowSourceSearchModal(false)}
+          onSourceSelected={(result: SearchResult, newProvider: ProviderName) => {
+            // Build the new refId from the selected result
+            const newRefId = `${newProvider}:${result.id}`;
+            
+            // Update the resolved provider ID and provider
+            setResolvedProviderId(newRefId);
+            setResolvedProvider(newProvider as VideoProviderName);
+            setConfidence(1.0);
+            setIsVerified(true);
+            setShowConfidenceWarning(false);
+            setShowSourceSearchModal(false);
+            
+            // Reset media info to trigger a fresh load with the new provider
+            setMediaInfo(null);
+            setLoading(true);
+            loadedForRef.current = null;
+            
+            showToast(`Switched to ${newProvider}`, 'success');
+          }}
         />
       )}
     </div>

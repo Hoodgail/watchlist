@@ -1,10 +1,436 @@
 // ChapterReader Component - Full-screen manga reader with multiple modes
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { ChapterInfo, ChapterImages, ReadingMode, ImageQuality } from '../services/mangadexTypes';
 import * as manga from '../services/manga';
 import { MangaProviderName } from '../services/manga';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
+
+// ============================================================================
+// VIRTUALIZED LONG STRIP - Types and Constants
+// ============================================================================
+
+interface PageDimensions {
+  width: number;
+  height: number;
+  aspectRatio: number;
+}
+
+interface VirtualizedPageState {
+  isVisible: boolean;
+  isInBuffer: boolean;
+  isLoaded: boolean;
+  actualHeight: number | null;
+  estimatedHeight: number;
+}
+
+// Default aspect ratio for manga pages (typical manga is ~1.4:1 height:width)
+const DEFAULT_ASPECT_RATIO = 1.4;
+// Buffer zone: number of pages to keep rendered above/below viewport
+const BUFFER_SIZE = 3;
+// Minimum height for placeholder (prevents layout thrashing)
+const MIN_PLACEHOLDER_HEIGHT = 400;
+// Intersection observer root margin for early loading
+const OBSERVER_ROOT_MARGIN = '200px 0px';
+
+// ============================================================================
+// VIRTUALIZED PAGE COMPONENT
+// ============================================================================
+
+interface VirtualizedPageProps {
+  index: number;
+  url: string;
+  containerWidth: number;
+  isVisible: boolean;
+  isInBuffer: boolean;
+  actualHeight: number | null;
+  estimatedHeight: number;
+  onVisibilityChange: (index: number, isVisible: boolean, entry: IntersectionObserverEntry) => void;
+  onImageLoad: (index: number, dimensions: PageDimensions) => void;
+  onImageError: (index: number) => void;
+  observerRef: React.MutableRefObject<IntersectionObserver | null>;
+}
+
+const VirtualizedPage = memo(function VirtualizedPage({
+  index,
+  url,
+  containerWidth,
+  isVisible,
+  isInBuffer,
+  actualHeight,
+  estimatedHeight,
+  onVisibilityChange,
+  onImageLoad,
+  onImageError,
+  observerRef,
+}: VirtualizedPageProps) {
+  const elementRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  
+  // Track visibility using Intersection Observer
+  useEffect(() => {
+    const element = elementRef.current;
+    const observer = observerRef.current;
+    
+    if (!element || !observer) return;
+    
+    observer.observe(element);
+    
+    return () => {
+      observer.unobserve(element);
+    };
+  }, [observerRef]);
+  
+  // Store element reference for observer callback
+  useEffect(() => {
+    const element = elementRef.current;
+    if (element) {
+      (element as any).__pageIndex = index;
+      (element as any).__onVisibilityChange = onVisibilityChange;
+    }
+  }, [index, onVisibilityChange]);
+  
+  // Handle image load
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const dimensions: PageDimensions = {
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      aspectRatio: img.naturalHeight / img.naturalWidth,
+    };
+    setIsImageLoaded(true);
+    onImageLoad(index, dimensions);
+  }, [index, onImageLoad]);
+  
+  // Handle image error
+  const handleImageError = useCallback(() => {
+    onImageError(index);
+  }, [index, onImageError]);
+  
+  // Unload image when leaving buffer zone for memory management
+  useEffect(() => {
+    if (!isInBuffer && imgRef.current) {
+      // Clear the image source to release memory
+      imgRef.current.src = '';
+      imgRef.current = null;
+      setIsImageLoaded(false);
+    }
+  }, [isInBuffer]);
+  
+  const height = actualHeight ?? estimatedHeight;
+  const shouldRenderImage = isInBuffer;
+  
+  return (
+    <div
+      ref={elementRef}
+      className="relative w-full flex items-center justify-center"
+      style={{
+        height: shouldRenderImage && isImageLoaded ? 'auto' : height,
+        minHeight: shouldRenderImage && isImageLoaded ? undefined : height,
+        contain: shouldRenderImage ? 'layout style' : 'strict',
+        willChange: isVisible ? 'auto' : undefined,
+      }}
+      data-page-index={index}
+    >
+      {shouldRenderImage ? (
+        <img
+          ref={(el) => { imgRef.current = el; }}
+          src={url}
+          alt={`Page ${index + 1}`}
+          className="max-w-full"
+          style={{
+            opacity: isImageLoaded ? 1 : 0,
+            transition: 'opacity 0.15s ease-in-out',
+          }}
+          loading={index < 3 ? 'eager' : 'lazy'}
+          decoding="async"
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+      ) : null}
+      
+      {/* Placeholder shown when image is not rendered or not yet loaded */}
+      {(!shouldRenderImage || !isImageLoaded) && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-neutral-900/50"
+          style={{ contain: 'strict' }}
+        >
+          <div className="flex flex-col items-center gap-2 text-neutral-600">
+            {shouldRenderImage ? (
+              // Loading spinner for images being loaded
+              <div className="w-6 h-6 border-2 border-neutral-700 border-t-neutral-400 rounded-full animate-spin" />
+            ) : (
+              // Placeholder icon for unloaded pages
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            )}
+            <span className="text-xs uppercase tracking-wider">Page {index + 1}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// VIRTUALIZED LONG STRIP CONTAINER
+// ============================================================================
+
+interface VirtualizedLongStripProps {
+  pageUrls: string[];
+  containerRef: React.RefObject<HTMLDivElement>;
+  onCurrentPageChange: (page: number) => void;
+  onImageLoad: (index: number) => void;
+  onImageError: (index: number) => void;
+}
+
+function VirtualizedLongStrip({
+  pageUrls,
+  containerRef,
+  onCurrentPageChange,
+  onImageLoad,
+  onImageError,
+}: VirtualizedLongStripProps) {
+  // Track page states
+  const [pageStates, setPageStates] = useState<Map<number, VirtualizedPageState>>(() => new Map());
+  const [pageDimensions, setPageDimensions] = useState<Map<number, PageDimensions>>(() => new Map());
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+  
+  // Refs for scroll position management
+  const scrollPositionRef = useRef<{ page: number; offset: number } | null>(null);
+  const isRestoringScrollRef = useRef(false);
+  const visiblePagesRef = useRef<Set<number>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  
+  // Calculate estimated height based on container width and aspect ratio
+  const getEstimatedHeight = useCallback((index: number): number => {
+    const dimensions = pageDimensions.get(index);
+    const aspectRatio = dimensions?.aspectRatio ?? DEFAULT_ASPECT_RATIO;
+    const height = containerWidth * aspectRatio;
+    return Math.max(height, MIN_PLACEHOLDER_HEIGHT);
+  }, [containerWidth, pageDimensions]);
+  
+  // Initialize Intersection Observer
+  useEffect(() => {
+    const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+      const newVisiblePages = new Set(visiblePagesRef.current);
+      
+      entries.forEach((entry) => {
+        const element = entry.target as HTMLElement;
+        const pageIndex = (element as any).__pageIndex as number | undefined;
+        const callback = (element as any).__onVisibilityChange as VirtualizedPageProps['onVisibilityChange'] | undefined;
+        
+        if (pageIndex !== undefined && callback) {
+          if (entry.isIntersecting) {
+            newVisiblePages.add(pageIndex);
+          } else {
+            newVisiblePages.delete(pageIndex);
+          }
+          callback(pageIndex, entry.isIntersecting, entry);
+        }
+      });
+      
+      visiblePagesRef.current = newVisiblePages;
+      
+      // Update current page based on topmost visible page
+      if (newVisiblePages.size > 0) {
+        const sortedVisible = Array.from(newVisiblePages).sort((a, b) => a - b);
+        onCurrentPageChange(sortedVisible[0]);
+      }
+    };
+    
+    observerRef.current = new IntersectionObserver(handleIntersection, {
+      root: containerRef.current,
+      rootMargin: OBSERVER_ROOT_MARGIN,
+      threshold: [0, 0.1, 0.5, 1],
+    });
+    
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [containerRef, onCurrentPageChange]);
+  
+  // Handle container resize
+  useEffect(() => {
+    const handleResize = () => {
+      setContainerWidth(window.innerWidth);
+    };
+    
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [containerRef]);
+  
+  // Handle visibility change for a page
+  const handleVisibilityChange = useCallback((
+    index: number,
+    isVisible: boolean,
+    _entry: IntersectionObserverEntry
+  ) => {
+    setPageStates((prev) => {
+      const newStates = new Map(prev);
+      const currentState = prev.get(index) || {
+        isVisible: false,
+        isInBuffer: false,
+        isLoaded: false,
+        actualHeight: null,
+        estimatedHeight: getEstimatedHeight(index),
+      };
+      
+      newStates.set(index, { ...currentState, isVisible });
+      
+      // Update buffer zone for all pages
+      const visibleIndices = Array.from(newStates.entries())
+        .filter(([_, state]) => state.isVisible)
+        .map(([idx]) => idx);
+      
+      if (visibleIndices.length > 0) {
+        const minVisible = Math.min(...visibleIndices);
+        const maxVisible = Math.max(...visibleIndices);
+        const bufferStart = Math.max(0, minVisible - BUFFER_SIZE);
+        const bufferEnd = Math.min(pageUrls.length - 1, maxVisible + BUFFER_SIZE);
+        
+        for (let i = 0; i < pageUrls.length; i++) {
+          const state = newStates.get(i) || {
+            isVisible: false,
+            isInBuffer: false,
+            isLoaded: false,
+            actualHeight: null,
+            estimatedHeight: getEstimatedHeight(i),
+          };
+          const shouldBeInBuffer = i >= bufferStart && i <= bufferEnd;
+          
+          if (state.isInBuffer !== shouldBeInBuffer) {
+            newStates.set(i, { ...state, isInBuffer: shouldBeInBuffer });
+          }
+        }
+      }
+      
+      return newStates;
+    });
+  }, [pageUrls.length, getEstimatedHeight]);
+  
+  // Handle image load with dimensions
+  const handleImageLoadWithDimensions = useCallback((index: number, dimensions: PageDimensions) => {
+    // Store actual dimensions
+    setPageDimensions((prev) => {
+      const newDimensions = new Map(prev);
+      newDimensions.set(index, dimensions);
+      return newDimensions;
+    });
+    
+    // Update page state
+    setPageStates((prev) => {
+      const newStates = new Map(prev);
+      const currentState = prev.get(index);
+      if (currentState) {
+        const actualHeight = containerWidth * dimensions.aspectRatio;
+        newStates.set(index, {
+          ...currentState,
+          isLoaded: true,
+          actualHeight,
+        });
+      }
+      return newStates;
+    });
+    
+    // Call parent handler
+    onImageLoad(index);
+  }, [containerWidth, onImageLoad]);
+  
+  // Handle image error
+  const handleImageErrorWithIndex = useCallback((index: number) => {
+    setPageStates((prev) => {
+      const newStates = new Map(prev);
+      const currentState = prev.get(index);
+      if (currentState) {
+        newStates.set(index, { ...currentState, isLoaded: false });
+      }
+      return newStates;
+    });
+    onImageError(index);
+  }, [onImageError]);
+  
+  // Scroll to specific page
+  const scrollToPage = useCallback((pageIndex: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Calculate scroll position by summing heights of previous pages
+    let scrollTop = 64; // Account for top padding
+    for (let i = 0; i < pageIndex; i++) {
+      const state = pageStates.get(i);
+      scrollTop += state?.actualHeight ?? getEstimatedHeight(i);
+    }
+    
+    container.scrollTo({
+      top: scrollTop,
+      behavior: 'smooth',
+    });
+  }, [containerRef, pageStates, getEstimatedHeight]);
+  
+  // Expose scrollToPage via ref
+  useEffect(() => {
+    if (containerRef.current) {
+      (containerRef.current as any).__scrollToPage = scrollToPage;
+    }
+  }, [containerRef, scrollToPage]);
+  
+  // Initialize page states
+  useEffect(() => {
+    const initialStates = new Map<number, VirtualizedPageState>();
+    pageUrls.forEach((_, index) => {
+      initialStates.set(index, {
+        isVisible: index < 5, // Initially assume first 5 pages might be visible
+        isInBuffer: index < BUFFER_SIZE + 3,
+        isLoaded: false,
+        actualHeight: null,
+        estimatedHeight: getEstimatedHeight(index),
+      });
+    });
+    setPageStates(initialStates);
+  }, [pageUrls.length, getEstimatedHeight]);
+  
+  return (
+    <div className="flex flex-col items-center py-16">
+      {pageUrls.map((url, index) => {
+        const state = pageStates.get(index) || {
+          isVisible: false,
+          isInBuffer: index < BUFFER_SIZE,
+          isLoaded: false,
+          actualHeight: null,
+          estimatedHeight: getEstimatedHeight(index),
+        };
+        
+        return (
+          <VirtualizedPage
+            key={index}
+            index={index}
+            url={url}
+            containerWidth={containerWidth}
+            isVisible={state.isVisible}
+            isInBuffer={state.isInBuffer}
+            actualHeight={state.actualHeight}
+            estimatedHeight={state.estimatedHeight}
+            onVisibilityChange={handleVisibilityChange}
+            onImageLoad={handleImageLoadWithDimensions}
+            onImageError={handleImageErrorWithIndex}
+            observerRef={observerRef}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 interface ChapterReaderProps {
   mangaId: string;
@@ -252,10 +678,19 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   }, [currentPage, pageUrls.length, nextChapter, readerSettings.readingMode, onChapterChange]);
 
   const goToPage = useCallback((page: number) => {
-    setCurrentPage(Math.max(0, Math.min(page, pageUrls.length - 1)));
+    const targetPage = Math.max(0, Math.min(page, pageUrls.length - 1));
+    setCurrentPage(targetPage);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [pageUrls.length]);
+    
+    // In Long Strip mode, scroll to the page using the virtualized container's method
+    if (readerSettings.readingMode === 'longStrip' && containerRef.current) {
+      const scrollToPage = (containerRef.current as any).__scrollToPage;
+      if (scrollToPage) {
+        scrollToPage(targetPage);
+      }
+    }
+  }, [pageUrls.length, readerSettings.readingMode]);
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) {
@@ -571,20 +1006,14 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
       {/* Image Display */}
       {readerSettings.readingMode === 'longStrip' ? (
-        // Long Strip Mode
-        <div className="flex flex-col items-center py-16">
-          {pageUrls.map((url, index) => (
-            <img
-              key={index}
-              src={url}
-              alt={`Page ${index + 1}`}
-              className="max-w-full"
-              loading={index < 5 ? 'eager' : 'lazy'}
-              onLoad={() => handleImageLoad(index)}
-              onError={() => handleImageError(index)}
-            />
-          ))}
-        </div>
+        // Virtualized Long Strip Mode
+        <VirtualizedLongStrip
+          pageUrls={pageUrls}
+          containerRef={containerRef as React.RefObject<HTMLDivElement>}
+          onCurrentPageChange={setCurrentPage}
+          onImageLoad={handleImageLoad}
+          onImageError={handleImageError}
+        />
       ) : readerSettings.readingMode === 'doublePage' ? (
         // Double Page Mode
         <div className="h-full flex items-center justify-center gap-1">

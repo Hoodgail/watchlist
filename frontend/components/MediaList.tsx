@@ -3,8 +3,202 @@ import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, Act
 import { STATUS_OPTIONS } from '../constants';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
 import { FriendAvatar } from './FriendList';
+import { SpoilerBlur, SpoilerIndicator } from './SpoilerBlur';
+import { useSpoilerProtection } from '../context/SpoilerContext';
 import type { GroupedListResponse, StatusGroupPagination } from '../services/api';
 import { extractProviderFromRefId } from '../services/mediaSearch';
+import { ProxiedImage, ProxiedImageCompact } from './ProxiedImage';
+
+// ==================== Swipe Gesture Hook ====================
+
+interface SwipeState {
+  startX: number;
+  startY: number;
+  startTime: number;
+  currentX: number;
+  isSwiping: boolean;
+  isHorizontal: boolean | null; // null = not yet determined
+}
+
+interface UseSwipeGestureOptions {
+  onSwipeLeft?: () => void;
+  minDistance?: number; // Minimum distance to trigger (default 60px)
+  velocityThreshold?: number; // Minimum velocity for fast swipes (px/ms)
+  deadZone?: number; // Initial dead zone before swipe starts (default 10px)
+  maxSwipeDistance?: number; // Maximum visual offset (default 120px)
+  enableHaptics?: boolean;
+}
+
+function useSwipeGesture(options: UseSwipeGestureOptions = {}) {
+  const {
+    onSwipeLeft,
+    minDistance = 60,
+    velocityThreshold = 0.5,
+    deadZone = 10,
+    maxSwipeDistance = 120,
+    enableHaptics = true,
+  } = options;
+
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isTriggered, setIsTriggered] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const swipeStateRef = useRef<SwipeState>({
+    startX: 0,
+    startY: 0,
+    startTime: 0,
+    currentX: 0,
+    isSwiping: false,
+    isHorizontal: null,
+  });
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const triggerHaptic = useCallback(() => {
+    if (enableHaptics && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(10);
+      } catch {
+        // Haptics not supported or permission denied
+      }
+    }
+  }, [enableHaptics]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    swipeStateRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startTime: Date.now(),
+      currentX: touch.clientX,
+      isSwiping: false,
+      isHorizontal: null,
+    };
+    setIsTriggered(false);
+    setShowSuccess(false);
+    
+    // Add swiping class for CSS
+    if (cardRef.current) {
+      cardRef.current.classList.remove('snap-back', 'swipe-success');
+      cardRef.current.classList.add('swiping');
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const state = swipeStateRef.current;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - state.startX;
+    const deltaY = touch.clientY - state.startY;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+
+    // Determine if this is a horizontal or vertical swipe (only once)
+    if (state.isHorizontal === null && (absDeltaX > deadZone || absDeltaY > deadZone)) {
+      state.isHorizontal = absDeltaX > absDeltaY;
+    }
+
+    // If determined to be vertical, ignore the swipe
+    if (state.isHorizontal === false) {
+      return;
+    }
+
+    // Dead zone - don't start swiping until we've moved enough
+    if (!state.isSwiping && absDeltaX < deadZone) {
+      return;
+    }
+
+    // Mark as swiping once we pass the dead zone
+    if (!state.isSwiping && absDeltaX >= deadZone) {
+      state.isSwiping = true;
+    }
+
+    state.currentX = touch.clientX;
+
+    // Only allow left swipe (negative delta)
+    if (deltaX < 0) {
+      // Clamp the offset to maxSwipeDistance
+      const offset = Math.max(-maxSwipeDistance, deltaX);
+      setSwipeOffset(offset);
+
+      // Check if we've crossed the trigger threshold
+      const wasTriggered = isTriggered;
+      const nowTriggered = Math.abs(offset) >= minDistance;
+      
+      if (nowTriggered && !wasTriggered) {
+        setIsTriggered(true);
+        triggerHaptic();
+      } else if (!nowTriggered && wasTriggered) {
+        setIsTriggered(false);
+      }
+
+      // Prevent scrolling while swiping horizontally
+      if (state.isSwiping && state.isHorizontal) {
+        e.preventDefault();
+      }
+    } else {
+      // Right swipe - reset
+      setSwipeOffset(0);
+      setIsTriggered(false);
+    }
+  }, [deadZone, maxSwipeDistance, minDistance, triggerHaptic, isTriggered]);
+
+  const handleTouchEnd = useCallback(() => {
+    const state = swipeStateRef.current;
+    const deltaX = state.currentX - state.startX;
+    const elapsed = Date.now() - state.startTime;
+    const velocity = Math.abs(deltaX) / elapsed;
+    const absDeltaX = Math.abs(deltaX);
+
+    // Remove swiping class, add snap-back
+    if (cardRef.current) {
+      cardRef.current.classList.remove('swiping');
+      cardRef.current.classList.add('snap-back');
+    }
+
+    // Check if swipe should trigger action:
+    // 1. Distance threshold met, OR
+    // 2. Fast swipe with at least 30px distance
+    const distanceThresholdMet = absDeltaX >= minDistance;
+    const velocityThresholdMet = velocity >= velocityThreshold && absDeltaX >= 30;
+    const shouldTrigger = deltaX < 0 && (distanceThresholdMet || velocityThresholdMet);
+
+    if (shouldTrigger && onSwipeLeft) {
+      // Trigger the action
+      onSwipeLeft();
+      triggerHaptic();
+      setShowSuccess(true);
+      
+      // Add success animation class
+      if (cardRef.current) {
+        cardRef.current.classList.add('swipe-success');
+      }
+    }
+
+    // Reset state
+    setSwipeOffset(0);
+    setIsTriggered(false);
+    
+    // Reset swipe state
+    swipeStateRef.current = {
+      startX: 0,
+      startY: 0,
+      startTime: 0,
+      currentX: 0,
+      isSwiping: false,
+      isHorizontal: null,
+    };
+  }, [minDistance, velocityThreshold, onSwipeLeft, triggerHaptic]);
+
+  return {
+    cardRef,
+    swipeOffset,
+    isTriggered,
+    showSuccess,
+    handlers: {
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd,
+    },
+  };
+}
 
 // ==================== Constants ====================
 
@@ -338,6 +532,8 @@ interface MediaListProps {
   // Per-status pagination
   onPageChange?: (status: MediaStatus, page: number) => void;
   loadingStatuses?: Set<MediaStatus>;
+  // User's progress map for spoiler detection: refId -> current episode/chapter
+  userProgressMap?: Map<string, number>;
 }
 
 interface MediaItemCardProps {
@@ -350,6 +546,8 @@ interface MediaItemCardProps {
   showSuggestButton?: boolean;
   searchQuery?: string;
   onSuggest?: (item: MediaItem) => void;
+  // User's progress on this item for spoiler detection
+  userProgress?: number;
 }
 
 type ViewMode = 'grouped' | 'compact';
@@ -522,7 +720,6 @@ const CompactItemCard: React.FC<{
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   const config = getStatusConfig(item.status);
   const imageUrl = getImageUrl(item.imageUrl, item.refId);
-  const [imageError, setImageError] = useState(false);
 
   const highlightText = (text: string, query: string) => {
     if (!query) return text;
@@ -536,17 +733,13 @@ const CompactItemCard: React.FC<{
 
   return (
     <div className={`group relative flex items-center gap-3 p-2 bg-black border border-neutral-800 ${config.borderColor} border-l-2 hover:border-neutral-600 transition-colors`}>
-      {/* Tiny poster */}
-      {imageUrl && !imageError ? (
-        <img
-          src={imageUrl}
-          alt={item.title}
-          onError={() => setImageError(true)}
-          className="w-8 h-12 object-cover flex-shrink-0"
-        />
-      ) : (
-        <div className="w-8 h-12 bg-neutral-900 flex-shrink-0" />
-      )}
+      {/* Tiny poster - uses ProxiedImageCompact for CLS-safe consistent sizing */}
+      <ProxiedImageCompact
+        src={imageUrl}
+        alt={item.title}
+        width={32}
+        height={48}
+      />
 
       {/* Title and type */}
       <div className="flex-grow min-w-0">
@@ -619,18 +812,46 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
   showSuggestButton,
   searchQuery,
   onSuggest,
+  userProgress,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [notesValue, setNotesValue] = useState(item.notes || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const { spoilerProtectionEnabled } = useSpoilerProtection();
 
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   const imageUrl = getImageUrl(item.imageUrl, item.refId);
   const config = getStatusConfig(item.status);
+  
+  // Determine if this item is a spoiler (friend is ahead of user)
+  // This is only relevant when viewing a friend's list (readonly=true) and user has progress on this item
+  const isSpoiler = readonly && spoilerProtectionEnabled && userProgress !== undefined && item.current > userProgress;
+  
+  // Calculate playback progress percent for the ProxiedImage overlay
+  const playbackProgressPercent = item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0
+    ? item.activeProgress.percentComplete
+    : undefined;
+
+  // Swipe gesture handling using the custom hook
+  const handleSwipeLeft = useCallback(() => {
+    if (onUpdate && !readonly) {
+      onUpdate(item.id, { current: item.current + 1 });
+    }
+  }, [onUpdate, readonly, item.id, item.current]);
+
+  const {
+    cardRef,
+    swipeOffset,
+    isTriggered,
+    handlers: swipeHandlers,
+  } = useSwipeGesture({
+    onSwipeLeft: handleSwipeLeft,
+    minDistance: 60,
+    velocityThreshold: 0.5,
+    deadZone: 10,
+    maxSwipeDistance: 120,
+    enableHaptics: true,
+  });
 
   const getStatusStyle = (status: MediaStatus) => {
     switch (status) {
@@ -655,32 +876,6 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
     onUpdate && onUpdate(item.id, { rating: value });
   };
 
-  // Touch handlers for swipe actions
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.touches[0].clientX);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStart === null) return;
-    const currentX = e.touches[0].clientX;
-    const diff = currentX - touchStart;
-    // Only allow left swipe (negative diff) up to -100px
-    if (diff < 0 && diff > -100) {
-      setSwipeOffset(diff);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (swipeOffset < -50) {
-      // Trigger +1 action
-      if (onUpdate) {
-        onUpdate(item.id, { current: item.current + 1 });
-      }
-    }
-    setSwipeOffset(0);
-    setTouchStart(null);
-  };
-
   const hasDetails = item.notes || item.rating != null || (item.friendsStatuses && item.friendsStatuses.length > 0);
 
   const friendsByStatus = (item.friendsStatuses || []).reduce((acc, friend) => {
@@ -700,60 +895,74 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
     );
   };
 
+  // Calculate action indicator visibility based on swipe offset
+  const showActionIndicator = Math.abs(swipeOffset) > 20;
+  const actionWidth = Math.min(Math.abs(swipeOffset), 120);
+
   return (
-    <div
-      ref={cardRef}
-      className={`group relative border border-neutral-800 bg-black transition-all hover:border-neutral-600 ${config.borderColor} border-l-2 overflow-visible`}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      style={{ transform: `translateX(${swipeOffset}px)` }}
-    >
-      {/* Swipe action indicator */}
-      {swipeOffset < -20 && (
-        <div className="absolute right-0 top-0 bottom-0 w-16 bg-green-600 flex items-center justify-center text-white font-bold">
-          +1
+    <div className="relative overflow-hidden swipe-container">
+      {/* Swipe action background - revealed behind the card */}
+      {!readonly && (
+        <div
+          className={`swipe-action-bg ${showActionIndicator ? 'visible' : ''} ${isTriggered ? 'triggered' : ''}`}
+          style={{
+            width: `${actionWidth}px`,
+            backgroundColor: isTriggered ? 'rgb(22, 163, 74)' : 'rgb(34, 197, 94)',
+          }}
+        >
+          <div className="flex flex-col items-center justify-center text-white">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span className="text-xs font-bold mt-1">+1</span>
+          </div>
         </div>
       )}
 
-      {/* Progress Bar Background */}
-      {item.total && (
-        <div className="absolute bottom-0 left-0 h-1 bg-neutral-900 w-full">
-          <div
-            className={`h-full transition-all duration-500 ${progressPercentage === 100 ? 'bg-green-500' : 'bg-white'
-              }`}
-            style={{ width: `${progressPercentage}%` }}
-          />
-        </div>
-      )}
+      <div
+        ref={cardRef}
+        className={`swipe-card group relative border border-neutral-800 bg-black transition-colors hover:border-neutral-600 ${config.borderColor} border-l-2`}
+        {...(!readonly ? swipeHandlers : {})}
+        style={{ 
+          transform: `translateX(${swipeOffset}px)`,
+        }}
+      >
+        {/* Progress Bar Background */}
+        {item.total && (
+          <div className="absolute bottom-0 left-0 h-1 bg-neutral-900 w-full">
+            <div
+              className={`h-full transition-all duration-500 ${progressPercentage === 100 ? 'bg-green-500' : 'bg-white'
+                }`}
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+        )}
 
-      {/* Main Content */}
-      <div className="p-4 pb-5">
-        <div className="flex gap-4">
+        {/* Main Content */}
+        <div className="p-4 pb-5">
+          <div className="flex gap-4">
 
-          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
 
-            {/* Poster Image */}
-            {imageUrl && !imageError && (
-              <div className="flex-shrink-0 w-20 sm:w-20 relative">
-                <img
+              {/* Poster Image - uses ProxiedImage for CLS-safe consistent sizing */}
+              <SpoilerBlur 
+                itemId={`poster-${item.id}`} 
+                isSpoiler={isSpoiler} 
+                type="image"
+                showIcon={true}
+              >
+                <ProxiedImage
                   src={imageUrl}
                   alt={item.title}
-                  onError={() => setImageError(true)}
-                  className="w-full aspect-[2/3] object-cover border border-neutral-800"
-                />
-                {/* Playback progress bar overlay on poster */}
-                {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-800/80">
-                    <div
-                      className="h-full bg-red-500 transition-all duration-300"
-                      style={{ width: `${item.activeProgress.percentComplete}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+                widthClass="w-20"
+                width={80}
+                height={120}
+                progressPercent={playbackProgressPercent}
+              />
+            </SpoilerBlur>
             <div className="flex flex-col   text-xs uppercase mt-1">
+              {/* Spoiler indicator */}
+              {isSpoiler && <SpoilerIndicator className="mb-1" />}
               {/* Resume indicator for video content with active progress */}
               {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
                 <span
@@ -894,10 +1103,17 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                 <div className="flex items-center gap-2 justify-between sm:justify-end w-fit ">
 
                   {readonly ? (
-                    <span className="font-mono text-white text-lg">
-                      {item.current}
-                      {item.total && <span className="text-neutral-600">/{item.total}</span>}
-                    </span>
+                    <SpoilerBlur 
+                      itemId={`progress-${item.id}`} 
+                      isSpoiler={isSpoiler} 
+                      type="text"
+                      showIcon={false}
+                    >
+                      <span className="font-mono text-white text-lg">
+                        {isSpoiler ? `${userProgress ?? 0}+` : item.current}
+                        {item.total && <span className="text-neutral-600">/{item.total}</span>}
+                      </span>
+                    </SpoilerBlur>
                   ) : (
                     <div className="flex items-center">
                       <button
@@ -1062,6 +1278,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
           ×
         </button>
       )}
+      </div>
     </div>
   );
 };
@@ -1087,6 +1304,8 @@ const StatusGroup: React.FC<{
   pagination?: StatusGroupPagination;
   isLoading?: boolean;
   onPageChange?: (page: number) => void;
+  // User's progress map for spoiler detection
+  userProgressMap?: Map<string, number>;
 }> = ({
   config,
   items,
@@ -1105,6 +1324,7 @@ const StatusGroup: React.FC<{
   pagination,
   isLoading = false,
   onPageChange,
+  userProgressMap,
 }) => {
     // Use totalCount (which accounts for filtering) for display, but items.length for empty check
     if (totalCount === 0) return null;
@@ -1146,6 +1366,7 @@ const StatusGroup: React.FC<{
                     showSuggestButton={showSuggestButton}
                     searchQuery={searchQuery}
                     onSuggest={onSuggest}
+                    userProgress={item.refId ? userProgressMap?.get(item.refId) : undefined}
                   />
                 )
               ))}
@@ -1299,6 +1520,8 @@ export const MediaList: React.FC<MediaListProps> = ({
   // Per-status pagination
   onPageChange,
   loadingStatuses,
+  // User's progress map for spoiler detection
+  userProgressMap,
 }) => {
   // State for collapse
   const [collapseState, setCollapseState] = useState<Record<string, boolean>>(() => {
@@ -1571,6 +1794,7 @@ export const MediaList: React.FC<MediaListProps> = ({
                 pagination={pagination}
                 isLoading={isLoading}
                 onPageChange={onPageChange ? (page) => onPageChange(config.status, page) : undefined}
+                userProgressMap={userProgressMap}
               />
             );
           })}

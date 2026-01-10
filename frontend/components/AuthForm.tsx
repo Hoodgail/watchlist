@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext';
 
 interface AuthFormProps {
   onToggleMode: () => void;
+  onRecovery?: () => void;
   isLogin: boolean;
 }
 
@@ -14,7 +15,7 @@ const DiscordIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-export const AuthForm: React.FC<AuthFormProps> = ({ onToggleMode, isLogin }) => {
+export const AuthForm: React.FC<AuthFormProps> = ({ onToggleMode, onRecovery, isLogin }) => {
   const { login, register, initiateOAuthLogin } = useAuth();
   const { showToast } = useToast();
   const [username, setUsername] = useState('');
@@ -194,16 +195,29 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onToggleMode, isLogin }) => 
           </button>
         </form>
 
-        <div className="text-center border-t border-neutral-800 pt-6">
-          <p className="text-neutral-500 text-sm">
-            {isLogin ? "DON'T HAVE AN ACCOUNT?" : 'ALREADY HAVE AN ACCOUNT?'}
-          </p>
-          <button
-            onClick={onToggleMode}
-            className="text-white uppercase tracking-wider text-sm mt-2 hover:underline underline-offset-4"
-          >
-            {isLogin ? 'REGISTER' : 'LOGIN'}
-          </button>
+        <div className="text-center border-t border-neutral-800 pt-6 space-y-4">
+          <div>
+            <p className="text-neutral-500 text-sm">
+              {isLogin ? "DON'T HAVE AN ACCOUNT?" : 'ALREADY HAVE AN ACCOUNT?'}
+            </p>
+            <button
+              onClick={onToggleMode}
+              className="text-white uppercase tracking-wider text-sm mt-2 hover:underline underline-offset-4"
+            >
+              {isLogin ? 'REGISTER' : 'LOGIN'}
+            </button>
+          </div>
+
+          {isLogin && onRecovery && (
+            <div>
+              <button
+                onClick={onRecovery}
+                className="text-neutral-500 hover:text-white uppercase tracking-wider text-xs transition-colors"
+              >
+                Lost access? Recover account
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

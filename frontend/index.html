@@ -100,6 +100,57 @@
       .swipeable {
         touch-action: pan-y;
       }
+      
+      /* Swipe gesture styles for media cards */
+      .swipe-container {
+        overscroll-behavior-x: none;
+        touch-action: pan-y pinch-zoom;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      .swipe-card {
+        touch-action: pan-y pinch-zoom;
+        will-change: transform;
+        transition: transform 0.1s ease-out;
+      }
+      
+      .swipe-card.swiping {
+        transition: none;
+      }
+      
+      .swipe-card.snap-back {
+        transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      }
+      
+      .swipe-action-bg {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.15s ease-out, width 0.15s ease-out;
+      }
+      
+      .swipe-action-bg.visible {
+        opacity: 1;
+      }
+      
+      .swipe-action-bg.triggered {
+        background-color: rgb(22, 163, 74) !important;
+      }
+      
+      @keyframes swipe-success {
+        0% { transform: translateX(0); }
+        50% { transform: translateX(-20px); }
+        100% { transform: translateX(0); }
+      }
+      
+      .swipe-success {
+        animation: swipe-success 0.3s ease-out;
+      }
     </style>
   </head>
   <body>

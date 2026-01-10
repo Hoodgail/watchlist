@@ -229,6 +229,8 @@ export async function getCurrentUser(userId: string): Promise<UserResponse | nul
 export interface UserWithOAuthResponse extends UserResponse {
   hasPassword: boolean;
   oauthProviders: Array<{ provider: string; linkedAt: Date }>;
+  recoveryEmail: string | null;
+  recoveryEmailVerified: boolean;
 }
 
 export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithOAuthResponse | null> {
@@ -243,6 +245,8 @@ export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithO
       isPublic: true,
       createdAt: true,
       passwordHash: true,
+      recoveryEmail: true,
+      recoveryEmailVerified: true,
       oauthAccounts: {
         select: {
           provider: true,
@@ -269,6 +273,8 @@ export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithO
       provider: account.provider,
       linkedAt: account.createdAt,
     })),
+    recoveryEmail: user.recoveryEmail,
+    recoveryEmailVerified: user.recoveryEmailVerified,
   };
 }
 
@@ -277,4 +283,216 @@ export async function getCurrentUserWithOAuth(userId: string): Promise<UserWithO
  */
 export async function createTokensForUser(userId: string, email: string): Promise<AuthTokens> {
   return createTokens(userId, email);
+}
+
+/**
+ * Set a recovery email for a user
+ */
+export async function setRecoveryEmail(userId: string, recoveryEmail: string): Promise<{ recoveryEmail: string; verificationSent: boolean }> {
+  const normalizedEmail = recoveryEmail.toLowerCase();
+  
+  // Check if this email is already used by another user
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: normalizedEmail },
+        { recoveryEmail: normalizedEmail },
+      ],
+      NOT: { id: userId },
+    },
+  });
+  
+  if (existingUser) {
+    throw new ConflictError('This email is already in use');
+  }
+  
+  // Generate verification token
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      recoveryEmail: normalizedEmail,
+      recoveryEmailVerified: false,
+      recoveryEmailToken: token,
+      recoveryEmailTokenExp: tokenExpiry,
+    },
+  });
+  
+  // In a production environment, you would send an email here
+  // For now, we'll just return that verification needs to be done
+  console.log(`[Recovery Email] Verification token for ${normalizedEmail}: ${token}`);
+  
+  return {
+    recoveryEmail: normalizedEmail,
+    verificationSent: true,
+  };
+}
+
+/**
+ * Verify a recovery email using the token
+ */
+export async function verifyRecoveryEmail(token: string): Promise<{ verified: boolean }> {
+  const user = await prisma.user.findFirst({
+    where: {
+      recoveryEmailToken: token,
+      recoveryEmailTokenExp: {
+        gt: new Date(),
+      },
+    },
+  });
+  
+  if (!user) {
+    throw new UnauthorizedError('Invalid or expired verification token');
+  }
+  
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      recoveryEmailVerified: true,
+      recoveryEmailToken: null,
+      recoveryEmailTokenExp: null,
+    },
+  });
+  
+  return { verified: true };
+}
+
+/**
+ * Remove recovery email from a user
+ */
+export async function removeRecoveryEmail(userId: string): Promise<void> {
+  // Check if user has other auth methods
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { oauthAccounts: true },
+  });
+  
+  if (!user) {
+    throw new UnauthorizedError('User not found');
+  }
+  
+  // Must have password or OAuth to remove recovery email
+  if (!user.passwordHash && user.oauthAccounts.length === 0) {
+    throw new ConflictError('Cannot remove recovery email - it is your only account recovery method');
+  }
+  
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      recoveryEmail: null,
+      recoveryEmailVerified: false,
+      recoveryEmailToken: null,
+      recoveryEmailTokenExp: null,
+    },
+  });
+}
+
+/**
+ * Set a password for a user (for OAuth-only users to add password auth)
+ */
+export async function setPassword(userId: string, password: string): Promise<void> {
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}
+
+/**
+ * Change password for a user (requires current password)
+ */
+export async function changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+  
+  if (!user) {
+    throw new UnauthorizedError('User not found');
+  }
+  
+  if (!user.passwordHash) {
+    throw new ConflictError('No password set. Use set password instead.');
+  }
+  
+  const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new UnauthorizedError('Current password is incorrect');
+  }
+  
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}
+
+/**
+ * Initiate account recovery using recovery email
+ */
+export async function initiateAccountRecovery(email: string): Promise<{ sent: boolean }> {
+  // Find user by recovery email
+  const user = await prisma.user.findFirst({
+    where: {
+      recoveryEmail: email.toLowerCase(),
+      recoveryEmailVerified: true,
+    },
+  });
+  
+  if (!user) {
+    // Don't reveal if email exists for security
+    return { sent: true };
+  }
+  
+  // Generate recovery token
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenExpiry = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
+  
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      recoveryEmailToken: token,
+      recoveryEmailTokenExp: tokenExpiry,
+    },
+  });
+  
+  // In production, send email with recovery link
+  console.log(`[Account Recovery] Recovery token for ${user.email}: ${token}`);
+  
+  return { sent: true };
+}
+
+/**
+ * Complete account recovery - set new password using recovery token
+ */
+export async function completeAccountRecovery(token: string, newPassword: string): Promise<AuthTokens> {
+  const user = await prisma.user.findFirst({
+    where: {
+      recoveryEmailToken: token,
+      recoveryEmailTokenExp: {
+        gt: new Date(),
+      },
+    },
+  });
+  
+  if (!user) {
+    throw new UnauthorizedError('Invalid or expired recovery token');
+  }
+  
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      recoveryEmailToken: null,
+      recoveryEmailTokenExp: null,
+    },
+  });
+  
+  // Create new session
+  return createTokens(user.id, user.email);
 }

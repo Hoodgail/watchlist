@@ -519,14 +519,17 @@ async function createServer() {
     }
     
     try {
-      const parsedUrl = new URL(url);
       const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
       
       console.log(`[Video] Proxying M3U8${returnRaw ? ' (raw)' : ''}: ${url.substring(0, 80)}...`);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      
       const response = await fetch(url, {
+        signal: controller.signal,
         headers: {
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -536,12 +539,16 @@ async function createServer() {
         },
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         console.error(`[Video] M3U8 fetch failed: ${response.status}`);
-        res.status(response.status).json({ error: 'Failed to fetch M3U8' });
+        res.status(response.status).json({ error: 'Failed to fetch M3U8', status: response.status });
         return;
       }
       
+      // M3U8 files are text and need URL rewriting, so we still need to load them fully
+      // But they're typically small (<100KB), so this is acceptable
       let m3u8Content = await response.text();
       
       // If raw mode, return the original content without URL rewriting
@@ -598,7 +605,12 @@ async function createServer() {
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'no-cache');
       res.send(rewrittenContent);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('[Video] M3U8 request timed out');
+        res.status(504).json({ error: 'Request timed out' });
+        return;
+      }
       console.error('[Video] M3U8 proxy error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -606,6 +618,7 @@ async function createServer() {
   
   // Proxy video segments (TS files, encryption keys, etc.)
   // Support both GET and HEAD methods for size estimation
+  // Uses streaming to avoid loading entire segments into memory
   const handleSegmentProxy = async (req: Request, res: Response) => {
     const { url, referer } = req.query;
     const isHead = req.method === 'HEAD';
@@ -628,8 +641,12 @@ async function createServer() {
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for segments
+      
       const response = await fetch(url, {
         method: isHead ? 'HEAD' : 'GET',
+        signal: controller.signal,
         headers: {
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -639,9 +656,11 @@ async function createServer() {
         },
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         console.error(`[Video] Segment fetch failed: ${response.status} for ${url.substring(0, 60)}...`);
-        res.status(response.status).json({ error: 'Failed to fetch segment' });
+        res.status(response.status).json({ error: 'Failed to fetch segment', status: response.status });
         return;
       }
       
@@ -657,11 +676,42 @@ async function createServer() {
       
       if (isHead) {
         res.end();
+        return;
+      }
+      
+      // Stream the response body directly to the client using pipe()
+      // This avoids loading the entire segment into memory
+      if (response.body) {
+        const { Readable } = await import('stream');
+        const nodeStream = Readable.fromWeb(response.body as any);
+        
+        // Handle stream errors
+        nodeStream.on('error', (err) => {
+          console.error('[Video] Segment stream error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream error' });
+          } else {
+            res.end();
+          }
+        });
+        
+        // Handle client disconnect
+        res.on('close', () => {
+          nodeStream.destroy();
+        });
+        
+        nodeStream.pipe(res);
       } else {
+        // Fallback for environments where body is not a ReadableStream
         const buffer = await response.arrayBuffer();
         res.send(Buffer.from(buffer));
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('[Video] Segment request timed out');
+        res.status(504).json({ error: 'Request timed out' });
+        return;
+      }
       console.error('[Video] Segment proxy error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -672,8 +722,10 @@ async function createServer() {
  
   
   // Proxy subtitles/VTT files
+  // Uses streaming to handle large subtitle files efficiently
+  // Supports optional encoding parameter for non-UTF-8 subtitle files (e.g., Windows-1252, ISO-8859-1)
   app.get('/api/video/subtitle', async (req: Request, res: Response) => {
-    const { url, referer } = req.query;
+    const { url, referer, encoding } = req.query;
     
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
@@ -681,6 +733,14 @@ async function createServer() {
     }
     
     const refererStr = typeof referer === 'string' ? referer : undefined;
+    const encodingStr = typeof encoding === 'string' ? encoding : 'UTF-8';
+    
+    // Validate encoding parameter (only allow known safe encodings)
+    const allowedEncodings = ['UTF-8', 'Windows-1252', 'ISO-8859-1'];
+    if (!allowedEncodings.includes(encodingStr)) {
+      res.status(400).json({ error: 'Invalid encoding parameter' });
+      return;
+    }
     
     // Validate referer is from a trusted video platform
     if (!isAllowedReferer(refererStr)) {
@@ -693,7 +753,11 @@ async function createServer() {
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      
       const response = await fetch(url, {
+        signal: controller.signal,
         headers: {
           'Accept': '*/*',
           'Referer': refererOrigin,
@@ -701,19 +765,74 @@ async function createServer() {
         },
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        res.status(response.status).json({ error: 'Failed to fetch subtitle' });
+        res.status(response.status).json({ error: 'Failed to fetch subtitle', status: response.status });
         return;
       }
       
-      const content = await response.text();
+      // If a non-UTF-8 encoding is requested, we need to decode the raw bytes
+      // with the specified encoding and re-encode as UTF-8
+      if (encodingStr !== 'UTF-8') {
+        const buffer = await response.arrayBuffer();
+        const decoder = new TextDecoder(encodingStr);
+        const content = decoder.decode(buffer);
+        
+        // Determine content type (preserve original but ensure UTF-8 charset)
+        const originalContentType = response.headers.get('Content-Type') || 'text/vtt';
+        const contentType = originalContentType.includes('charset') 
+          ? originalContentType.replace(/charset=[^;]+/i, 'charset=utf-8')
+          : `${originalContentType}; charset=utf-8`;
+        
+        res.set('Content-Type', contentType);
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+        res.send(content);
+        return;
+      }
+      
+      // Default UTF-8 path: stream the response directly
       const contentType = response.headers.get('Content-Type') || 'text/vtt';
+      const contentLength = response.headers.get('Content-Length');
       
       res.set('Content-Type', contentType);
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
-      res.send(content);
-    } catch (error) {
+      if (contentLength) {
+        res.set('Content-Length', contentLength);
+      }
+      
+      // Stream the response body directly to the client
+      if (response.body) {
+        const { Readable } = await import('stream');
+        const nodeStream = Readable.fromWeb(response.body as any);
+        
+        nodeStream.on('error', (err) => {
+          console.error('[Video] Subtitle stream error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream error' });
+          } else {
+            res.end();
+          }
+        });
+        
+        res.on('close', () => {
+          nodeStream.destroy();
+        });
+        
+        nodeStream.pipe(res);
+      } else {
+        // Fallback: load into memory if streaming is not available
+        const content = await response.text();
+        res.send(content);
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('[Video] Subtitle request timed out');
+        res.status(504).json({ error: 'Request timed out' });
+        return;
+      }
       console.error('[Video] Subtitle proxy error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }

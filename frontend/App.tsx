@@ -13,6 +13,8 @@ import { PublicProfile } from './components/PublicProfile';
 import { MangaDetail } from './components/MangaDetail';
 import { ChapterReader } from './components/ChapterReader';
 import { UnifiedDownloadManager } from './components/UnifiedDownloadManager';
+import { AccountSecurityBanner } from './components/AccountSecurityBanner';
+import { AccountRecovery } from './components/AccountRecovery';
 import MediaDetail from './components/MediaDetail';
 import VideoPlayer from './components/VideoPlayer';
 import { useAuth } from './context/AuthContext';
@@ -52,6 +54,7 @@ const MainApp: React.FC = () => {
   const [isOAuthCallback, setIsOAuthCallback] = useState(isOAuthCallbackPath(location.pathname, location.search));
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [showRecovery, setShowRecovery] = useState(false);
 
   // Friend's grouped lists (for FRIEND_VIEW)
   const [friendWatchlistGrouped, setFriendWatchlistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
@@ -99,6 +102,27 @@ const MainApp: React.FC = () => {
     return [...watchlistItems, ...readlistItems];
   }, [watchlistItems, readlistItems]);
 
+  // Create progress maps for spoiler detection (refId -> current progress)
+  const userWatchlistProgressMap = useMemo(() => {
+    const map = new Map<string, number>();
+    watchlistItems.forEach(item => {
+      if (item.refId) {
+        map.set(item.refId, item.current);
+      }
+    });
+    return map;
+  }, [watchlistItems]);
+
+  const userReadlistProgressMap = useMemo(() => {
+    const map = new Map<string, number>();
+    readlistItems.forEach(item => {
+      if (item.refId) {
+        map.set(item.refId, item.current);
+      }
+    });
+    return map;
+  }, [readlistItems]);
+
   // Followed friends
   const [friends, setFriends] = useState<User[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
@@ -135,6 +159,7 @@ const MainApp: React.FC = () => {
     mediaTitle: string;
     episodeNumber?: number;
     seasonNumber?: number;
+    mediaType?: 'anime' | 'movie' | 'tv';
   } | null>(null);
 
   // Load user's list when authenticated (skip when offline-authenticated)
@@ -711,9 +736,10 @@ const MainApp: React.FC = () => {
     provider: VideoProviderName,
     mediaTitle: string,
     episodeNumber?: number,
-    seasonNumber?: number
+    seasonNumber?: number,
+    mediaType?: 'anime' | 'movie' | 'tv'
   ) => {
-    setPlayerState({ mediaId, episodeId, episodes, provider, mediaTitle, episodeNumber, seasonNumber });
+    setPlayerState({ mediaId, episodeId, episodes, provider, mediaTitle, episodeNumber, seasonNumber, mediaType });
   }, []);
 
   const handleClosePlayer = useCallback(() => {
@@ -723,6 +749,14 @@ const MainApp: React.FC = () => {
   const handleEpisodeChange = useCallback((episodeId: string, episodeNumber?: number, seasonNumber?: number) => {
     if (playerState) {
       setPlayerState({ ...playerState, episodeId, episodeNumber, seasonNumber });
+    }
+  }, [playerState]);
+
+  // Handle provider change from VideoPlayer (when switching sources)
+  const handleProviderChange = useCallback((newProvider: VideoProviderName) => {
+    if (playerState) {
+      console.log('[App] Switching provider from', playerState.provider, 'to', newProvider);
+      setPlayerState({ ...playerState, provider: newProvider });
     }
   }, [playerState]);
 
@@ -783,9 +817,28 @@ const MainApp: React.FC = () => {
 
   // Show auth form if not logged in
   if (!user) {
+    // Show recovery flow
+    if (showRecovery) {
+      return (
+        <Layout currentView={currentView} onViewChange={setCurrentView} user={null}>
+          <AccountRecovery 
+            onSuccess={() => {
+              setShowRecovery(false);
+              showToast('Account recovered! You are now logged in.', 'success');
+            }} 
+            onBack={() => setShowRecovery(false)} 
+          />
+        </Layout>
+      );
+    }
+
     return (
       <Layout currentView={currentView} onViewChange={setCurrentView} user={null}>
-        <AuthForm isLogin={isLoginMode} onToggleMode={() => setIsLoginMode(!isLoginMode)} />
+        <AuthForm 
+          isLogin={isLoginMode} 
+          onToggleMode={() => setIsLoginMode(!isLoginMode)}
+          onRecovery={() => setShowRecovery(true)}
+        />
       </Layout>
     );
   }
@@ -920,6 +973,7 @@ const MainApp: React.FC = () => {
                   readonly={true}
                   onPageChange={loadFriendWatchlistPageForStatus}
                   loadingStatuses={friendWatchlistLoadingStatuses}
+                  userProgressMap={userWatchlistProgressMap}
                 />
                 <MediaList
                   title="READLIST"
@@ -930,6 +984,7 @@ const MainApp: React.FC = () => {
                   readonly={true}
                   onPageChange={loadFriendReadlistPageForStatus}
                   loadingStatuses={friendReadlistLoadingStatuses}
+                  userProgressMap={userReadlistProgressMap}
                 />
               </>
             )}
@@ -990,6 +1045,8 @@ const MainApp: React.FC = () => {
           mediaTitle={playerState.mediaTitle}
           episodeNumber={playerState.episodeNumber}
           seasonNumber={playerState.seasonNumber}
+          onProviderChange={handleProviderChange}
+          mediaType={playerState.mediaType}
         />
       </OfflineVideoProvider>
     );
@@ -1033,6 +1090,7 @@ const MainApp: React.FC = () => {
       isOnline={isOnline}
       isOfflineAuthenticated={isOfflineAuthenticated}
     >
+      <AccountSecurityBanner onSetupRecovery={() => setCurrentView('SETTINGS')} />
       {renderContent()}
     </Layout>
   );
