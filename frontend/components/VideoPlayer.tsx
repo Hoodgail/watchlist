@@ -53,6 +53,64 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Calculate the absolute episode position (current/total) from season and episode numbers.
+ * 
+ * For example, if House has 8 seasons with episode counts [22, 24, 24, 16, 24, 21, 23, 22]
+ * and we're watching S2E20, the absolute position would be:
+ * - current: 22 (S1) + 20 (S2) = 42
+ * - total: sum of all episodes = 176
+ * 
+ * @param episodes - The full episodes array from VideoPlayer props
+ * @param seasonNumber - Current season number (1-indexed)
+ * @param episodeNumber - Current episode number within the season (1-indexed)
+ * @returns Object with current (absolute position) and total episodes
+ */
+function calculateAbsoluteEpisode(
+  episodes: VideoEpisode[],
+  seasonNumber: number | undefined,
+  episodeNumber: number | undefined
+): { current: number; total: number } {
+  const total = episodes.length;
+  
+  // If no episode number provided, return defaults
+  if (!episodeNumber) {
+    return { current: 1, total };
+  }
+  
+  // If no season info, the episodes array is likely flat (single-season or no seasons)
+  // In this case, episodeNumber directly represents the absolute position
+  if (!seasonNumber) {
+    // Find the episode index by number for validation
+    const idx = episodes.findIndex(e => e.number === episodeNumber);
+    return { current: idx >= 0 ? idx + 1 : episodeNumber, total };
+  }
+  
+  // Group episodes by season to count episodes per season
+  const episodesBySeason = new Map<number, VideoEpisode[]>();
+  for (const ep of episodes) {
+    const s = ep.season ?? 1;
+    if (!episodesBySeason.has(s)) episodesBySeason.set(s, []);
+    episodesBySeason.get(s)!.push(ep);
+  }
+  
+  // Sort seasons to ensure correct order
+  const sortedSeasons = Array.from(episodesBySeason.keys()).sort((a, b) => a - b);
+  
+  // Count episodes in all prior seasons
+  let current = 0;
+  for (const s of sortedSeasons) {
+    if (s < seasonNumber) {
+      current += episodesBySeason.get(s)!.length;
+    }
+  }
+  
+  // Add the current episode number within the season
+  current += episodeNumber;
+  
+  return { current, total };
+}
+
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   mediaId,
   episodeId,
@@ -124,6 +182,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     initialSeasonNumber ?? currentEpisode?.season, [initialSeasonNumber, currentEpisode]
   );
 
+  // Calculate absolute episode position for backend progress tracking
+  const { current: absoluteEpisodeNumber, total: totalEpisodes } = useMemo(() => 
+    calculateAbsoluteEpisode(episodes, currentSeasonNumber, currentEpisodeNumber), 
+    [episodes, currentSeasonNumber, currentEpisodeNumber]
+  );
+
   const currentEpisodeIndex = useMemo(() => 
     episodes.findIndex(e => e.id === episodeId), [episodes, episodeId]
   );
@@ -162,10 +226,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     return () => {
       if (videoRef.current && duration > 0) {
-        updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber);
+        updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber, absoluteEpisodeNumber, totalEpisodes);
       }
     };
-  }, [mediaId, episodeId, duration, provider, currentEpisodeNumber, currentSeasonNumber]);
+  }, [mediaId, episodeId, duration, provider, currentEpisodeNumber, currentSeasonNumber, absoluteEpisodeNumber, totalEpisodes]);
 
   const loadEpisodeSources = async (currentEpisodeId: string, currentMediaId: string, currentProvider: VideoProviderName) => {
     // Destroy existing HLS instance first before resetting state
@@ -417,7 +481,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying) {
       progressIntervalRef.current = setInterval(() => {
         if (videoRef.current && duration > 0) {
-          updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber);
+          updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber, absoluteEpisodeNumber, totalEpisodes);
         }
       }, 10000);
     }
@@ -427,7 +491,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [isPlaying, mediaId, episodeId, duration, provider, updateWatchProgress, currentEpisodeNumber, currentSeasonNumber]);
+  }, [isPlaying, mediaId, episodeId, duration, provider, updateWatchProgress, currentEpisodeNumber, currentSeasonNumber, absoluteEpisodeNumber, totalEpisodes]);
 
   // ============ Keyboard Shortcuts ============
   useEffect(() => {
@@ -530,9 +594,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsPlaying(false);
     // Save progress on pause
     if (videoRef.current && duration > 0) {
-      updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber);
+      updateWatchProgress(mediaId, episodeId, videoRef.current.currentTime, duration, provider, currentEpisodeNumber, currentSeasonNumber, absoluteEpisodeNumber, totalEpisodes);
     }
-  }, [mediaId, episodeId, duration, provider, updateWatchProgress, currentEpisodeNumber, currentSeasonNumber]);
+  }, [mediaId, episodeId, duration, provider, updateWatchProgress, currentEpisodeNumber, currentSeasonNumber, absoluteEpisodeNumber, totalEpisodes]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);

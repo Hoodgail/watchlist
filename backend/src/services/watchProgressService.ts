@@ -41,12 +41,13 @@ const COMPLETION_THRESHOLD = 0.95;
  * 1. Mark the WatchProgress as completed
  * 2. Find any associated MediaItem and increment its `current` counter if needed
  * 3. Update MediaItem status from PLAN_TO_WATCH to WATCHING if applicable
+ * 4. Optionally update MediaItem's `total` if totalEpisodes is provided
  */
 export async function upsertProgress(
   userId: string,
   input: UpdateWatchProgressInput
 ): Promise<WatchProgressResponse> {
-  const { mediaId, episodeId, episodeNumber, seasonNumber, currentTime, duration, provider } = input;
+  const { mediaId, episodeId, episodeNumber, seasonNumber, currentTime, duration, provider, currentEpisode, totalEpisodes } = input;
 
   // Calculate if completed (watched 95% or more)
   const completed = duration > 0 && currentTime / duration >= COMPLETION_THRESHOLD;
@@ -98,9 +99,10 @@ export async function upsertProgress(
 
   // If newly completed, try to sync with MediaItem
   if (isNewlyCompleted) {
-    // Prefer stored episodeNumber, fall back to parsing from episodeId
-    const epNum = result.episodeNumber ?? parseEpisodeNumber(episodeId);
-    await syncMediaItemProgress(userId, mediaId, epNum);
+    // Prefer currentEpisode (absolute position calculated by frontend),
+    // fall back to stored episodeNumber, then parsing from episodeId
+    const epNum = currentEpisode ?? result.episodeNumber ?? parseEpisodeNumber(episodeId);
+    await syncMediaItemProgress(userId, mediaId, epNum, totalEpisodes);
   }
 
   return result;
@@ -112,14 +114,20 @@ export async function upsertProgress(
  * This function attempts to find a matching MediaItem and update its progress.
  * It handles the mapping between WatchProgress (provider-specific IDs) and
  * MediaItem (may use different IDs like TMDB).
+ * 
+ * @param userId - The user's ID
+ * @param mediaId - The media ID from the video provider
+ * @param currentEpisode - The absolute episode position (e.g., 42 for S2E20 of House)
+ * @param totalEpisodes - Optional total episodes count to update MediaItem.total
  */
 async function syncMediaItemProgress(
   userId: string,
   mediaId: string,
-  episodeNumber: number | null
+  currentEpisode: number | null,
+  totalEpisodes?: number
 ): Promise<void> {
   try {
-    if (episodeNumber === null) {
+    if (currentEpisode === null) {
       // Can't determine episode number, skip sync
       return;
     }
@@ -172,17 +180,26 @@ async function syncMediaItemProgress(
       return;
     }
 
-    // Only increment if the completed episode is greater than current progress
-    if (episodeNumber > mediaItem.current) {
-      const updates: { current: number; status?: 'WATCHING' } = {
-        current: episodeNumber,
-      };
+    // Build updates object
+    const updates: { current?: number; total?: number; status?: 'WATCHING' } = {};
+
+    // Only update current if the completed episode is greater than current progress
+    if (currentEpisode > mediaItem.current) {
+      updates.current = currentEpisode;
 
       // If status is PLAN_TO_WATCH, change to WATCHING
       if (mediaItem.status === 'PLAN_TO_WATCH') {
         updates.status = 'WATCHING';
       }
+    }
 
+    // Update total if provided and different from stored value (or if stored is null/0)
+    if (totalEpisodes && totalEpisodes > 0 && (!mediaItem.total || mediaItem.total !== totalEpisodes)) {
+      updates.total = totalEpisodes;
+    }
+
+    // Only update if there are changes
+    if (Object.keys(updates).length > 0) {
       await prisma.mediaItem.update({
         where: { id: mediaItem.id },
         data: updates,

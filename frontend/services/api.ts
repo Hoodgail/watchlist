@@ -966,6 +966,8 @@ export interface UpdateWatchProgressPayload {
   currentTime: number;
   duration: number;
   provider: string;
+  currentEpisode?: number;  // Absolute episode position (e.g., 42 for S2E20 of House)
+  totalEpisodes?: number;   // Total episodes across all seasons
 }
 
 /**

@@ -95,6 +95,8 @@ export const updateWatchProgressSchema = z.object({
   currentTime: z.number().min(0, 'Current time must be non-negative'),
   duration: z.number().min(0, 'Duration must be non-negative'),
   provider: z.string().min(1, 'Provider is required'),
+  currentEpisode: z.number().int().min(1).optional(),  // Absolute episode position (e.g., 42 for S2E20)
+  totalEpisodes: z.number().int().min(1).optional(),   // Total episodes across all seasons
 });
 
 // Types

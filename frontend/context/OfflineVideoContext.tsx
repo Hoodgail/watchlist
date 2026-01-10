@@ -84,7 +84,7 @@ interface OfflineVideoContextType {
   selectQuality: (episodeId: string, quality: QualityOption) => void;
   
   // Progress
-  updateWatchProgress: (mediaId: string, episodeId: string, currentTime: number, duration: number, provider?: string, episodeNumber?: number, seasonNumber?: number) => Promise<void>;
+  updateWatchProgress: (mediaId: string, episodeId: string, currentTime: number, duration: number, provider?: string, episodeNumber?: number, seasonNumber?: number, currentEpisode?: number, totalEpisodes?: number) => Promise<void>;
   getWatchProgress: (mediaId: string, episodeId?: string) => WatchProgress | null;
   
   // Utilities
@@ -660,7 +660,9 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     duration: number,
     provider?: string,
     episodeNumber?: number,
-    seasonNumber?: number
+    seasonNumber?: number,
+    currentEpisode?: number,
+    totalEpisodes?: number
   ) => {
     const key = `${mediaId}-${episodeId}`;
     const now = Date.now();
@@ -703,6 +705,8 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
           currentTime,
           duration,
           provider,
+          currentEpisode,
+          totalEpisodes,
         });
       } catch (error) {
         // Non-critical: log but don't throw - local storage is the fallback
