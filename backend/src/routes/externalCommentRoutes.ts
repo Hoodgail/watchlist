@@ -21,6 +21,7 @@ const fetchCommentsSchema = z.object({
   volumeNumber: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(100).optional(),
   providerNames: z.array(z.string()).optional(),
+  providerIds: z.record(z.string()).optional(),
 });
 
 const fetchFromProviderSchema = z.object({
@@ -34,6 +35,7 @@ const fetchFromProviderSchema = z.object({
   chapterNumber: z.number().int().min(0).optional(),
   volumeNumber: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(100).optional(),
+  providerIds: z.record(z.string()).optional(),
 });
 
 type FetchCommentsInput = z.infer<typeof fetchCommentsSchema>;

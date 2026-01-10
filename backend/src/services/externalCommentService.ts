@@ -1,5 +1,6 @@
 import type { MediaType } from '@prisma/client';
 import * as commentService from './commentService.js';
+import * as cheerio from 'cheerio';
 
 // ============================================================================
 // Types
@@ -17,6 +18,11 @@ export interface FetchCommentsParams {
   chapterNumber?: number;
   volumeNumber?: number;
   limit?: number;
+  /** Provider-specific IDs (e.g., hianimeEpisodeId for HiAnime) */
+  providerIds?: {
+    hianimeEpisodeId?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 /**
@@ -272,6 +278,151 @@ export class LetterboxdCommentProvider implements ExternalCommentProvider {
   }
 }
 
+/**
+ * HiAnime Comment Provider
+ * Fetches comments from HiAnime episode pages
+ * Only supports ANIME media type
+ */
+export class HiAnimeCommentProvider implements ExternalCommentProvider {
+  name = 'hianime';
+  displayName = 'HiAnime';
+  supportedMediaTypes: Array<'TV' | 'MOVIE' | 'ANIME' | 'MANGA'> = ['ANIME'];
+
+  private readonly baseUrl = 'https://hianime.to';
+
+  async fetchComments(params: FetchCommentsParams): Promise<ExternalComment[]> {
+    if (params.mediaType !== 'ANIME') {
+      console.log(`[HiAnime] Skipping - not anime content`);
+      return [];
+    }
+
+    // HiAnime requires a specific episode ID from their system
+    const episodeId = params.providerIds?.hianimeEpisodeId;
+    if (!episodeId) {
+      console.log(`[HiAnime] Skipping - no hianimeEpisodeId provided`);
+      return [];
+    }
+
+    console.log(`[HiAnime] Fetching comments for episode ID: ${episodeId}`);
+
+    try {
+      const apiUrl = `${this.baseUrl}/ajax/comment/list/${episodeId}?sort=newest`;
+
+      const response = await fetch(apiUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': `${this.baseUrl}/watch/anime?ep=${episodeId}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as { status?: boolean; html?: string };
+      
+      if (!data.html) {
+        console.log(`[HiAnime] No HTML content in response`);
+        return [];
+      }
+
+      // Parse the HTML response using cheerio
+      const $ = cheerio.load(data.html);
+      const comments: ExternalComment[] = [];
+      const limit = params.limit ?? 50;
+
+      $('.cw_l-line').each((i, element) => {
+        if (comments.length >= limit) return false; // Stop if we've reached the limit
+
+        const $el = $(element);
+
+        const commentId = ($el.attr('id') || '').replace('cm-', '');
+        const username = $el.find('.user-name').text().trim();
+        const content = $el.find('.content').text().trim();
+        const timestamp = $el.find('.time').text().trim();
+        const avatar = $el.find('.item-avatar img').attr('src');
+        const likes = $el.find('.btn-vote .value').text().trim();
+
+        if (!commentId || !content) return; // Skip invalid comments
+
+        comments.push({
+          externalSource: 'hianime',
+          externalId: commentId,
+          externalAuthor: username || 'Anonymous',
+          externalAuthorAvatar: avatar,
+          externalUrl: `${this.baseUrl}/watch/anime?ep=${episodeId}#cm-${commentId}`,
+          content: content,
+          createdAt: this.parseHiAnimeTimestamp(timestamp),
+          score: parseInt(likes, 10) || 0,
+        });
+      });
+
+      console.log(`[HiAnime] Fetched ${comments.length} comments`);
+      return comments;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[HiAnime] Error fetching comments: ${errorMessage}`);
+      
+      if (errorMessage.includes('403')) {
+        console.error('[HiAnime] 403 error - site may be protected by Cloudflare');
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Parse HiAnime's relative timestamp format (e.g., "2 hours ago", "3 days ago")
+   */
+  private parseHiAnimeTimestamp(timestamp: string): Date {
+    const now = new Date();
+    const lower = timestamp.toLowerCase();
+
+    // Try to parse relative timestamps
+    const match = lower.match(/(\d+)\s*(second|minute|hour|day|week|month|year)s?\s*ago/);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      const unit = match[2];
+
+      switch (unit) {
+        case 'second':
+          now.setSeconds(now.getSeconds() - value);
+          break;
+        case 'minute':
+          now.setMinutes(now.getMinutes() - value);
+          break;
+        case 'hour':
+          now.setHours(now.getHours() - value);
+          break;
+        case 'day':
+          now.setDate(now.getDate() - value);
+          break;
+        case 'week':
+          now.setDate(now.getDate() - value * 7);
+          break;
+        case 'month':
+          now.setMonth(now.getMonth() - value);
+          break;
+        case 'year':
+          now.setFullYear(now.getFullYear() - value);
+          break;
+      }
+      return now;
+    }
+
+    // If can't parse, return current time
+    return now;
+  }
+
+  isConfigured(): boolean {
+    // HiAnime doesn't require API keys
+    return true;
+  }
+}
+
 // ============================================================================
 // Core Service Functions
 // ============================================================================
@@ -304,6 +455,10 @@ export async function fetchAndImportComments(
     volumeNumber?: number;
     limit?: number;
     providerNames?: string[]; // Optionally filter to specific providers
+    providerIds?: {
+      hianimeEpisodeId?: string;
+      [key: string]: string | undefined;
+    };
   }
 ): Promise<ImportResult> {
   const result: ImportResult = {
@@ -339,6 +494,7 @@ export async function fetchAndImportComments(
     chapterNumber: options?.chapterNumber,
     volumeNumber: options?.volumeNumber,
     limit: options?.limit ?? 50,
+    providerIds: options?.providerIds,
   };
 
   // Fetch from all providers in parallel
@@ -417,6 +573,10 @@ export async function fetchFromProvider(
     chapterNumber?: number;
     volumeNumber?: number;
     limit?: number;
+    providerIds?: {
+      hianimeEpisodeId?: string;
+      [key: string]: string | undefined;
+    };
   }
 ): Promise<ImportResult> {
   return fetchAndImportComments(refId, mediaType, title, {
@@ -494,6 +654,7 @@ export function initializeExternalCommentService(): void {
   registerProvider(new MALCommentProvider());
   registerProvider(new AniListCommentProvider());
   registerProvider(new LetterboxdCommentProvider());
+  registerProvider(new HiAnimeCommentProvider());
 
   console.log(`[ExternalComments] Initialized with ${providerRegistry.size} providers`);
 }
