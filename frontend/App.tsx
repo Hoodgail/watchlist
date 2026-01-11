@@ -17,11 +17,14 @@ import { AccountSecurityBanner } from './components/AccountSecurityBanner';
 import { AccountRecovery } from './components/AccountRecovery';
 import MediaDetail from './components/MediaDetail';
 import VideoPlayer from './components/VideoPlayer';
+import Collections from './components/Collections';
+import CollectionView from './components/CollectionView';
+import CollectionForm from './components/CollectionForm';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { useOffline } from './context/OfflineContext';
 import { OfflineVideoProvider, useOfflineVideo } from './context/OfflineVideoContext';
-import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter, VideoProviderName, VideoEpisode, ProviderName } from './types';
+import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter, VideoProviderName, VideoEpisode, ProviderName, Collection } from './types';
 import { ChapterInfo } from './services/mangadexTypes';
 import * as api from './services/api';
 import * as manga from './services/manga';
@@ -57,6 +60,11 @@ const MainApp: React.FC = () => {
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [showRecovery, setShowRecovery] = useState(false);
+
+  // Collection state
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [showCollectionForm, setShowCollectionForm] = useState(false);
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
 
   // Friend's grouped lists (for FRIEND_VIEW)
   const [friendWatchlistGrouped, setFriendWatchlistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
@@ -1486,6 +1494,36 @@ const MainApp: React.FC = () => {
             />
           </OfflineVideoProvider>
         );
+      case 'COLLECTIONS':
+        return (
+          <Collections
+            onSelectCollection={(id) => {
+              setSelectedCollectionId(id);
+              setCurrentView('COLLECTION_VIEW');
+            }}
+            onCreateCollection={() => {
+              setEditingCollection(null);
+              setShowCollectionForm(true);
+            }}
+          />
+        );
+      case 'COLLECTION_VIEW':
+        if (!selectedCollectionId) return null;
+        return (
+          <CollectionView
+            collectionId={selectedCollectionId}
+            onBack={() => setCurrentView('COLLECTIONS')}
+            onEdit={(collection) => {
+              setEditingCollection(collection);
+              setShowCollectionForm(true);
+            }}
+            onAddItem={() => {
+              // Open search with special mode to add to collection
+              // For now, can just navigate to SEARCH
+              setCurrentView('SEARCH');
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -1579,6 +1617,26 @@ const MainApp: React.FC = () => {
           onMerge={handleConflictMerge}
           onReplace={handleConflictReplace}
           onKeepBoth={handleConflictKeepBoth}
+        />
+      )}
+
+      {/* Collection Form Modal */}
+      {showCollectionForm && (
+        <CollectionForm
+          collection={editingCollection || undefined}
+          onClose={() => {
+            setShowCollectionForm(false);
+            setEditingCollection(null);
+          }}
+          onSave={(collection) => {
+            setShowCollectionForm(false);
+            setEditingCollection(null);
+            // If we created a new collection, navigate to it
+            if (!editingCollection) {
+              setSelectedCollectionId(collection.id);
+              setCurrentView('COLLECTION_VIEW');
+            }
+          }}
         />
       )}
     </Layout>

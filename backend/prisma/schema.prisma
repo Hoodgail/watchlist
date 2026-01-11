@@ -62,6 +62,10 @@ model User {
   watchProgress          WatchProgress[]
   comments               Comment[]
   commentReactions       CommentReaction[]
+  ownedCollections       Collection[]          @relation("OwnedCollections")
+  collectionMemberships  CollectionMember[]
+  collectionStars        CollectionStar[]
+  collectionComments     CollectionComment[]
 
   @@map("users")
 }
@@ -110,9 +114,10 @@ model MediaSource {
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  mediaItems  MediaItem[]
-  suggestions Suggestion[]
-  aliases     MediaSourceAlias[]
+  mediaItems      MediaItem[]
+  suggestions     Suggestion[]
+  aliases         MediaSourceAlias[]
+  collectionItems CollectionItem[]
 
   @@map("media_sources")
 }
@@ -276,6 +281,12 @@ enum ReactionType {
   SPOILER
 }
 
+enum CollectionRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
 model Comment {
   id                   String      @id @default(uuid())
   userId               String?     @map("user_id") // Nullable for external comments
@@ -322,4 +333,120 @@ model CommentReaction {
   @@index([commentId])
   @@index([userId])
   @@map("comment_reactions")
+}
+
+// ============================================
+// Collection Models - Custom curated lists
+// ============================================
+
+model Collection {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  coverUrl    String?  @map("cover_url") @db.VarChar(500)
+  isPublic    Boolean  @default(false) @map("is_public")
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner    User                 @relation("OwnedCollections", fields: [ownerId], references: [id], onDelete: Cascade)
+  items    CollectionItem[]
+  members  CollectionMember[]
+  stars    CollectionStar[]
+  invites  CollectionInvite[]
+  comments CollectionComment[]
+
+  @@index([ownerId])
+  @@index([isPublic])
+  @@map("collections")
+}
+
+model CollectionItem {
+  id           String    @id @default(uuid())
+  collectionId String    @map("collection_id")
+  refId        String    @map("ref_id") @db.VarChar(100)
+  title        String?   @db.VarChar(255)
+  imageUrl     String?   @map("image_url") @db.VarChar(500)
+  type         MediaType
+  orderIndex   Int       @map("order_index")
+  note         String?   @db.Text // Optional note for this item (e.g., "Watch after Episode 12")
+  sourceId     String?   @map("source_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  collection Collection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  source     MediaSource? @relation(fields: [sourceId], references: [id])
+
+  @@unique([collectionId, refId])
+  @@index([collectionId])
+  @@index([sourceId])
+  @@map("collection_items")
+}
+
+model CollectionMember {
+  id           String         @id @default(uuid())
+  collectionId String         @map("collection_id")
+  userId       String         @map("user_id")
+  role         CollectionRole @default(VIEWER)
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, userId])
+  @@index([userId])
+  @@map("collection_members")
+}
+
+model CollectionStar {
+  id           String   @id @default(uuid())
+  collectionId String   @map("collection_id")
+  userId       String   @map("user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, userId])
+  @@index([userId])
+  @@map("collection_stars")
+}
+
+model CollectionInvite {
+  id           String         @id @default(uuid())
+  collectionId String         @map("collection_id")
+  token        String         @unique @db.VarChar(64)
+  role         CollectionRole @default(VIEWER)
+  maxUses      Int?           @map("max_uses")
+  useCount     Int            @default(0) @map("use_count")
+  expiresAt    DateTime       @map("expires_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([token])
+  @@map("collection_invites")
+}
+
+model CollectionComment {
+  id           String   @id @default(uuid())
+  collectionId String   @map("collection_id")
+  userId       String   @map("user_id")
+  content      String   @db.VarChar(2000)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([userId])
+  @@map("collection_comments")
 }

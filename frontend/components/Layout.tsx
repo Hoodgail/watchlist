@@ -80,7 +80,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Views that require network access
-  const networkRequiredViews: View[] = ['TRENDING', 'SEARCH', 'FRIENDS', 'SUGGESTIONS'];
+  const networkRequiredViews: View[] = ['TRENDING', 'SEARCH', 'FRIENDS', 'SUGGESTIONS', 'COLLECTIONS'];
 
   const navItems: { id: View; label: string; requiresNetwork?: boolean }[] = [
     { id: 'WATCHLIST', label: 'WATCH' },
@@ -89,6 +89,7 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'TRENDING', label: 'HOT', requiresNetwork: true },
     { id: 'SEARCH', label: 'ADD', requiresNetwork: true },
     { id: 'FRIENDS', label: 'SOCIAL', requiresNetwork: true },
+    { id: 'COLLECTIONS', label: 'LISTS', requiresNetwork: true },
   ];
 
   const isAuthView = currentView === 'LOGIN' || currentView === 'REGISTER';
@@ -240,7 +241,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
         {/* Only show nav when logged in */}
         {user && !isAuthView && (
-          <nav className="grid grid-cols-6 divide-x divide-neutral-800">
+          <nav className="grid grid-cols-7 divide-x divide-neutral-800">
             {navItems.map((item) => {
               const disabled = isNavDisabled(item);
               return (
@@ -255,7 +256,8 @@ export const Layout: React.FC<LayoutProps> = ({
                   }
                   ${!disabled && (currentView === item.id ||
                       (currentView === 'FRIEND_VIEW' && item.id === 'FRIENDS') ||
-                      (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS'))
+                      (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS') ||
+                      (currentView === 'COLLECTION_VIEW' && item.id === 'COLLECTIONS'))
                       ? 'bg-white text-black'
                       : disabled ? '' : 'text-neutral-500'
                     }`}

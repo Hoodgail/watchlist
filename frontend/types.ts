@@ -240,7 +240,7 @@ export interface ChapterPages {
   pages: ChapterPage[];
 }
 
-export type View = 'WATCHLIST' | 'READLIST' | 'PLAYLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS' | 'RECOVERY';
+export type View = 'WATCHLIST' | 'READLIST' | 'PLAYLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS' | 'RECOVERY' | 'COLLECTIONS' | 'COLLECTION_VIEW';
 
 // Suggestion types
 export type SuggestionStatus = 'PENDING' | 'ACCEPTED' | 'DISMISSED';
@@ -290,4 +290,70 @@ export interface PublicProfile {
   followerCount: number;
   followingCount: number;
   list?: PublicProfileMediaItem[];
+}
+
+// Collection types
+export type CollectionRole = 'OWNER' | 'EDITOR' | 'VIEWER';
+
+export interface CollectionOwner {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+export interface Collection {
+  id: string;
+  title: string;
+  description: string | null;
+  coverUrl: string | null;
+  isPublic: boolean;
+  owner: CollectionOwner;
+  itemCount: number;
+  starCount: number;
+  isStarred: boolean;
+  myRole: CollectionRole | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionItem {
+  id: string;
+  refId: string;
+  title: string | null;
+  imageUrl: string | null;
+  type: MediaType;
+  orderIndex: number;
+  note: string | null;
+  source: { id: string; title: string; imageUrl: string | null } | null;
+}
+
+export interface CollectionMember {
+  id: string;
+  user: CollectionOwner;
+  role: CollectionRole;
+  createdAt: string;
+}
+
+export interface CollectionInvite {
+  id: string;
+  token: string;
+  role: CollectionRole;
+  maxUses: number | null;
+  useCount: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface CollectionComment {
+  id: string;
+  content: string;
+  user: CollectionOwner;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionWithDetails extends Collection {
+  items: CollectionItem[];
+  members: CollectionMember[];
 }

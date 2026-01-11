@@ -10,6 +10,7 @@ import watchProgressRoutes from './watchProgress.js';
 import providerMappingRoutes from './providerMappings.js';
 import commentRoutes from './commentRoutes.js';
 import externalCommentRoutes from './externalCommentRoutes.js';
+import collectionRoutes from './collections.js';
 
 const router = Router();
 
@@ -24,6 +25,7 @@ router.use('/watch-progress', watchProgressRoutes);
 router.use('/provider-mappings', providerMappingRoutes);
 router.use('/comments', commentRoutes);
 router.use('/external-comments', externalCommentRoutes);
+router.use('/collections', collectionRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {
