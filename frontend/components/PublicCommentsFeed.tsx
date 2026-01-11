@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ProxiedImage } from './ProxiedImage';
 import { getPublicCommentsFeed, Comment } from '../services/api';
 
 // ==================== Types ====================
@@ -7,7 +6,7 @@ import { getPublicCommentsFeed, Comment } from '../services/api';
 type PublicComment = Comment;
 
 interface PublicCommentsFeedProps {
-  onViewMedia?: (refId: string, mediaType: string) => void;
+  onViewMedia?: (refId: string, mediaType: string, title?: string) => void;
   limit?: number;
   title?: string;
 }
@@ -41,24 +40,60 @@ const formatRelativeTime = (dateString: string): string => {
 };
 
 // Truncate text to a maximum length
-const truncateText = (text: string, maxLength: number = 50): string => {
+const truncateText = (text: string, maxLength: number = 80): string => {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength).trim() + '...';
+};
+
+// Get initials from a name or username
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+};
+
+// ==================== Avatar Component ====================
+
+interface AuthorAvatarProps {
+  avatarUrl?: string | null;
+  username: string;
+  displayName?: string | null;
+  size?: 'sm' | 'md';
+}
+
+const AuthorAvatar: React.FC<AuthorAvatarProps> = ({ avatarUrl, username, displayName, size = 'sm' }) => {
+  const [imageError, setImageError] = useState(false);
+  const initials = getInitials(displayName || username);
+  const sizeClasses = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs';
+  
+  if (avatarUrl && !imageError) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={username}
+        className={`${sizeClasses} rounded-full object-cover border border-neutral-600`}
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+  
+  // Fallback to initials
+  return (
+    <div 
+      className={`${sizeClasses} rounded-full bg-neutral-700 border border-neutral-600 flex items-center justify-center font-bold text-neutral-300`}
+      title={displayName || username}
+    >
+      {initials}
+    </div>
+  );
 };
 
 // ==================== Skeleton Component ====================
 
 const CommentCardSkeleton: React.FC = () => (
-  <div className="flex-shrink-0 w-[140px] animate-pulse">
-    {/* Poster skeleton */}
-    <div className="aspect-[2/3] bg-neutral-800 border border-neutral-700" />
-    {/* Content skeleton */}
-    <div className="mt-2 space-y-1.5">
-      <div className="h-3 bg-neutral-800 rounded w-full" />
-      <div className="h-2 bg-neutral-800 rounded w-2/3" />
-      <div className="h-2 bg-neutral-800 rounded w-full" />
-    </div>
-  </div>
+  <div className="flex-shrink-0 w-[200px] sm:w-[240px] h-[140px] sm:h-[160px] animate-pulse bg-neutral-800 rounded-lg border border-neutral-700" />
 );
 
 // ==================== Comment Card Component ====================
@@ -69,74 +104,107 @@ interface CommentCardProps {
 }
 
 const CommentCard: React.FC<CommentCardProps> = ({ comment, onClick }) => {
+  const [spoilerRevealed, setSpoilerRevealed] = useState(false);
   const imageUrl = getImageUrl(comment.media?.imageUrl);
   const authorUsername = comment.author?.username || comment.externalAuthor || 'Unknown';
   const displayName = comment.author?.displayName || comment.externalAuthor || authorUsername;
+  const avatarUrl = comment.author?.avatarUrl || comment.externalAuthorAvatar;
+
+  const isSpoilerHidden = comment.isSpoiler && !spoilerRevealed;
+
+  const handleRevealSpoiler = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click from navigating
+    setSpoilerRevealed(true);
+  };
 
   return (
     <button
       onClick={onClick}
-      className="flex-shrink-0 w-[140px] text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-white snap-start"
+      className="flex-shrink-0 w-[200px] sm:w-[240px] h-[140px] sm:h-[160px] relative overflow-hidden rounded-lg border border-neutral-800 group focus:outline-none focus-visible:ring-2 focus-visible:ring-white snap-start transition-all hover:border-neutral-600 hover:scale-[1.02]"
     >
-      {/* Poster */}
-      <div className="relative overflow-hidden bg-zinc-800 border border-neutral-800 transition-all group-hover:border-neutral-600 group-hover:scale-[1.02] group-hover:brightness-110">
-        <ProxiedImage
+      {/* Background Image */}
+      {imageUrl ? (
+        <img
           src={imageUrl}
           alt={comment.media?.title || 'Media'}
-          widthClass="w-[140px]"
-          width={140}
-          height={210}
+          className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
         />
-        
-        {/* Spoiler Badge */}
-        {comment.isSpoiler && (
-          <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[9px] font-bold uppercase px-1.5 py-0.5 tracking-wider">
-            SPOILER
-          </div>
-        )}
+      ) : (
+        <div className="absolute inset-0 bg-neutral-800" />
+      )}
+      
+      {/* Dark Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30" />
+      
+      {/* Spoiler Badge */}
+      {comment.isSpoiler && (
+        <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[9px] font-bold uppercase px-1.5 py-0.5 tracking-wider rounded">
+          SPOILER
+        </div>
+      )}
 
-        {/* Like count badge */}
-        {comment.reactionCounts?.LIKE && comment.reactionCounts.LIKE > 0 && (
-          <div className="absolute bottom-2 right-2 bg-black/80 text-neutral-300 text-[10px] px-1.5 py-0.5 flex items-center gap-1 border border-neutral-700">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
-            </svg>
-            {comment.reactionCounts.LIKE}
-          </div>
-        )}
-      </div>
+      {/* Like count badge */}
+      {comment.reactionCounts?.LIKE && comment.reactionCounts.LIKE > 0 && (
+        <div className="absolute top-2 left-2 bg-black/60 text-neutral-200 text-[10px] px-1.5 py-0.5 flex items-center gap-1 rounded">
+          <svg className="w-3 h-3 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
+          </svg>
+          {comment.reactionCounts.LIKE}
+        </div>
+      )}
 
-      {/* Content */}
-      <div className="mt-2 space-y-0.5">
+      {/* Content Overlay */}
+      <div className="absolute inset-x-0 bottom-0 p-3 flex flex-col gap-1.5">
         {/* Media Title */}
         <h4 
-          className="text-xs font-bold uppercase tracking-tight truncate text-white group-hover:text-neutral-200"
+          className="text-xs font-bold uppercase tracking-tight text-white line-clamp-1 drop-shadow-lg"
           title={comment.media?.title}
         >
           {comment.media?.title || 'Unknown Media'}
         </h4>
 
-        {/* Username */}
-        <p className="text-[10px] text-neutral-500 truncate">
-          @{authorUsername}
-        </p>
+        {/* Comment snippet with spoiler handling */}
+        <div className="relative">
+          <p 
+            className={`text-[11px] leading-tight line-clamp-2 drop-shadow ${
+              isSpoilerHidden 
+                ? 'text-neutral-400 blur-sm select-none' 
+                : 'text-neutral-200'
+            }`}
+          >
+            "{truncateText(comment.content)}"
+          </p>
+          
+          {/* Reveal Spoiler Button Overlay */}
+          {isSpoilerHidden && (
+            <div 
+              className="absolute inset-0 flex items-center justify-center"
+              onClick={handleRevealSpoiler}
+            >
+              <span className="bg-neutral-900/80 border border-neutral-600 text-neutral-300 text-[10px] font-medium uppercase tracking-wider px-2 py-1 rounded hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer">
+                Reveal
+              </span>
+            </div>
+          )}
+        </div>
 
-        {/* Comment snippet */}
-        <p 
-          className={`text-[11px] leading-tight ${
-            comment.isSpoiler 
-              ? 'text-neutral-600 blur-sm hover:blur-none transition-all' 
-              : 'text-neutral-400'
-          }`}
-          title={comment.isSpoiler ? 'Reveal spoiler' : comment.content}
-        >
-          "{truncateText(comment.content)}"
-        </p>
-
-        {/* Timestamp */}
-        <p className="text-[9px] text-neutral-600 uppercase tracking-wider mt-1">
-          {formatRelativeTime(comment.createdAt)}
-        </p>
+        {/* Author Row */}
+        <div className="flex items-center gap-2 mt-1">
+          <AuthorAvatar
+            avatarUrl={avatarUrl}
+            username={authorUsername}
+            displayName={displayName}
+            size="sm"
+          />
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <span className="text-[10px] text-neutral-300 truncate font-medium">
+              {displayName}
+            </span>
+            <span className="text-[9px] text-neutral-500 uppercase tracking-wider flex-shrink-0">
+              {formatRelativeTime(comment.createdAt)}
+            </span>
+          </div>
+        </div>
       </div>
     </button>
   );
@@ -205,7 +273,7 @@ export const PublicCommentsFeed: React.FC<PublicCommentsFeedProps> = ({
   // Handle card click
   const handleCardClick = (comment: PublicComment) => {
     if (onViewMedia) {
-      onViewMedia(comment.refId, comment.mediaType);
+      onViewMedia(comment.refId, comment.mediaType, comment.media?.title);
     }
   };
 

@@ -245,37 +245,44 @@ export async function getTrendingGames(
   options: SearchOptions = {}
 ): Promise<RAWGSearchResult[]> {
   if (!RAWG_API_KEY) {
-    console.warn('RAWG API key not found');
+    console.warn('RAWG API key not found - set RAWG_API_KEY environment variable');
     return [];
   }
 
   try {
-    // Get games from the last 6 months, ordered by rating
+    // Get games from the last 12 months, ordered by popularity (added count)
     const today = new Date();
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     
-    const dateRange = `${sixMonthsAgo.toISOString().split('T')[0]},${today.toISOString().split('T')[0]}`;
+    const dateRange = `${twelveMonthsAgo.toISOString().split('T')[0]},${today.toISOString().split('T')[0]}`;
 
     const params = new URLSearchParams({
       key: RAWG_API_KEY,
       dates: options.dates || dateRange,
-      ordering: options.ordering || '-rating',
+      ordering: options.ordering || '-added', // Order by most added (popularity) instead of rating
       page: String(options.page || 1),
       page_size: String(options.pageSize || 20),
-      metacritic: options.metacritic || '70,100', // Only games with decent metacritic scores
     });
+
+    // Only add metacritic filter if explicitly provided (don't require it by default)
+    // Many recent games don't have metacritic scores yet
+    if (options.metacritic) {
+      params.append('metacritic', options.metacritic);
+    }
 
     const response = await fetchWithTimeout(
       `${RAWG_BASE_URL}/games?${params.toString()}`
     );
 
     if (!response.ok) {
+      console.error(`RAWG trending failed: ${response.status} ${response.statusText}`);
       throw new Error(`RAWG trending failed: ${response.status}`);
     }
 
     const data = (await response.json()) as RAWGSearchResponse;
-    return data.results;
+    console.log(`RAWG trending: fetched ${data.results?.length || 0} games`);
+    return data.results || [];
   } catch (error) {
     console.error('RAWG trending error:', error);
     return [];

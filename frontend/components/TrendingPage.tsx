@@ -14,7 +14,7 @@ const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
 
 interface TrendingPageProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
-  onViewMedia?: (refId: string, mediaType: string) => void;
+  onViewMedia?: (refId: string, mediaType: string, title?: string) => void;
 }
 
 // Helper to get full image URL

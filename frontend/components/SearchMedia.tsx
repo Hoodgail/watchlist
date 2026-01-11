@@ -606,78 +606,81 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
             {results.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-4 p-4 border border-neutral-800 hover:border-white transition-colors group bg-black"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border border-neutral-800 hover:border-white transition-colors group bg-black"
               >
-                {/* Image */}
-                {item.imageUrl && (
-                  <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
-                    <img
-                      src={proxyImageUrl(item.imageUrl, item.provider ? PROVIDER_BASE_URLS[item.provider] : undefined)}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
+                {/* Image & Info Container */}
+                <div className="flex items-center gap-4 flex-grow min-w-0">
+                  {/* Image */}
+                  {item.imageUrl && (
+                    <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
+                      <img
+                        src={proxyImageUrl(item.imageUrl, item.provider ? PROVIDER_BASE_URLS[item.provider] : undefined)}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
 
-                {/* Info */}
-                <div className="flex-grow min-w-0">
-                  <h4 className="font-bold text-lg uppercase tracking-tight truncate">
-                    {item.title}
-                  </h4>
-                  <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase flex-wrap">
-                    <span className="bg-neutral-900 px-1 border border-neutral-800">
-                      {getTypeLabel(item.type)}
-                    </span>
-                    {/* For games, show platforms and genres instead of ONGOING */}
-                    {item.type === 'GAME' ? (
-                      <>
-                        {item.platforms && item.platforms.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            <PlatformIcons platforms={item.platforms} />
-                          </span>
-                        )}
-                        {item.metacritic && (
-                          <span className={`px-1 ${item.metacritic >= 75 ? 'text-green-500' : item.metacritic >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
-                            {item.metacritic}
-                          </span>
-                        )}
-                        {item.genres && item.genres.length > 0 && (
-                          <span className="text-neutral-600">
-                            {item.genres.slice(0, 2).join(' · ')}
-                          </span>
-                        )}
-                        {item.playtimeHours && item.playtimeHours > 0 && (
-                          <span className="text-neutral-600">
-                            ~{item.playtimeHours}H
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span>
-                        {item.total
-                          ? `${item.total} ${getUnitLabel(item.type)}`
-                          : 'ONGOING'}
+                  {/* Info */}
+                  <div className="flex-grow min-w-0">
+                    <h4 className="font-bold text-lg uppercase tracking-tight truncate">
+                      {item.title}
+                    </h4>
+                    <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase flex-wrap">
+                      <span className="bg-neutral-900 px-1 border border-neutral-800">
+                        {getTypeLabel(item.type)}
                       </span>
-                    )}
-                    {item.year && <span className="text-neutral-600">{item.year}</span>}
-                    {item.provider && (
-                      <span className="text-neutral-700 bg-neutral-900/50 px-1">
-                        {PROVIDER_NAMES[item.provider] || item.provider}
-                      </span>
-                    )}
+                      {/* For games, show platforms and genres instead of ONGOING */}
+                      {item.type === 'GAME' ? (
+                        <>
+                          {item.platforms && item.platforms.length > 0 && (
+                            <span className="flex items-center gap-1">
+                              <PlatformIcons platforms={item.platforms} />
+                            </span>
+                          )}
+                          {item.metacritic && (
+                            <span className={`px-1 ${item.metacritic >= 75 ? 'text-green-500' : item.metacritic >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                              {item.metacritic}
+                            </span>
+                          )}
+                          {item.genres && item.genres.length > 0 && (
+                            <span className="text-neutral-600">
+                              {item.genres.slice(0, 2).join(' · ')}
+                            </span>
+                          )}
+                          {item.playtimeHours && item.playtimeHours > 0 && (
+                            <span className="text-neutral-600">
+                              ~{item.playtimeHours}H
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span>
+                          {item.total
+                            ? `${item.total} ${getUnitLabel(item.type)}`
+                            : 'ONGOING'}
+                        </span>
+                      )}
+                      {item.year && <span className="text-neutral-600">{item.year}</span>}
+                      {item.provider && (
+                        <span className="text-neutral-700 bg-neutral-900/50 px-1">
+                          {PROVIDER_NAMES[item.provider] || item.provider}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Add Buttons */}
                 {addedItems.has(item.id) ? (
-                  <span className="flex-shrink-0 text-sm border border-green-700 text-green-500 px-4 py-2 uppercase rounded-none">
+                  <span className="flex-shrink-0 text-sm border border-green-700 text-green-500 px-4 py-2 uppercase rounded-none text-center sm:text-left">
                     Added
                   </span>
                 ) : (
-                  <div className="flex-shrink-0 flex gap-2">
+                  <div className="flex-shrink-0 flex gap-2 flex-wrap sm:flex-nowrap">
                     {onOpenMedia && isVideoType(item.type) && item.provider && (
                       <button
                         onClick={() => {
@@ -688,7 +691,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                             item.type === 'TV' ? 'tv' : undefined;
                           onOpenMedia(item.id, item.provider!, item.title, mediaType);
                         }}
-                        className="text-sm border border-blue-700 text-blue-400 px-3 py-2 hover:border-blue-500 hover:text-blue-300 transition-all uppercase rounded-none font-bold flex items-center gap-1"
+                        className="text-sm border border-blue-700 text-blue-400 px-3 py-2 hover:border-blue-500 hover:text-blue-300 transition-all uppercase rounded-none font-bold flex items-center gap-1 flex-1 sm:flex-initial justify-center"
                       >
                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M8 5v14l11-7z" />
@@ -699,14 +702,14 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                     <button
                       onClick={() => handleAddWithFormatCheck(item)}
                       disabled={addingItems.has(item.id) || checkingFormats.has(item.id)}
-                      className="text-sm bg-white text-black px-3 py-2 hover:bg-neutral-200 transition-all uppercase rounded-none disabled:opacity-50 font-bold"
+                      className="text-sm bg-white text-black px-3 py-2 hover:bg-neutral-200 transition-all uppercase rounded-none disabled:opacity-50 font-bold flex-1 sm:flex-initial"
                     >
                       {checkingFormats.has(item.id) ? '...' : addingItems.has(item.id) ? '...' : '+ Planned'}
                     </button>
                     <button
                       onClick={() => setQuickAddItem(item)}
                       disabled={addingItems.has(item.id)}
-                      className="text-sm border border-neutral-700 text-neutral-400 px-3 py-2 hover:border-white hover:text-white transition-all uppercase rounded-none disabled:opacity-50"
+                      className="text-sm border border-neutral-700 text-neutral-400 px-3 py-2 hover:border-white hover:text-white transition-all uppercase rounded-none disabled:opacity-50 flex-1 sm:flex-initial"
                     >
                       + Details
                     </button>

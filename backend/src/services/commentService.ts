@@ -57,6 +57,10 @@ export interface CommentWithAuthor {
 export interface CommentFeedItem extends CommentWithAuthor {
   // Media info for feed context
   mediaTitle?: string;
+  media?: {
+    title: string;
+    imageUrl?: string | null;
+  };
 }
 
 export interface ExternalCommentInput {
@@ -443,38 +447,45 @@ export async function getFriendsFeed(
   const resultComments = hasMore ? comments.slice(0, limit) : comments;
   const nextCursor = hasMore ? resultComments[resultComments.length - 1].id : null;
 
-  // Get media titles from the user's list or friends' lists
+  // Get media info (title + imageUrl) from the user's list or friends' lists
   const refIdSet = new Set<string>();
   for (const c of resultComments) {
     refIdSet.add(c.refId);
   }
   const refIds = Array.from(refIdSet);
-  // Get titles from MediaSource first (canonical source)
+  
+  // Get title and imageUrl from MediaSource first (canonical source)
   const sources = await prisma.mediaSource.findMany({
     where: { refId: { in: refIds } },
-    select: { refId: true, title: true },
+    select: { refId: true, title: true, imageUrl: true },
   });
-  const titleMap = new Map<string, string>(sources.map(s => [s.refId, s.title]));
+  const mediaInfoMap = new Map<string, { title: string; imageUrl: string | null }>(
+    sources.map(s => [s.refId, { title: s.title, imageUrl: s.imageUrl }])
+  );
 
   // Fallback: for any refIds not in MediaSource, check MediaItem (legacy data)
-  const missingRefIds = refIds.filter(id => !titleMap.has(id));
+  const missingRefIds = refIds.filter(id => !mediaInfoMap.has(id));
   if (missingRefIds.length > 0) {
     const legacyItems = await prisma.mediaItem.findMany({
       where: { refId: { in: missingRefIds }, title: { not: null } },
-      select: { refId: true, title: true },
+      select: { refId: true, title: true, imageUrl: true },
       distinct: ['refId'],
     });
     for (const item of legacyItems) {
-      if (item.title && !titleMap.has(item.refId)) {
-        titleMap.set(item.refId, item.title);
+      if (item.title && !mediaInfoMap.has(item.refId)) {
+        mediaInfoMap.set(item.refId, { title: item.title, imageUrl: item.imageUrl });
       }
     }
   }
 
-  const feedItems: CommentFeedItem[] = resultComments.map((comment) => ({
-    ...formatCommentWithAuthor(comment),
-    mediaTitle: titleMap.get(comment.refId),
-  }));
+  const feedItems: CommentFeedItem[] = resultComments.map((comment) => {
+    const mediaInfo = mediaInfoMap.get(comment.refId);
+    return {
+      ...formatCommentWithAuthor(comment),
+      mediaTitle: mediaInfo?.title,
+      media: mediaInfo ? { title: mediaInfo.title, imageUrl: mediaInfo.imageUrl } : undefined,
+    };
+  });
 
   return {
     comments: feedItems,
@@ -522,38 +533,45 @@ export async function getPublicFeed(
   const resultComments = hasMore ? comments.slice(0, limit) : comments;
   const nextCursor = hasMore ? resultComments[resultComments.length - 1].id : null;
 
-  // Get media titles
+  // Get media info (title + imageUrl)
   const publicRefIdSet = new Set<string>();
   for (const c of resultComments) {
     publicRefIdSet.add(c.refId);
   }
   const publicRefIds = Array.from(publicRefIdSet);
-  // Get titles from MediaSource first (canonical source)
+  
+  // Get title and imageUrl from MediaSource first (canonical source)
   const sources = await prisma.mediaSource.findMany({
     where: { refId: { in: publicRefIds } },
-    select: { refId: true, title: true },
+    select: { refId: true, title: true, imageUrl: true },
   });
-  const titleMap = new Map<string, string>(sources.map(s => [s.refId, s.title]));
+  const mediaInfoMap = new Map<string, { title: string; imageUrl: string | null }>(
+    sources.map(s => [s.refId, { title: s.title, imageUrl: s.imageUrl }])
+  );
 
   // Fallback: for any refIds not in MediaSource, check MediaItem (legacy data)
-  const missingRefIds = publicRefIds.filter(id => !titleMap.has(id));
+  const missingRefIds = publicRefIds.filter(id => !mediaInfoMap.has(id));
   if (missingRefIds.length > 0) {
     const legacyItems = await prisma.mediaItem.findMany({
       where: { refId: { in: missingRefIds }, title: { not: null } },
-      select: { refId: true, title: true },
+      select: { refId: true, title: true, imageUrl: true },
       distinct: ['refId'],
     });
     for (const item of legacyItems) {
-      if (item.title && !titleMap.has(item.refId)) {
-        titleMap.set(item.refId, item.title);
+      if (item.title && !mediaInfoMap.has(item.refId)) {
+        mediaInfoMap.set(item.refId, { title: item.title, imageUrl: item.imageUrl });
       }
     }
   }
 
-  const feedItems: CommentFeedItem[] = resultComments.map((comment) => ({
-    ...formatCommentWithAuthor(comment),
-    mediaTitle: titleMap.get(comment.refId),
-  }));
+  const feedItems: CommentFeedItem[] = resultComments.map((comment) => {
+    const mediaInfo = mediaInfoMap.get(comment.refId);
+    return {
+      ...formatCommentWithAuthor(comment),
+      mediaTitle: mediaInfo?.title,
+      media: mediaInfo ? { title: mediaInfo.title, imageUrl: mediaInfo.imageUrl } : undefined,
+    };
+  });
 
   return {
     comments: feedItems,

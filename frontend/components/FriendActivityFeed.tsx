@@ -6,7 +6,7 @@ import { getFriendCommentsFeed, Comment } from '../services/api';
 type FeedComment = Comment;
 
 interface FriendActivityFeedProps {
-  onViewMedia?: (refId: string, mediaType: string) => void;
+  onViewMedia?: (refId: string, mediaType: string, title?: string) => void;
   onViewProfile?: (username: string) => void;
   limit?: number;
 }
@@ -106,7 +106,7 @@ const ActivitySkeleton: React.FC = () => (
 
 interface ActivityCardProps {
   comment: FeedComment;
-  onViewMedia?: (refId: string, mediaType: string) => void;
+  onViewMedia?: (refId: string, mediaType: string, title?: string) => void;
   onViewProfile?: (username: string) => void;
 }
 
@@ -129,7 +129,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   
   const handleMediaClick = () => {
     if (onViewMedia) {
-      onViewMedia(comment.refId, comment.mediaType);
+      onViewMedia(comment.refId, comment.mediaType, comment.media?.title);
     }
   };
   

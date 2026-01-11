@@ -1203,7 +1203,7 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
               </div>
 
               {/* Controls */}
-              <div className="flex flex-col sm:items-end gap-3 min-w-[140px]">
+              <div className="flex flex-col sm:items-end gap-3">
                 {/* Add to My List button */}
                 {readonly && onAddToMyList && (
                   <button

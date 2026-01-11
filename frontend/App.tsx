@@ -1310,7 +1310,7 @@ const MainApp: React.FC = () => {
         return (
           <TrendingPage
             onAdd={handleAddMedia}
-            onViewMedia={(refId, mediaType) => {
+            onViewMedia={(refId, mediaType, title) => {
               // Determine the provider and media type for navigation
               const parsed = parseVideoRefId(refId);
               const lowerType = mediaType.toLowerCase() as 'movie' | 'tv' | 'anime';
@@ -1328,11 +1328,11 @@ const MainApp: React.FC = () => {
                 }
               } else if (parsed) {
                 // Already a video provider ID
-                handleOpenMedia(parsed.mediaId, parsed.provider, undefined, lowerType);
+                handleOpenMedia(parsed.mediaId, parsed.provider, title, lowerType);
               } else {
-                // External ID (tmdb, anilist, etc.) - use default provider
+                // External ID (tmdb, anilist, etc.) - use default provider with title for resolution
                 const defaultProvider = mediaType === 'ANIME' ? DEFAULT_ANIME_PROVIDER : DEFAULT_MOVIE_PROVIDER;
-                handleOpenMedia(refId, defaultProvider, undefined, lowerType);
+                handleOpenMedia(refId, defaultProvider, title, lowerType);
               }
             }}
           />
@@ -1346,7 +1346,7 @@ const MainApp: React.FC = () => {
             onFollowUser={handleFollowUser}
             onUnfollowUser={handleUnfollowUser}
             isLoading={friendsLoading}
-            onViewMedia={(refId, mediaType) => {
+            onViewMedia={(refId, mediaType, title) => {
               // Determine the provider and media type for navigation
               const parsed = parseVideoRefId(refId);
               const lowerType = mediaType.toLowerCase() as 'movie' | 'tv' | 'anime';
@@ -1364,11 +1364,11 @@ const MainApp: React.FC = () => {
                 }
               } else if (parsed) {
                 // Already a video provider ID
-                handleOpenMedia(parsed.mediaId, parsed.provider, undefined, lowerType);
+                handleOpenMedia(parsed.mediaId, parsed.provider, title, lowerType);
               } else {
-                // External ID (tmdb, anilist, etc.) - use default provider
+                // External ID (tmdb, anilist, etc.) - use default provider with title for resolution
                 const defaultProvider = mediaType === 'ANIME' ? DEFAULT_ANIME_PROVIDER : DEFAULT_MOVIE_PROVIDER;
-                handleOpenMedia(refId, defaultProvider, undefined, lowerType);
+                handleOpenMedia(refId, defaultProvider, title, lowerType);
               }
             }}
           />

@@ -52,7 +52,7 @@ interface FriendListProps {
   onSearchUsers: (query: string) => Promise<User[]>;
   onFollowUser: (userId: string) => Promise<void>;
   onUnfollowUser: (userId: string) => Promise<void>;
-  onViewMedia?: (refId: string, mediaType: string) => void;
+  onViewMedia?: (refId: string, mediaType: string, title?: string) => void;
   isLoading?: boolean;
 }
 
