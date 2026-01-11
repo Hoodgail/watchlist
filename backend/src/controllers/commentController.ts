@@ -30,13 +30,13 @@ export async function createComment(
 
 // Get comments for a media item
 export async function getMediaComments(
-  req: Request<{ refId: string }, unknown, unknown, GetMediaCommentsQuery>,
+  req: Request<{ refId: string }>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const { refId } = req.params;
-    const query = req.query;
+    const query = req.query as unknown as GetMediaCommentsQuery;
 
     const result = await commentService.getMediaComments(refId, query, req.user?.id);
     res.json(result);
@@ -47,7 +47,7 @@ export async function getMediaComments(
 
 // Get friend activity feed
 export async function getFriendsFeed(
-  req: Request<unknown, unknown, unknown, FeedQuery>,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -57,7 +57,8 @@ export async function getFriendsFeed(
       return;
     }
 
-    const result = await commentService.getFriendsFeed(req.user.id, req.query);
+    const query = req.query as unknown as FeedQuery;
+    const result = await commentService.getFriendsFeed(req.user.id, query);
     res.json(result);
   } catch (error) {
     next(error);
@@ -66,12 +67,13 @@ export async function getFriendsFeed(
 
 // Get public feed (for Hot page)
 export async function getPublicFeed(
-  req: Request<unknown, unknown, unknown, FeedQuery>,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const result = await commentService.getPublicFeed(req.query);
+    const query = req.query as unknown as FeedQuery;
+    const result = await commentService.getPublicFeed(query);
     res.json(result);
   } catch (error) {
     next(error);
