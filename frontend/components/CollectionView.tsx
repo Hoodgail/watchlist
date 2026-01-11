@@ -99,6 +99,13 @@ const StarOutlineIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-
   </svg>
 );
 
+// Link icon
+const LinkIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+  </svg>
+);
+
 interface CollectionViewProps {
   collectionId: string;
   onBack: () => void;
@@ -121,6 +128,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showPrivateLinkWarning, setShowPrivateLinkWarning] = useState(false);
 
   useEffect(() => {
     loadCollection();
@@ -211,6 +219,26 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
 
   const canEdit = collection?.myRole === 'OWNER' || collection?.myRole === 'EDITOR';
   const isOwner = collection?.myRole === 'OWNER';
+
+  const handleCopyLink = async () => {
+    if (!collection) return;
+    
+    // If collection is private and we haven't shown the warning yet, show it first
+    if (!collection.isPublic && !showPrivateLinkWarning) {
+      setShowPrivateLinkWarning(true);
+      return;
+    }
+    
+    const publicUrl = `${window.location.origin}/c/${collectionId}`;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      showToast('Link copied to clipboard', 'success');
+      setShowPrivateLinkWarning(false);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      showToast('Failed to copy link', 'error');
+    }
+  };
 
 
   if (loading) {
@@ -336,6 +364,33 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
             </>
           )}
         </button>
+
+        {/* Copy Link Button */}
+        {!showPrivateLinkWarning ? (
+          <button
+            onClick={handleCopyLink}
+            className="flex items-center gap-2 text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+          >
+            <LinkIcon className="w-4 h-4" />
+            COPY LINK
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 border border-amber-900 bg-amber-950/50">
+            <span className="text-xs text-amber-400 uppercase">Private - only members can view</span>
+            <button
+              onClick={handleCopyLink}
+              className="text-xs px-3 py-1 bg-amber-900 text-amber-100 font-bold uppercase tracking-wider hover:bg-amber-800 transition-colors"
+            >
+              COPY ANYWAY
+            </button>
+            <button
+              onClick={() => setShowPrivateLinkWarning(false)}
+              className="text-xs px-3 py-1 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+            >
+              CANCEL
+            </button>
+          </div>
+        )}
 
         {/* Edit Button (owner/editor) */}
         {canEdit && (

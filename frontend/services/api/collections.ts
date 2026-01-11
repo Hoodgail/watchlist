@@ -97,6 +97,21 @@ export async function getCollection(id: string): Promise<CollectionWithDetails> 
   return await response.json();
 }
 
+/**
+ * Get a public collection by ID (no auth required for public collections)
+ * Similar to getCollection but intended for public viewing
+ */
+export async function getPublicCollection(id: string): Promise<CollectionWithDetails> {
+  const response = await fetchWithAuth(`/collections/${id}`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch collection');
+  }
+
+  return await response.json();
+}
+
 export async function updateCollection(id: string, data: {
   title?: string;
   description?: string;

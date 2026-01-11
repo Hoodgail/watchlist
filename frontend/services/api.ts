@@ -147,6 +147,7 @@ export {
   createCollection,
   getMyCollections,
   getPublicCollections,
+  getPublicCollection,
   getStarredCollections,
   getCollection,
   updateCollection,

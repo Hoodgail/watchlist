@@ -10,6 +10,7 @@ import { SuggestionList } from './components/SuggestionList';
 import { OAuthCallback } from './components/OAuthCallback';
 import { Settings } from './components/Settings';
 import { PublicProfile } from './components/PublicProfile';
+import { PublicCollectionView } from './components/PublicCollectionView';
 import { MangaDetail } from './components/MangaDetail';
 import { ChapterReader } from './components/ChapterReader';
 import { UnifiedDownloadManager } from './components/UnifiedDownloadManager';
@@ -1655,6 +1656,9 @@ const App: React.FC = () => {
     <Routes>
       {/* Public profile route - accessible without auth */}
       <Route path="/u/:username" element={<PublicProfile />} />
+      
+      {/* Public collection route - accessible without auth */}
+      <Route path="/c/:collectionId" element={<PublicCollectionView />} />
       
       {/* OAuth callback route */}
       <Route path="/auth/callback" element={<MainApp />} />

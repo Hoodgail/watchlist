@@ -103,6 +103,84 @@ function generateProfileMetaTags(profile: ProfileData, username: string): string
   `;
 }
 
+// Collection data interface for SSR
+interface CollectionData {
+  id: string;
+  title: string;
+  description?: string;
+  coverUrl?: string;
+  isPublic: boolean;
+  itemCount: number;
+  starCount: number;
+  owner: {
+    username: string;
+    displayName?: string;
+  };
+}
+
+// Fetch collection data from API
+async function fetchCollection(collectionId: string): Promise<CollectionData | null> {
+  try {
+    console.log(`[SSR] Fetching collection from: ${API_URL}/collections/${collectionId}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${API_URL}/collections/${encodeURIComponent(collectionId)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.log(`[SSR] Collection response not ok: ${response.status}`);
+      return null;
+    }
+    const data = await response.json();
+    console.log(`[SSR] Collection fetched successfully: ${data.title}`);
+    return data;
+  } catch (error) {
+    console.error('[SSR] Failed to fetch collection:', error);
+    return null;
+  }
+}
+
+// Generate meta tags for collection page
+function generateCollectionMetaTags(collection: CollectionData): string {
+  const pageTitle = escapeHtml(`${collection.title} - Collection`);
+  const pageUrl = `${FRONTEND_URL}/c/${encodeURIComponent(collection.id)}`;
+  const ownerName = escapeHtml(collection.owner.displayName || collection.owner.username);
+  
+  let description: string;
+  if (collection.description) {
+    description = escapeHtml(collection.description.slice(0, 150) + (collection.description.length > 150 ? '...' : ''));
+  } else {
+    description = `A collection by ${ownerName} with ${collection.itemCount} items.`;
+  }
+  
+  const imageUrl = collection.coverUrl ? escapeHtml(collection.coverUrl) : `${FRONTEND_URL}/assets/banner.png`;
+  const twitterCard = collection.coverUrl ? 'summary_large_image' : 'summary';
+  
+  return `
+    <title>${pageTitle}</title>
+    <meta name="title" content="${pageTitle}" />
+    <meta name="description" content="${description}" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${pageUrl}" />
+    <meta property="og:title" content="${pageTitle}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${imageUrl}" />
+    <meta property="og:site_name" content="Watchlist" />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="${twitterCard}" />
+    <meta name="twitter:url" content="${pageUrl}" />
+    <meta name="twitter:title" content="${pageTitle}" />
+    <meta name="twitter:description" content="${description}" />
+    <meta name="twitter:image" content="${imageUrl}" />
+  `;
+}
+
 // Default meta tags for non-profile pages
 function getDefaultMetaTags(): string {
   return `
@@ -884,6 +962,40 @@ async function createServer() {
       }
     });
     
+    // Handle collection pages with dynamic meta tags BEFORE Vite middleware
+    app.get('/c/:collectionId', async (req: Request, res: Response) => {
+      const { collectionId } = req.params;
+      console.log(`[SSR] Collection request for: ${collectionId}`);
+      
+      try {
+        // Fetch collection data
+        const collection = await fetchCollection(collectionId);
+        console.log(`[SSR] Collection fetched:`, collection ? 'found' : 'not found');
+        
+        // Generate appropriate meta tags
+        const metaTags = collection 
+          ? generateCollectionMetaTags(collection)
+          : getDefaultMetaTags();
+        
+        // Replace the entire SSR_META block with our dynamic tags
+        let modifiedTemplate = template.replace(
+          /<!--SSR_META_START-->[\s\S]*?<!--SSR_META_END-->/,
+          metaTags
+        );
+        
+        console.log(`[SSR] Transforming HTML...`);
+        let html = await vite.transformIndexHtml(req.originalUrl, modifiedTemplate);
+        console.log(`[SSR] HTML transformed, length: ${html.length}`);
+        
+        console.log(`[SSR] Sending response...`);
+        res.status(200).type('html').send(html);
+        console.log(`[SSR] Response sent`);
+      } catch (e) {
+        console.error('SSR Error:', e);
+        res.status(200).type('html').send(template);
+      }
+    });
+    
     // Then add Vite middleware for everything else (JS, CSS, HMR, etc.)
     app.use(vite.middlewares);
     
@@ -921,6 +1033,32 @@ async function createServer() {
         // Generate appropriate meta tags
         const metaTags = profile 
           ? generateProfileMetaTags(profile, username)
+          : getDefaultMetaTags();
+        
+        // Replace the entire SSR_META block with our dynamic tags
+        const html = template.replace(
+          /<!--SSR_META_START-->[\s\S]*?<!--SSR_META_END-->/,
+          metaTags
+        );
+        
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e) {
+        console.error('SSR Error:', e);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      }
+    });
+    
+    // Handle collection pages with dynamic meta tags
+    app.get('/c/:collectionId', async (req: Request, res: Response) => {
+      const { collectionId } = req.params;
+      
+      try {
+        // Fetch collection data
+        const collection = await fetchCollection(collectionId);
+        
+        // Generate appropriate meta tags
+        const metaTags = collection 
+          ? generateCollectionMetaTags(collection)
           : getDefaultMetaTags();
         
         // Replace the entire SSR_META block with our dynamic tags
