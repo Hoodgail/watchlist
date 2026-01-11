@@ -212,6 +212,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
   const canEdit = collection?.myRole === 'OWNER' || collection?.myRole === 'EDITOR';
   const isOwner = collection?.myRole === 'OWNER';
 
+
   if (loading) {
     return (
       <div className="py-12 text-center text-neutral-500 uppercase tracking-wider animate-pulse">
@@ -318,11 +319,10 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         <button
           onClick={handleStar}
           disabled={actionLoading === 'star'}
-          className={`flex items-center gap-2 text-xs px-4 py-2 font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${
-            collection.isStarred
-              ? 'bg-amber-950 border border-amber-800 text-amber-400 hover:bg-amber-900'
-              : 'border border-neutral-700 text-neutral-400 hover:border-amber-700 hover:text-amber-400'
-          }`}
+          className={`flex items-center gap-2 text-xs px-4 py-2 font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${collection.isStarred
+            ? 'bg-amber-950 border border-amber-800 text-amber-400 hover:bg-amber-900'
+            : 'border border-neutral-700 text-neutral-400 hover:border-amber-700 hover:text-amber-400'
+            }`}
         >
           {collection.isStarred ? (
             <>
@@ -423,31 +423,28 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
       <div className="flex border border-neutral-800">
         <button
           onClick={() => setActiveSection('items')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
-            activeSection === 'items'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
-          }`}
+          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeSection === 'items'
+            ? 'bg-white text-black'
+            : 'text-neutral-500 hover:bg-neutral-900'
+            }`}
         >
           ITEMS ({collection.items.length})
         </button>
         <button
           onClick={() => setActiveSection('members')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${
-            activeSection === 'members'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
-          }`}
+          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${activeSection === 'members'
+            ? 'bg-white text-black'
+            : 'text-neutral-500 hover:bg-neutral-900'
+            }`}
         >
           MEMBERS ({collection.members.length + 1})
         </button>
         <button
           onClick={() => setActiveSection('comments')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${
-            activeSection === 'comments'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
-          }`}
+          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${activeSection === 'comments'
+            ? 'bg-white text-black'
+            : 'text-neutral-500 hover:bg-neutral-900'
+            }`}
         >
           COMMENTS
         </button>

@@ -65,7 +65,7 @@ export interface CollectionResponse {
 export interface CollectionDetailResponse extends CollectionResponse {
   items: CollectionItemResponse[];
   members: CollectionMemberResponse[];
-  userRole: CollectionRole | null;
+  myRole: CollectionRole | null;
   isStarred: boolean;
 }
 
@@ -689,7 +689,7 @@ export async function getCollection(
     isStarred = !!star;
   }
 
-  const userRole = getUserRole(userId ?? null, collectionWithMembers);
+  const myRole = getUserRole(userId ?? null, collectionWithMembers);
 
   return {
     id: collection.id,
@@ -704,7 +704,7 @@ export async function getCollection(
     starCount: collection._count.stars,
     items: collection.items.map(formatCollectionItemResponse),
     members: collection.members.map(formatMemberResponse),
-    userRole,
+    myRole,
     isStarred,
   };
 }
@@ -1299,7 +1299,7 @@ export async function getCollectionInvites(
   });
 
   // Filter out invites that have reached max uses (Prisma can't compare fields directly)
-  return invites.filter((invite: CollectionInviteResponse) => 
+  return invites.filter((invite: CollectionInviteResponse) =>
     invite.maxUses === null || invite.useCount < invite.maxUses
   );
 }
