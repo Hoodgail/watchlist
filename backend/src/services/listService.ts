@@ -187,6 +187,7 @@ export interface GroupedListResponse {
   groups: {
     WATCHING: StatusGroupPagination;
     READING: StatusGroupPagination;
+    PLAYING: StatusGroupPagination;
     PAUSED: StatusGroupPagination;
     PLAN_TO_WATCH: StatusGroupPagination;
     COMPLETED: StatusGroupPagination;
