@@ -518,8 +518,9 @@ export async function createCollection(
 
 /**
  * Get collections the user owns or is a member of.
+ * Includes myRole to indicate the user's permission level.
  */
-export async function getMyCollections(userId: string): Promise<CollectionResponse[]> {
+export async function getMyCollections(userId: string): Promise<(CollectionResponse & { myRole: CollectionRole })[]> {
   const collections = await prisma.collection.findMany({
     where: {
       OR: [
@@ -527,11 +528,33 @@ export async function getMyCollections(userId: string): Promise<CollectionRespon
         { members: { some: { userId } } },
       ],
     },
-    select: collectionSelect,
+    select: {
+      ...collectionSelect,
+      ownerId: true,
+      members: {
+        where: { userId },
+        select: { role: true },
+      },
+    },
     orderBy: { updatedAt: 'desc' },
   });
 
-  return collections.map(formatCollectionResponse);
+  return collections.map((collection) => {
+    // Determine user's role
+    let myRole: CollectionRole;
+    if (collection.ownerId === userId) {
+      myRole = 'OWNER';
+    } else if (collection.members.length > 0) {
+      myRole = collection.members[0].role;
+    } else {
+      myRole = 'VIEWER'; // Fallback, shouldn't happen
+    }
+
+    return {
+      ...formatCollectionResponse(collection),
+      myRole,
+    };
+  });
 }
 
 /**

@@ -9,6 +9,9 @@ import * as api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import CollectionItemList from './CollectionItemList';
 import CollectionComments from './CollectionComments';
+import { CollectionAddItemModal } from './CollectionAddItemModal';
+import { CollectionInviteModal } from './CollectionInviteModal';
+import { CollectionMemberModal } from './CollectionMemberModal';
 
 // Format relative time
 const formatRelativeTime = (dateString: string): string => {
@@ -100,7 +103,7 @@ interface CollectionViewProps {
   collectionId: string;
   onBack: () => void;
   onEdit: (collection: Collection) => void;
-  onAddItem: () => void;
+  onAddItem?: () => void; // Optional - if not provided, internal modal is used
 }
 
 export const CollectionView: React.FC<CollectionViewProps> = ({
@@ -117,6 +120,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
 
   useEffect(() => {
     loadCollection();
@@ -346,7 +350,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {/* Add Item Button (owner/editor) */}
         {canEdit && (
           <button
-            onClick={onAddItem}
+            onClick={() => onAddItem ? onAddItem() : setShowAddItemModal(true)}
             className="text-xs px-4 py-2 bg-white text-black font-bold uppercase tracking-wider hover:bg-neutral-200 transition-colors"
           >
             ADD ITEM
@@ -456,7 +460,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
           items={collection.items}
           canEdit={canEdit}
           onItemsChange={loadCollection}
-          onAddItem={onAddItem}
+          onAddItem={() => onAddItem ? onAddItem() : setShowAddItemModal(true)}
         />
       )}
 
@@ -529,44 +533,35 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         />
       )}
 
-      {/* Invite Modal Placeholder */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-black border border-neutral-800 p-6 max-w-md w-full mx-4">
-            <h2 className="text-lg font-bold uppercase tracking-tight text-white mb-4">
-              CREATE INVITE LINK
-            </h2>
-            <p className="text-sm text-neutral-400 mb-4">
-              Invite functionality coming soon.
-            </p>
-            <button
-              onClick={() => setShowInviteModal(false)}
-              className="w-full text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
-            >
-              CLOSE
-            </button>
-          </div>
-        </div>
+      {/* Invite Modal */}
+      {showInviteModal && collection && (
+        <CollectionInviteModal
+          collectionId={collectionId}
+          collectionTitle={collection.title}
+          onClose={() => setShowInviteModal(false)}
+        />
       )}
 
-      {/* Member Modal Placeholder */}
-      {showMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-black border border-neutral-800 p-6 max-w-md w-full mx-4">
-            <h2 className="text-lg font-bold uppercase tracking-tight text-white mb-4">
-              MANAGE MEMBERS
-            </h2>
-            <p className="text-sm text-neutral-400 mb-4">
-              Member management functionality coming soon.
-            </p>
-            <button
-              onClick={() => setShowMemberModal(false)}
-              className="w-full text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
-            >
-              CLOSE
-            </button>
-          </div>
-        </div>
+      {/* Member Modal */}
+      {showMemberModal && collection && (
+        <CollectionMemberModal
+          collectionId={collectionId}
+          collectionTitle={collection.title}
+          owner={collection.owner}
+          initialMembers={collection.members}
+          onClose={() => setShowMemberModal(false)}
+          onMembersChange={loadCollection}
+        />
+      )}
+
+      {/* Add Item Modal */}
+      {showAddItemModal && collection && (
+        <CollectionAddItemModal
+          collectionId={collectionId}
+          collectionTitle={collection.title}
+          onClose={() => setShowAddItemModal(false)}
+          onSuccess={loadCollection}
+        />
       )}
     </div>
   );

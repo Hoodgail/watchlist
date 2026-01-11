@@ -3,6 +3,7 @@ import { MediaItem, SearchResult, ProviderInfo, ProviderName } from '../types';
 import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders, searchWithProvider } from '../services/mediaSearch';
 import { QuickAddModal } from './QuickAddModal';
 import { FormatSelectionModal } from './FormatSelectionModal';
+import { AddToCollectionModal, CollectionItemData } from './AddToCollectionModal';
 
 // Provider base URLs for referer headers
 const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
@@ -231,6 +232,9 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   const [animeVariant, setAnimeVariant] = useState<SearchResult | null>(null);
   const [mangaVariant, setMangaVariant] = useState<SearchResult | null>(null);
   const [checkingFormats, setCheckingFormats] = useState<Set<string>>(new Set());
+
+  // Add to Collection modal state
+  const [addToCollectionItem, setAddToCollectionItem] = useState<SearchResult | null>(null);
 
   // Get available providers for current category
   const availableProviders = CATEGORY_PROVIDERS[category] || [];
@@ -713,6 +717,12 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                     >
                       + Details
                     </button>
+                    <button
+                      onClick={() => setAddToCollectionItem(item)}
+                      className="text-sm border border-neutral-700 text-neutral-400 px-3 py-2 hover:border-white hover:text-white transition-all uppercase rounded-none flex-1 sm:flex-initial"
+                    >
+                      + Collection
+                    </button>
                   </div>
                 )}
               </div>
@@ -751,6 +761,23 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
             setAnimeVariant(null);
             setMangaVariant(null);
           }}
+        />
+      )}
+
+      {/* Add to Collection Modal */}
+      {addToCollectionItem && (
+        <AddToCollectionModal
+          item={{
+            id: addToCollectionItem.id,
+            title: addToCollectionItem.title,
+            type: addToCollectionItem.type,
+            imageUrl: addToCollectionItem.imageUrl,
+            year: addToCollectionItem.year,
+            total: addToCollectionItem.total,
+            source: addToCollectionItem.source,
+            provider: addToCollectionItem.provider,
+          }}
+          onClose={() => setAddToCollectionItem(null)}
         />
       )}
     </div>
