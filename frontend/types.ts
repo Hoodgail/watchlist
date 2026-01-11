@@ -65,6 +65,7 @@ export interface MediaItem {
   rating?: number | null; // Personal rating 0-10
   imageUrl?: string; // For TMDB/MangaHook images
   refId: string; // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  year?: number | null; // Release year (for conflict detection, not persisted)
   friendsStatuses?: FriendStatus[]; // Friends who have this item
   activeProgress?: ActiveProgress | null; // Current playback progress for video content
   aliases?: SourceAlias[]; // Linked alternative sources for playback

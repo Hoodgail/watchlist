@@ -485,13 +485,19 @@ const MainApp: React.FC = () => {
   }, []);
 
   // Helper to extract year from refId or other sources
-  const extractYear = (item: { refId: string; title?: string }): number | null => {
+  const extractYear = (item: { refId?: string; title?: string; year?: number | null }): number | null => {
+    // Use year directly if provided
+    if (item.year) {
+      return item.year;
+    }
     // Try to extract year from refId format like "tmdb:12345:2020"
-    const parts = item.refId.split(':');
-    if (parts.length >= 3) {
-      const maybeYear = parseInt(parts[2], 10);
-      if (maybeYear >= 1900 && maybeYear <= 2100) {
-        return maybeYear;
+    if (item.refId) {
+      const parts = item.refId.split(':');
+      if (parts.length >= 3) {
+        const maybeYear = parseInt(parts[2], 10);
+        if (maybeYear >= 1900 && maybeYear <= 2100) {
+          return maybeYear;
+        }
       }
     }
     // Try to extract year from title like "Show Name (2020)"
@@ -532,13 +538,13 @@ const MainApp: React.FC = () => {
       const existingItems = getAllListItems();
       const target: MatchableItem = {
         title: newItem.title,
-        year: extractYear({ refId: newItem.refId, title: newItem.title }),
+        year: extractYear({ refId: newItem.refId, title: newItem.title, year: newItem.year }),
       };
 
       for (const existing of existingItems) {
         const existingMatchable: MatchableItem = {
           title: existing.title,
-          year: extractYear({ refId: existing.refId, title: existing.title }),
+          year: extractYear({ refId: existing.refId, title: existing.title, year: existing.year }),
         };
 
         const result = calculateSimilarity(target, existingMatchable);

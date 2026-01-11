@@ -380,6 +380,7 @@ export function searchResultToMediaItem(result: SearchResult): Omit<MediaItem, '
     status,
     imageUrl: result.imageUrl,
     refId: result.id,
+    year: result.year,
   };
   
   // Add game-specific fields if this is a game
