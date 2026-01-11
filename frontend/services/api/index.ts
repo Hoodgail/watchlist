@@ -1,9 +1,7 @@
 /**
- * API Service
+ * API Module Barrel Export
  * 
- * This file re-exports all API functions from the modular api/ directory.
- * For new code, you can import directly from './api' or from individual modules
- * like './api/auth', './api/list', etc.
+ * Re-exports all API functions from individual modules for easier imports.
  */
 
 // Core client
@@ -17,7 +15,7 @@ export {
   removeTokens,
   fetchWithAuth,
   healthCheck,
-} from './api/client';
+} from './client';
 
 // Auth
 export {
@@ -36,7 +34,7 @@ export {
   changePassword,
   initiateAccountRecovery,
   completeAccountRecovery,
-} from './api/auth';
+} from './auth';
 
 // List
 export {
@@ -48,14 +46,14 @@ export {
   linkSource,
   getStatusesByRefIds,
   transformBackendItem,
-} from './api/list';
+} from './list';
 export type {
   PaginatedListResponse,
   StatusGroupPagination,
   GroupedListResponse,
   MediaTypeFilter,
   BulkStatusItem,
-} from './api/list';
+} from './list';
 
 // Friends
 export {
@@ -66,8 +64,8 @@ export {
   searchUsers,
   getUserList,
   getFriendGroupedList,
-} from './api/friends';
-export type { GroupedFriendListResponse } from './api/friends';
+} from './friends';
+export type { GroupedFriendListResponse } from './friends';
 
 // Suggestions
 export {
@@ -77,15 +75,15 @@ export {
   acceptSuggestion,
   dismissSuggestion,
   deleteSuggestion,
-} from './api/suggestions';
-export type { SendSuggestionPayload } from './api/suggestions';
+} from './suggestions';
+export type { SendSuggestionPayload } from './suggestions';
 
 // Profile
 export {
   getPublicProfile,
   updatePrivacySettings,
   getPrivacySettings,
-} from './api/profile';
+} from './profile';
 
 // Provider Mappings
 export {
@@ -94,8 +92,8 @@ export {
   saveProviderMapping,
   saveAutoMapping,
   deleteProviderMapping,
-} from './api/providerMappings';
-export type { ProviderMapping } from './api/providerMappings';
+} from './providerMappings';
+export type { ProviderMapping } from './providerMappings';
 
 // Watch Progress
 export {
@@ -105,8 +103,8 @@ export {
   getWatchProgressForEpisode,
   deleteWatchProgressForMedia,
   deleteWatchProgressForEpisode,
-} from './api/watchProgress';
-export type { WatchProgressData, UpdateWatchProgressPayload } from './api/watchProgress';
+} from './watchProgress';
+export type { WatchProgressData, UpdateWatchProgressPayload } from './watchProgress';
 
 // Media Source
 export {
@@ -114,8 +112,8 @@ export {
   findMediaSourceByRefId,
   linkMediaSource,
   unlinkMediaSource,
-} from './api/mediaSource';
-export type { MediaSourceWithAliases } from './api/mediaSource';
+} from './mediaSource';
+export type { MediaSourceWithAliases } from './mediaSource';
 
 // Comments
 export {
@@ -128,7 +126,7 @@ export {
   deleteComment,
   addCommentReaction,
   removeCommentReaction,
-} from './api/comments';
+} from './comments';
 export type {
   CommentMediaType,
   ReactionType,
@@ -140,7 +138,7 @@ export type {
   UpdateCommentPayload,
   GetMediaCommentsOptions,
   FeedOptions,
-} from './api/comments';
+} from './comments';
 
 // Collections
 export {
@@ -170,4 +168,4 @@ export {
   addCollectionComment,
   updateCollectionComment,
   deleteCollectionComment,
-} from './api/collections';
+} from './collections';
