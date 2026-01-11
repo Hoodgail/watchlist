@@ -1,6 +1,7 @@
 import * as tmdbService from './tmdbService.js';
 import * as consumetService from './consumetService.js';
 import * as mangadexService from './mangadexService.js';
+import * as rawgService from './rawgService.js';
 import { 
   ProviderName, 
   UnifiedSearchResult, 
@@ -17,17 +18,18 @@ import {
   ANIME_PROVIDERS,
   MOVIE_PROVIDERS,
   MANGA_PROVIDERS,
+  GAME_PROVIDERS,
 } from './consumet/providerRegistry.js';
 import { createRefId } from '@shared/refId.js';
 
 // ============ Types ============
 
-export type MediaSource = 'tmdb' | 'consumet-anilist' | 'mangadex' | ProviderName;
-export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' | 'BOOK' | 'LIGHT_NOVEL' | 'COMIC';
-export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga' | 'book' | 'lightnovel' | 'comic';
+export type MediaSource = 'tmdb' | 'consumet-anilist' | 'mangadex' | 'rawg' | ProviderName;
+export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' | 'BOOK' | 'LIGHT_NOVEL' | 'COMIC' | 'GAME';
+export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga' | 'book' | 'lightnovel' | 'comic' | 'game';
 
 export interface SearchResult {
-  id: string;           // Prefixed: "tmdb:123", "consumet-anilist:abc", "mangadex:xyz"
+  id: string;           // Prefixed: "tmdb:123", "consumet-anilist:abc", "mangadex:xyz", "rawg:456"
   title: string;
   type: MediaType;
   total: number | null;
@@ -36,6 +38,12 @@ export interface SearchResult {
   overview?: string;
   source: MediaSource;
   provider?: ProviderName; // The specific provider used
+  // Game-specific fields (from RAWG)
+  platforms?: string[];
+  metacritic?: number | null;
+  genres?: string[];
+  esrbRating?: string | null;
+  playtimeHours?: number | null;
 }
 
 export interface TrendingCategory {
@@ -166,6 +174,30 @@ function mangadexToSearchResult(item: mangadexService.MangaSearchResult): Search
   };
 }
 
+// ============ RAWG Converters ============
+
+/**
+ * Convert RAWG search result to SearchResult
+ */
+function rawgToSearchResult(item: rawgService.RAWGSearchResult): SearchResult {
+  return {
+    id: createPrefixedId('rawg', item.id),
+    title: item.name,
+    type: 'GAME',
+    total: null,
+    imageUrl: rawgService.getImageUrl(item.background_image, 'medium'),
+    year: rawgService.extractYear(item.released),
+    overview: undefined, // Details fetched separately
+    source: 'rawg',
+    provider: 'rawg',
+    platforms: rawgService.getPlatformNames(item.platforms),
+    metacritic: item.metacritic,
+    genres: rawgService.getGenreNames(item.genres),
+    esrbRating: item.esrb_rating?.name || null,
+    playtimeHours: item.playtime || null,
+  };
+}
+
 // ============ Provider API Functions ============
 
 /**
@@ -186,6 +218,7 @@ export function getProviders(category?: SearchCategory): ProviderInfo[] {
     book: 'book',
     lightnovel: 'lightnovel',
     comic: 'comic',
+    game: 'game',
   };
   
   const consumetCategory = categoryMap[category];
@@ -364,6 +397,22 @@ async function searchComics(query: string, options: SearchOptions = {}): Promise
 }
 
 /**
+ * Search games using RAWG
+ */
+async function searchGames(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  try {
+    const results = await rawgService.searchGames(query, {
+      page: options.page || 1,
+      pageSize: options.perPage || 10,
+    });
+    return results.map(rawgToSearchResult);
+  } catch (error) {
+    console.error('RAWG search error:', error);
+    return [];
+  }
+}
+
+/**
  * Search all sources using TMDB multi endpoint + MangaDex + Consumet
  */
 async function searchAll(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
@@ -438,6 +487,8 @@ export async function searchMedia(
       return searchLightNovels(query, options);
     case 'comic':
       return searchComics(query, options);
+    case 'game':
+      return searchGames(query, options);
     default:
       return [];
   }
@@ -499,15 +550,42 @@ export async function getPopularManga(): Promise<SearchResult[]> {
 }
 
 /**
+ * Get trending games from RAWG (recently released with high ratings)
+ */
+export async function getTrendingGames(): Promise<SearchResult[]> {
+  try {
+    const results = await rawgService.getTrendingGames({ pageSize: 20 });
+    return results.map(rawgToSearchResult);
+  } catch (error) {
+    console.error('RAWG trending error:', error);
+    return [];
+  }
+}
+
+/**
+ * Get popular games from RAWG (most added by users)
+ */
+export async function getPopularGames(): Promise<SearchResult[]> {
+  try {
+    const results = await rawgService.getPopularGames({ pageSize: 20 });
+    return results.map(rawgToSearchResult);
+  } catch (error) {
+    console.error('RAWG popular error:', error);
+    return [];
+  }
+}
+
+/**
  * Get all trending content organized by category
  */
 export async function getAllTrending(): Promise<TrendingCategory[]> {
   // Fetch all trending data in parallel
-  const [trendingAll, trendingMovies, trendingTV, trendingAnime] = await Promise.all([
+  const [trendingAll, trendingMovies, trendingTV, trendingAnime, trendingGames] = await Promise.all([
     tmdbService.getTrendingTMDB('all', 'day'),
     getTrendingMovies('week'),
     getTrendingTV('week'),
     getTrendingAnime(),
+    getTrendingGames(),
   ]);
 
   // Convert trending all to search results
@@ -555,6 +633,10 @@ export async function getAllTrending(): Promise<TrendingCategory[]> {
     categories.push({ title: 'Popular Anime', items: trendingAnime });
   }
 
+  if (trendingGames.length > 0) {
+    categories.push({ title: 'Popular Games', items: trendingGames });
+  }
+
   return categories;
 }
 
@@ -568,17 +650,28 @@ export function searchResultToMediaItem(result: SearchResult): {
   type: MediaType;
   current: number;
   total: number | null;
-  status: 'WATCHING' | 'READING' | 'PLAN_TO_WATCH';
+  status: 'WATCHING' | 'READING' | 'PLAN_TO_WATCH' | 'PLAYING';
   imageUrl?: string;
   refId: string;
 } {
   const isReadable = result.type === 'MANGA' || result.type === 'BOOK' || result.type === 'LIGHT_NOVEL' || result.type === 'COMIC';
+  const isGame = result.type === 'GAME';
+  
+  let status: 'WATCHING' | 'READING' | 'PLAN_TO_WATCH' | 'PLAYING';
+  if (isGame) {
+    status = 'PLAYING';
+  } else if (isReadable) {
+    status = 'READING';
+  } else {
+    status = 'PLAN_TO_WATCH';
+  }
+  
   return {
     title: result.title,
     type: result.type,
     current: 0,
     total: result.total,
-    status: isReadable ? 'READING' : 'PLAN_TO_WATCH',
+    status,
     imageUrl: result.imageUrl,
     refId: result.id,
   };

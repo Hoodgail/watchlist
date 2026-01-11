@@ -1,10 +1,11 @@
 import { prisma } from '../config/database.js';
 import { parseRefId } from '@shared/refId.js';
 import { getAnilistAnimeInfo, getAnilistMangaInfo, getTMDBInfo } from './consumet/metaProviders.js';
+import * as rawgService from './rawgService.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors.js';
 import type { MediaType, MediaSource, MediaSourceAlias } from '@prisma/client';
 
-const SUPPORTED_META_SOURCES = ['tmdb', 'anilist', 'anilist-manga'] as const;
+const SUPPORTED_META_SOURCES = ['tmdb', 'anilist', 'anilist-manga', 'rawg'] as const;
 const COMING_SOON_TYPES: MediaType[] = ['BOOK', 'LIGHT_NOVEL', 'COMIC'];
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -44,7 +45,7 @@ async function fetchMediaMetadata(refId: string, type: MediaType): Promise<Media
   if (!isMetaSource(source)) {
     throw new BadRequestError(
       `Provider "${source}" is not supported for automatic metadata. ` +
-      `Supported: tmdb (movies/TV), anilist (anime), anilist-manga (manga).`
+      `Supported: tmdb (movies/TV), anilist (anime), anilist-manga (manga), rawg (games).`
     );
   }
 
@@ -58,6 +59,18 @@ async function fetchMediaMetadata(refId: string, type: MediaType): Promise<Media
       break;
     case 'anilist-manga':
       info = await getAnilistMangaInfo(id);
+      break;
+    case 'rawg':
+      const gameDetails = await rawgService.getGameDetails(id);
+      if (gameDetails) {
+        info = {
+          title: gameDetails.name,
+          image: rawgService.getImageUrl(gameDetails.background_image, 'medium'),
+          // Games don't have episodes/chapters
+          totalEpisodes: null,
+          totalChapters: null,
+        };
+      }
       break;
   }
 

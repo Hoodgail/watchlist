@@ -27,7 +27,9 @@ export const KNOWN_SOURCES = [
   // Book sources
   'libgen',
   'novelupdates',
-  'getcomics'
+  'getcomics',
+  // Game sources
+  'rawg'
 ] as const;
 
 export type KnownSource = typeof KNOWN_SOURCES[number];

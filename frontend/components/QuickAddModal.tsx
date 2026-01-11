@@ -48,8 +48,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
   // Determine default status based on media type
   useEffect(() => {
-    if (item.type === 'MANGA') {
-      setStatus('COMPLETED');
+    if (item.type === 'GAME') {
+      setStatus('PLAYING');
     } else {
       setStatus('COMPLETED');
     }
@@ -69,6 +69,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         imageUrl: item.imageUrl,
         refId: item.id,
       };
+      
+      // Add game-specific fields if present
+      if (item.type === 'GAME') {
+        if (item.platforms) mediaItem.platforms = item.platforms;
+        if (item.metacritic !== undefined) mediaItem.metacritic = item.metacritic;
+        if (item.genres) mediaItem.genres = item.genres;
+        if (item.playtimeHours !== undefined) mediaItem.playtimeHours = item.playtimeHours;
+      }
+      
       await onAdd(mediaItem);
       onClose();
     } catch (error) {
@@ -98,10 +107,16 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
   // Get appropriate status options based on media type
   const getStatusOptions = () => {
-    if (item.type === 'MANGA') {
-      return STATUS_OPTIONS.filter(opt => opt.value !== 'WATCHING');
+    if (item.type === 'GAME') {
+      // For games, hide WATCHING and READING, show PLAYING
+      return STATUS_OPTIONS.filter(opt => opt.value !== 'WATCHING' && opt.value !== 'READING');
     }
-    return STATUS_OPTIONS.filter(opt => opt.value !== 'READING');
+    if (item.type === 'MANGA') {
+      // For manga, hide WATCHING and PLAYING, show READING
+      return STATUS_OPTIONS.filter(opt => opt.value !== 'WATCHING' && opt.value !== 'PLAYING');
+    }
+    // For video types (TV, MOVIE, ANIME), hide READING and PLAYING, show WATCHING
+    return STATUS_OPTIONS.filter(opt => opt.value !== 'READING' && opt.value !== 'PLAYING');
   };
 
   return (
@@ -136,7 +151,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 />
               </div>
             )}
-            <div>
+            <div className="flex-1 min-w-0">
               <h4 className="font-bold text-white uppercase tracking-tight">
                 {item.title}
               </h4>
@@ -144,9 +159,36 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 <span className="uppercase">{item.type}</span>
                 {item.year && <span>{item.year}</span>}
                 {item.total && (
-                  <span>{item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}</span>
+                  <span>{item.total} {item.type === 'MANGA' ? 'CH' : item.type === 'GAME' ? 'HRS' : 'EP'}</span>
                 )}
               </div>
+              {/* Game-specific info */}
+              {item.type === 'GAME' && (
+                <div className="mt-2 space-y-1">
+                  {item.metacritic && (
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-mono px-1.5 py-0.5 border ${
+                        item.metacritic >= 75 ? 'border-green-600 text-green-500' :
+                        item.metacritic >= 50 ? 'border-yellow-600 text-yellow-500' :
+                        'border-red-600 text-red-500'
+                      }`}>
+                        {item.metacritic}
+                      </span>
+                      <span className="text-xs text-neutral-600">METACRITIC</span>
+                    </div>
+                  )}
+                  {item.genres && item.genres.length > 0 && (
+                    <div className="text-xs text-neutral-500 truncate">
+                      {item.genres.slice(0, 3).join(' / ')}
+                    </div>
+                  )}
+                  {item.platforms && item.platforms.length > 0 && (
+                    <div className="text-xs text-neutral-600 truncate">
+                      {item.platforms.slice(0, 4).join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -174,7 +216,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           {/* Progress */}
           <div className="space-y-2">
             <label className="text-xs text-neutral-600 uppercase tracking-wider block">
-              PROGRESS
+              {item.type === 'GAME' ? 'HOURS PLAYED' : 'PROGRESS'}
             </label>
             <div className="flex items-center gap-2">
               <button

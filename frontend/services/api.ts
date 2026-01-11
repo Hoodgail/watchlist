@@ -288,7 +288,7 @@ export interface GroupedListResponse {
   grandTotal: number;
 }
 
-export type MediaTypeFilter = 'video' | 'manga';
+export type MediaTypeFilter = 'video' | 'manga' | 'game';
 
 interface GroupedListFilters {
   type?: MediaType;

@@ -23,8 +23,8 @@ export const refreshTokenSchema = z.object({
 });
 
 // Media schemas
-export const mediaTypeEnum = z.enum(['TV', 'MOVIE', 'ANIME', 'MANGA', 'BOOK', 'LIGHT_NOVEL', 'COMIC']);
-export const mediaStatusEnum = z.enum(['WATCHING', 'READING', 'COMPLETED', 'PLAN_TO_WATCH', 'DROPPED', 'PAUSED']);
+export const mediaTypeEnum = z.enum(['TV', 'MOVIE', 'ANIME', 'MANGA', 'BOOK', 'LIGHT_NOVEL', 'COMIC', 'GAME']);
+export const mediaStatusEnum = z.enum(['WATCHING', 'READING', 'PLAYING', 'COMPLETED', 'PLAN_TO_WATCH', 'DROPPED', 'PAUSED']);
 
 export const createMediaItemSchema = z.object({
   refId: z.string().max(100).regex(REF_ID_PATTERN, getRefIdValidationError()),
@@ -33,6 +33,11 @@ export const createMediaItemSchema = z.object({
   current: z.number().int().min(0).default(0),
   notes: z.string().max(5000).optional(),
   rating: z.number().int().min(0).max(10).nullable().optional(),
+  // Game-specific fields (from RAWG API)
+  platforms: z.array(z.string()).optional(),
+  metacritic: z.number().int().min(0).max(100).nullable().optional(),
+  genres: z.array(z.string()).optional(),
+  playtimeHours: z.number().int().min(0).nullable().optional(),
 });
 
 export const updateMediaItemSchema = z.object({

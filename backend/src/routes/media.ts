@@ -29,6 +29,8 @@ router.get('/trending/tv', mediaSearchController.getTrendingTV);
 router.get('/trending/anime', mediaSearchController.getTrendingAnime);
 router.get('/trending/anime/popular', mediaSearchController.getPopularAnime);
 router.get('/trending/manga', mediaSearchController.getPopularManga);
+router.get('/trending/games', mediaSearchController.getTrendingGames);
+router.get('/trending/games/popular', mediaSearchController.getPopularGames);
 
 // MediaSource routes
 router.post('/link', authenticate, mediaSourceController.linkSource);

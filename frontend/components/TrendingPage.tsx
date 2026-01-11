@@ -122,6 +122,7 @@ const formatStatusBadge = (status: BulkStatusItem): { text: string; color: strin
   const statusMap: Record<MediaStatus, { label: string; color: string }> = {
     WATCHING: { label: 'Watching', color: 'bg-blue-600' },
     READING: { label: 'Reading', color: 'bg-blue-600' },
+    PLAYING: { label: 'Playing', color: 'bg-blue-600' },
     COMPLETED: { label: 'Completed', color: 'bg-green-600' },
     PLAN_TO_WATCH: { label: 'Planned', color: 'bg-neutral-600' },
     DROPPED: { label: 'Dropped', color: 'bg-red-600' },
@@ -136,6 +137,11 @@ const formatStatusBadge = (status: BulkStatusItem): { text: string; color: strin
       return { text: `EP ${status.current}/${status.total}`, color };
     }
     return { text: `EP ${status.current}`, color };
+  }
+  
+  // Show hours for playing games
+  if (status.status === 'PLAYING' && status.current > 0) {
+    return { text: `${status.current} HRS`, color };
   }
   
   return { text: label, color };
@@ -249,9 +255,27 @@ const TrendingCard: React.FC<{
         <h4 className="text-xs font-bold uppercase tracking-tight truncate" title={item.title}>
           {item.title}
         </h4>
-        <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-          {item.year && <span>{item.year}</span>}
-        </div>
+        {item.type === 'GAME' ? (
+          // Game-specific metadata
+          <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+            {item.metacritic && (
+              <span className={`font-mono px-1 border ${
+                item.metacritic >= 75 ? 'border-green-600 text-green-500' :
+                item.metacritic >= 50 ? 'border-yellow-600 text-yellow-500' :
+                'border-red-600 text-red-500'
+              }`}>
+                {item.metacritic}
+              </span>
+            )}
+            {item.genres && item.genres.length > 0 && (
+              <span className="truncate">{item.genres[0]}</span>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+            {item.year && <span>{item.year}</span>}
+          </div>
+        )}
       </div>
     </div>
   );

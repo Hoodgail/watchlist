@@ -15,11 +15,13 @@ enum MediaType {
   BOOK
   LIGHT_NOVEL
   COMIC
+  GAME
 }
 
 enum MediaStatus {
   WATCHING
   READING
+  PLAYING
   COMPLETED
   PLAN_TO_WATCH
   DROPPED
@@ -79,6 +81,12 @@ model MediaItem {
   sourceId  String?     @map("source_id")
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Game-specific fields (from RAWG API)
+  platforms     String[] @default([])  // Platform names (e.g., ["PC", "PlayStation 5", "Xbox One"])
+  metacritic    Int?     @db.SmallInt  // Metacritic score 0-100
+  genres        String[] @default([])  // Genre names (e.g., ["Action", "RPG"])
+  playtimeHours Int?     @map("playtime_hours") @db.SmallInt  // Average playtime in hours
 
   // Relations
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)

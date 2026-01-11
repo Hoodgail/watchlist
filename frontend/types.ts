@@ -1,6 +1,6 @@
-export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' | 'BOOK' | 'LIGHT_NOVEL' | 'COMIC';
+export type MediaType = 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' | 'BOOK' | 'LIGHT_NOVEL' | 'COMIC' | 'GAME';
 
-export type MediaStatus = 'WATCHING' | 'READING' | 'COMPLETED' | 'PLAN_TO_WATCH' | 'DROPPED' | 'PAUSED';
+export type MediaStatus = 'WATCHING' | 'READING' | 'COMPLETED' | 'PLAN_TO_WATCH' | 'DROPPED' | 'PAUSED' | 'PLAYING';
 
 export type SortBy = 'status' | 'title' | 'rating' | 'updatedAt' | 'createdAt';
 
@@ -12,14 +12,16 @@ export type ProviderName =
   | 'flixhq' | 'goku' | 'sflix' | 'himovies' | 'dramacool'
   | 'mangadex' | 'mangahere' | 'mangapill' | 'comick' | 'mangakakalot' | 'mangareader' | 'asurascans'
   | 'anilist' | 'anilist-manga' | 'tmdb'
-  | 'libgen' | 'readlightnovels' | 'getcomics';
+  | 'libgen' | 'readlightnovels' | 'getcomics'
+  | 'rawg';
 
 // Video-specific provider types
 export type AnimeProviderName = 'hianime' | 'animepahe' | 'animekai' | 'kickassanime';
 export type MovieProviderName = 'flixhq' | 'goku' | 'sflix' | 'himovies' | 'dramacool';
 export type VideoProviderName = AnimeProviderName | MovieProviderName;
+export type GameProviderName = 'rawg';
 
-export type MediaCategory = 'anime' | 'movie' | 'tv' | 'manga' | 'book' | 'lightnovel' | 'comic';
+export type MediaCategory = 'anime' | 'movie' | 'tv' | 'manga' | 'book' | 'lightnovel' | 'comic' | 'game';
 
 export interface ProviderInfo {
   name: ProviderName;
@@ -66,6 +68,11 @@ export interface MediaItem {
   friendsStatuses?: FriendStatus[]; // Friends who have this item
   activeProgress?: ActiveProgress | null; // Current playback progress for video content
   aliases?: SourceAlias[]; // Linked alternative sources for playback
+  // Game-specific fields (from RAWG API)
+  platforms?: string[];
+  metacritic?: number | null;
+  genres?: string[];
+  playtimeHours?: number | null;
 }
 
 // User type for friends list display
@@ -136,6 +143,12 @@ export interface SearchResult {
   description?: string; // Alias for overview, used by some providers
   source?: string; // The source/provider used
   provider?: ProviderName; // The specific provider
+  // Game-specific fields (from RAWG)
+  platforms?: string[];
+  metacritic?: number | null;
+  genres?: string[];
+  esrbRating?: string | null;
+  playtimeHours?: number | null;
 }
 
 // Streaming source types
@@ -227,7 +240,7 @@ export interface ChapterPages {
   pages: ChapterPage[];
 }
 
-export type View = 'WATCHLIST' | 'READLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS' | 'RECOVERY';
+export type View = 'WATCHLIST' | 'READLIST' | 'PLAYLIST' | 'SEARCH' | 'TRENDING' | 'FRIENDS' | 'FRIEND_VIEW' | 'SUGGESTIONS' | 'SETTINGS' | 'LOGIN' | 'REGISTER' | 'DOWNLOADS' | 'RECOVERY';
 
 // Suggestion types
 export type SuggestionStatus = 'PENDING' | 'ACCEPTED' | 'DISMISSED';

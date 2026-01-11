@@ -10,7 +10,7 @@ export interface SearchOptions {
   perPage?: number;
 }
 
-export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga' | 'book' | 'lightnovel' | 'comic';
+export type SearchCategory = 'all' | 'tv' | 'movie' | 'anime' | 'manga' | 'book' | 'lightnovel' | 'comic' | 'game';
 
 export interface TrendingCategory {
   title: string;
@@ -326,20 +326,71 @@ export async function getPopularManga(): Promise<SearchResult[]> {
   }
 }
 
+// Get trending games via backend
+export async function getTrendingGames(): Promise<SearchResult[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/media/trending/games`);
+    if (!response.ok) {
+      console.error('Trending games fetch failed:', response.status);
+      return [];
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Trending games error:', error);
+    return [];
+  }
+}
+
+// Get popular games via backend
+export async function getPopularGames(): Promise<SearchResult[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/media/trending/games/popular`);
+    if (!response.ok) {
+      console.error('Popular games fetch failed:', response.status);
+      return [];
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Popular games error:', error);
+    return [];
+  }
+}
+
 // ============ Conversion Helpers ============
 
 // Convert search result to media item for adding to list
 export function searchResultToMediaItem(result: SearchResult): Omit<MediaItem, 'id'> {
   const isReadable = result.type === 'MANGA' || result.type === 'BOOK' || result.type === 'LIGHT_NOVEL' || result.type === 'COMIC';
-  return {
+  const isGame = result.type === 'GAME';
+  
+  let status: 'WATCHING' | 'READING' | 'PLAN_TO_WATCH' | 'PLAYING';
+  if (isGame) {
+    status = 'PLAYING';
+  } else if (isReadable) {
+    status = 'READING';
+  } else {
+    status = 'PLAN_TO_WATCH';
+  }
+  
+  const mediaItem: Omit<MediaItem, 'id'> = {
     title: result.title,
     type: result.type,
     current: 0,
     total: result.total,
-    status: isReadable ? 'READING' : 'PLAN_TO_WATCH',
+    status,
     imageUrl: result.imageUrl,
     refId: result.id,
   };
+  
+  // Add game-specific fields if this is a game
+  if (isGame) {
+    mediaItem.platforms = result.platforms;
+    mediaItem.metacritic = result.metacritic;
+    mediaItem.genres = result.genres;
+    mediaItem.playtimeHours = result.playtimeHours;
+  }
+  
+  return mediaItem;
 }
 
 // Extract provider from a refId (e.g., "mangadex:abc123" -> "mangadex")

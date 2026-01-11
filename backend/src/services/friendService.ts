@@ -253,7 +253,7 @@ export interface GroupedFriendListResponse {
   grandTotal: number;
 }
 
-export type MediaTypeFilter = 'video' | 'manga';
+export type MediaTypeFilter = 'video' | 'manga' | 'game';
 
 export interface GroupedFriendListFilters {
   mediaTypeFilter?: MediaTypeFilter;
@@ -264,7 +264,7 @@ export interface GroupedFriendListFilters {
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 
-type MediaStatus = 'WATCHING' | 'READING' | 'PAUSED' | 'PLAN_TO_WATCH' | 'COMPLETED' | 'DROPPED';
+type MediaStatus = 'WATCHING' | 'READING' | 'PLAYING' | 'PAUSED' | 'PLAN_TO_WATCH' | 'COMPLETED' | 'DROPPED';
 
 export async function getGroupedFriendList(
   userId: string,
@@ -302,17 +302,19 @@ export async function getGroupedFriendList(
   const statusPages = filters?.statusPages ?? {};
   
   // All statuses we need to fetch
-  const allStatuses: MediaStatus[] = ['WATCHING', 'READING', 'PAUSED', 'PLAN_TO_WATCH', 'COMPLETED', 'DROPPED'];
+  const allStatuses: MediaStatus[] = ['WATCHING', 'READING', 'PLAYING', 'PAUSED', 'PLAN_TO_WATCH', 'COMPLETED', 'DROPPED'];
   
   // Build base where clause (without status)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseWhere: any = { userId: friendId };
   if (filters?.mediaTypeFilter) {
-    // Filter by video (TV, MOVIE, ANIME) or manga (MANGA)
+    // Filter by video (TV, MOVIE, ANIME), manga (MANGA), or game (GAME)
     if (filters.mediaTypeFilter === 'video') {
       baseWhere.type = { in: ['TV', 'MOVIE', 'ANIME'] };
     } else if (filters.mediaTypeFilter === 'manga') {
       baseWhere.type = 'MANGA';
+    } else if (filters.mediaTypeFilter === 'game') {
+      baseWhere.type = 'GAME';
     }
   }
   

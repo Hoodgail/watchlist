@@ -38,6 +38,8 @@ export type LightNovelProviderName =
 
 export type ComicProviderName = 'getcomics';
 
+export type GameProviderName = 'rawg';
+
 export type NewsProviderName = 'animenewsnetwork';
 
 export type ProviderName = 
@@ -48,6 +50,7 @@ export type ProviderName =
   | BookProviderName
   | LightNovelProviderName
   | ComicProviderName
+  | GameProviderName
   | NewsProviderName;
 
 // ============ Media Types ============
@@ -60,6 +63,7 @@ export type MediaCategory =
   | 'book' 
   | 'lightnovel' 
   | 'comic'
+  | 'game'
   | 'news';
 
 export type MediaType = 
@@ -69,7 +73,8 @@ export type MediaType =
   | 'MANGA' 
   | 'BOOK' 
   | 'LIGHT_NOVEL' 
-  | 'COMIC';
+  | 'COMIC'
+  | 'GAME';
 
 // ============ Result Types ============
 

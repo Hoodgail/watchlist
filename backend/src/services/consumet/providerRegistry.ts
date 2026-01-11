@@ -13,6 +13,7 @@ import {
   BookProviderName,
   LightNovelProviderName,
   ComicProviderName,
+  GameProviderName,
 } from './types.js';
 
 // ============ Provider Metadata ============
@@ -223,6 +224,16 @@ export const PROVIDER_INFO: Record<ProviderName, ProviderInfo> = {
     isWorking: true,
     baseUrl: 'https://animenewsnetwork.com',
   },
+
+  // Game providers
+  rawg: {
+    name: 'rawg',
+    displayName: 'RAWG',
+    category: 'game',
+    language: 'en',
+    isWorking: true,
+    baseUrl: 'https://rawg.io',
+  },
 };
 
 // ============ Provider Lists by Category ============
@@ -258,6 +269,7 @@ export const META_MOVIE_PROVIDERS: MetaProviderName[] = ['tmdb'];
 export const BOOK_PROVIDERS: BookProviderName[] = ['libgen'];
 export const LIGHTNOVEL_PROVIDERS: LightNovelProviderName[] = ['novelupdates'];
 export const COMIC_PROVIDERS: ComicProviderName[] = ['getcomics'];
+export const GAME_PROVIDERS: GameProviderName[] = ['rawg'];
 
 // ============ Helper Functions ============
 
@@ -292,6 +304,8 @@ export function getDefaultProvider(category: MediaCategory): ProviderName {
       return 'novelupdates';
     case 'comic':
       return 'getcomics';
+    case 'game':
+      return 'rawg';
     case 'news':
       return 'animenewsnetwork';
     default:

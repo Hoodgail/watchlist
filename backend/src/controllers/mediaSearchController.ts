@@ -45,7 +45,7 @@ export async function search(
       return;
     }
 
-    const validCategories = ['all', 'tv', 'movie', 'anime', 'manga', 'book', 'lightnovel', 'comic'];
+    const validCategories = ['all', 'tv', 'movie', 'anime', 'manga', 'book', 'lightnovel', 'comic', 'game'];
     const validCategory = validCategories.includes(category)
       ? (category as mediaSearchService.SearchCategory)
       : 'all';
@@ -299,6 +299,32 @@ export async function getPopularManga(
 ): Promise<void> {
   try {
     const results = await mediaSearchService.getPopularManga();
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getTrendingGames(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const results = await mediaSearchService.getTrendingGames();
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getPopularGames(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const results = await mediaSearchService.getPopularGames();
     res.json(results);
   } catch (error) {
     next(error);
