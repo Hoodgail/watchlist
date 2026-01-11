@@ -3,6 +3,7 @@ import { SearchResult, MediaType, ProviderName } from '../types';
 import { searchMedia, SearchCategory, SearchOptions, searchWithProvider } from '../services/mediaSearch';
 import { addCollectionItem } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { createRefId } from '@shared/refId';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
@@ -96,10 +97,10 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
     }
   };
 
-  // Get refId from search result
-  const getRefId = (item: SearchResult): string => {
+  // Get refId from search result using shared utility
+  const getItemRefId = (item: SearchResult): string => {
     const source = item.source || item.provider || 'unknown';
-    return `${source}:${item.id}`;
+    return createRefId(source, item.id);
   };
 
   const handleAddToCollection = async (item: SearchResult) => {
@@ -109,7 +110,7 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
 
     try {
       await addCollectionItem(collectionId, {
-        refId: getRefId(item),
+        refId: getItemRefId(item),
         title: item.title,
         imageUrl: item.imageUrl,
         type: item.type,

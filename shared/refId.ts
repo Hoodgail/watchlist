@@ -67,14 +67,22 @@ export function getRefIdValidationError(): string {
 // ============ Creation ============
 
 /**
- * Create a refId from source and id
+ * Create a refId from source and id.
+ * Handles cases where id is already in refId format (contains ':').
  * 
  * @param source - The source/provider name (e.g., "tmdb", "mangadex")
- * @param id - The unique identifier within that source
+ * @param id - The unique identifier within that source (may already be a refId)
  * @returns The formatted refId (e.g., "tmdb:12345")
  */
 export function createRefId(source: string, id: string | number): string {
-  return `${source}:${id}`;
+  const idStr = String(id);
+  
+  // If id already contains a colon, it's already in refId format - return as-is
+  if (idStr.includes(':')) {
+    return idStr;
+  }
+  
+  return `${source}:${idStr}`;
 }
 
 // ============ Parsing ============

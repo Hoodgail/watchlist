@@ -3,6 +3,7 @@ import { Collection, MediaType, SearchResult, MediaItem } from '../types';
 import { getMyCollections, addCollectionItem } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { createRefId } from '@shared/refId';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
@@ -50,13 +51,13 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
 
   const imageUrl = getImageUrl(item.imageUrl);
 
-  // Get the refId for the item
-  const getRefId = (): string => {
+  // Get the refId for the item using shared utility
+  const getItemRefId = (): string => {
     // If item already has a refId, use it
     if (item.refId) return item.refId;
-    // Otherwise, construct from source/provider and id
+    // Use createRefId which handles id already being in refId format
     const source = item.source || item.provider || 'unknown';
-    return `${source}:${item.id}`;
+    return createRefId(source, item.id);
   };
 
   // Load user's collections
@@ -67,8 +68,9 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
       try {
         const data = await getMyCollections();
         // Only show collections where user can edit (OWNER or EDITOR)
+        // Also check owner.id as fallback if myRole is not returned by backend
         const editableCollections = data.filter(
-          (c) => c.myRole === 'OWNER' || c.myRole === 'EDITOR'
+          (c) => c.myRole === 'OWNER' || c.myRole === 'EDITOR' || c.owner.id === user?.id
         );
         setCollections(editableCollections);
         // Pre-select first collection if available
@@ -83,7 +85,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
       }
     };
     loadCollections();
-  }, []);
+  }, [user?.id]);
 
   // Handle escape key
   useEffect(() => {
@@ -112,7 +114,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
 
     try {
       await addCollectionItem(selectedCollectionId, {
-        refId: getRefId(),
+        refId: getItemRefId(),
         title: item.title,
         imageUrl: item.imageUrl,
         type: item.type,
