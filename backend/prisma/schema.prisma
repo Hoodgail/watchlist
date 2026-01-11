@@ -104,14 +104,22 @@ model MediaItem {
 }
 
 model MediaSource {
-  id        String    @id @default(uuid())
-  refId     String    @unique @map("ref_id") @db.VarChar(100)
-  title     String    @db.VarChar(255)
-  imageUrl  String?   @map("image_url") @db.VarChar(500)
-  total     Int?
-  type      MediaType
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  refId       String    @unique @map("ref_id") @db.VarChar(100)
+  title       String    @db.VarChar(255)
+  imageUrl    String?   @map("image_url") @db.VarChar(500)
+  total       Int?
+  type        MediaType
+  year        Int?      @db.SmallInt
+  releaseDate String?   @map("release_date") @db.VarChar(50)
+  description String?   @db.Text
+  genres      String[]  @default([])
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Game-specific fields
+  platforms     String[] @default([])
+  playtimeHours Int?     @map("playtime_hours") @db.SmallInt
 
   // Relations
   mediaItems      MediaItem[]

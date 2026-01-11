@@ -40,6 +40,13 @@ export interface CollectionItemResponse {
   note: string | null;
   createdAt: Date;
   updatedAt: Date;
+  // Metadata fields from MediaSource
+  year?: number | null;
+  releaseDate?: string | null;
+  description?: string | null;
+  genres?: string[];
+  platforms?: string[];
+  playtimeHours?: number | null;
 }
 
 export interface CollectionResponse {
@@ -210,6 +217,13 @@ const collectionItemSelect = {
     select: {
       title: true,
       imageUrl: true,
+      // Metadata fields from MediaSource
+      year: true,
+      releaseDate: true,
+      description: true,
+      genres: true,
+      platforms: true,
+      playtimeHours: true,
     },
   },
 } as const;
@@ -280,6 +294,13 @@ type CollectionItemWithSource = {
   source: {
     title: string;
     imageUrl: string | null;
+    // Metadata fields from MediaSource
+    year?: number | null;
+    releaseDate?: string | null;
+    description?: string | null;
+    genres?: string[];
+    platforms?: string[];
+    playtimeHours?: number | null;
   } | null;
 };
 
@@ -329,6 +350,13 @@ function formatCollectionItemResponse(item: CollectionItemWithSource): Collectio
     note: item.note,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    // Metadata fields from source
+    year: item.source?.year,
+    releaseDate: item.source?.releaseDate,
+    description: item.source?.description,
+    genres: item.source?.genres,
+    platforms: item.source?.platforms,
+    playtimeHours: item.source?.playtimeHours,
   };
 }
 

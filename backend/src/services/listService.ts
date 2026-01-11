@@ -52,10 +52,14 @@ export interface MediaItemResponse {
   friendsStatuses?: FriendStatus[];
   activeProgress?: ActiveProgress | null;
   aliases?: SourceAlias[];
+  // Metadata fields from MediaSource
+  year?: number | null;
+  releaseDate?: string | null;
+  description?: string | null;
+  genres?: string[];
   // Game-specific fields
   platforms?: string[];
   metacritic?: number | null;
-  genres?: string[];
   playtimeHours?: number | null;
 }
 
@@ -72,7 +76,7 @@ const mediaItemSelect = {
   refId: true,
   createdAt: true,
   updatedAt: true,
-  // Game-specific fields
+  // Game-specific fields (stored on MediaItem)
   platforms: true,
   metacritic: true,
   genres: true,
@@ -82,6 +86,13 @@ const mediaItemSelect = {
       title: true,
       imageUrl: true,
       total: true,
+      // Metadata fields from MediaSource
+      year: true,
+      releaseDate: true,
+      description: true,
+      genres: true,
+      platforms: true,
+      playtimeHours: true,
       aliases: {
         select: {
           refId: true,
@@ -105,7 +116,7 @@ interface MediaItemWithSource {
   refId: string;
   createdAt: Date;
   updatedAt: Date;
-  // Game-specific fields
+  // Game-specific fields (stored on MediaItem)
   platforms?: string[];
   metacritic?: number | null;
   genres?: string[];
@@ -114,6 +125,13 @@ interface MediaItemWithSource {
     title: string;
     imageUrl: string | null;
     total: number | null;
+    // Metadata fields from MediaSource
+    year?: number | null;
+    releaseDate?: string | null;
+    description?: string | null;
+    genres?: string[];
+    platforms?: string[];
+    playtimeHours?: number | null;
     aliases?: {
       refId: string;
       provider: string;
@@ -136,11 +154,15 @@ function resolveMediaItemResponse(item: MediaItemWithSource): MediaItemResponse 
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     aliases: item.source?.aliases,
-    // Game-specific fields
-    platforms: item.platforms,
+    // Metadata fields - prefer source data, fall back to item data
+    year: item.source?.year,
+    releaseDate: item.source?.releaseDate,
+    description: item.source?.description,
+    genres: item.source?.genres ?? item.genres,
+    // Game-specific fields - prefer source data, fall back to item data
+    platforms: item.source?.platforms ?? item.platforms,
     metacritic: item.metacritic,
-    genres: item.genres,
-    playtimeHours: item.playtimeHours,
+    playtimeHours: item.source?.playtimeHours ?? item.playtimeHours,
   };
 }
 

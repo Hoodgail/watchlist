@@ -1142,6 +1142,12 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                     <span className="bg-neutral-900 text-neutral-400 px-1.5 h-fit text-[10px] m-auto border border-neutral-800">
                       {item.type}
                     </span>
+                    {/* Year badge - show for all types */}
+                    {item.year && (
+                      <span className="text-neutral-600 text-[10px] py-0.5 m-auto">
+                        {item.year}
+                      </span>
+                    )}
                     {/* For games, show platforms, metacritic, and genres instead of ONGOING */}
                     {item.type === 'GAME' ? (
                       <>
@@ -1166,12 +1172,22 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
                           </span>
                         )}
                       </>
-                    ) : item.total ? (
-                      <span className="text-neutral-500 py-0.5 m-auto">
-                        {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
-                      </span>
                     ) : (
-                      <span className="text-neutral-500 py-0.5 m-auto">ONGOING</span>
+                      <>
+                        {item.total ? (
+                          <span className="text-neutral-500 py-0.5 m-auto">
+                            {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-500 py-0.5 m-auto">ONGOING</span>
+                        )}
+                        {/* Genres for non-game media */}
+                        {item.genres && item.genres.length > 0 && (
+                          <span className="text-neutral-600 text-[10px] py-0.5 m-auto">
+                            {item.genres.slice(0, 2).join(' · ')}
+                          </span>
+                        )}
+                      </>
                     )}
                     {item.notes && (
                       <span className="text-neutral-600 py-0.5" title="Has notes">

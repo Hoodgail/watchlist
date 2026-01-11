@@ -149,6 +149,16 @@ const SortableItem: React.FC<SortableItemProps> = ({
             <span className="bg-neutral-900 text-neutral-400 text-xs uppercase px-1.5 py-0.5 flex-shrink-0">
               {item.type}
             </span>
+            {item.year && (
+              <span className="text-neutral-500 text-xs">
+                {item.year}
+              </span>
+            )}
+            {item.genres && item.genres.length > 0 && (
+              <span className="text-neutral-600 text-xs">
+                {item.genres.slice(0, 2).join(' · ')}
+              </span>
+            )}
           </div>
 
           {/* Note */}

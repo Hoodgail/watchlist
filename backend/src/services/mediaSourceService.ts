@@ -15,6 +15,13 @@ interface MediaMetadata {
   title: string;
   imageUrl: string | null;
   total: number | null;
+  year: number | null;
+  releaseDate: string | null;
+  description: string | null;
+  genres: string[];
+  // Game-specific
+  platforms: string[];
+  playtimeHours: number | null;
 }
 
 function isMetaSource(source: string): source is MetaSource {
@@ -63,12 +70,16 @@ async function fetchMediaMetadata(refId: string, type: MediaType): Promise<Media
     case 'rawg':
       const gameDetails = await rawgService.getGameDetails(id);
       if (gameDetails) {
-        info = {
+        return {
           title: gameDetails.name,
-          image: rawgService.getImageUrl(gameDetails.background_image, 'medium'),
-          // Games don't have episodes/chapters
-          totalEpisodes: null,
-          totalChapters: null,
+          imageUrl: rawgService.getImageUrl(gameDetails.background_image, 'medium') || null,
+          total: null, // Games don't have episodes/chapters
+          year: rawgService.extractYear(gameDetails.released) || null,
+          releaseDate: gameDetails.released || null,
+          description: gameDetails.description_raw || null,
+          genres: rawgService.getGenreNames(gameDetails.genres),
+          platforms: rawgService.getPlatformNames(gameDetails.platforms),
+          playtimeHours: gameDetails.playtime || null,
         };
       }
       break;
@@ -78,10 +89,37 @@ async function fetchMediaMetadata(refId: string, type: MediaType): Promise<Media
     throw new BadRequestError(`Failed to fetch metadata for ${refId}. The provider may be unavailable.`);
   }
 
+  // Extract year from releaseDate if needed
+  let year: number | null = null;
+  if (typeof info.year === 'number') {
+    year = info.year;
+  } else if (typeof info.releaseDate === 'number') {
+    year = info.releaseDate;
+  } else if (typeof info.releaseDate === 'string') {
+    const parsedYear = parseInt(info.releaseDate);
+    if (!isNaN(parsedYear)) {
+      year = parsedYear;
+    }
+  }
+
+  // Format releaseDate as string
+  let releaseDate: string | null = null;
+  try {
+    if (info.releaseDate !== undefined && info.releaseDate !== null) {
+      releaseDate = String(info.releaseDate);
+    }
+  } catch (e) { }
+
   return {
     title: info.title || 'Unknown',
     imageUrl: info.image || null,
     total: info.totalEpisodes ?? info.totalChapters ?? null,
+    year,
+    releaseDate,
+    description: info.description || null,
+    genres: info.genres || [],
+    platforms: [], // Non-game media doesn't have platforms
+    playtimeHours: null, // Non-game media doesn't have playtime
   };
 }
 
@@ -130,6 +168,12 @@ export async function getOrCreateMediaSource(refId: string, type: MediaType): Pr
       imageUrl: metadata.imageUrl,
       total: metadata.total,
       type,
+      year: metadata.year,
+      releaseDate: metadata.releaseDate,
+      description: metadata.description,
+      genres: metadata.genres,
+      platforms: metadata.platforms,
+      playtimeHours: metadata.playtimeHours,
     },
   });
 }
@@ -147,6 +191,12 @@ async function refreshMediaSource(source: MediaSource): Promise<MediaSource> {
         title: metadata.title,
         imageUrl: metadata.imageUrl,
         total: metadata.total,
+        year: metadata.year,
+        releaseDate: metadata.releaseDate,
+        description: metadata.description,
+        genres: metadata.genres,
+        platforms: metadata.platforms,
+        playtimeHours: metadata.playtimeHours,
         // updatedAt auto-updates
       },
     });

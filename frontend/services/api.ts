@@ -213,6 +213,15 @@ interface BackendMediaItem {
   friendsStatuses?: FriendStatus[];
   activeProgress?: ActiveProgress | null;
   aliases?: Array<{ id?: string; refId: string; provider: string; createdAt?: string }>;
+  // Metadata fields from MediaSource
+  year?: number | null;
+  releaseDate?: string | null;
+  description?: string | null;
+  genres?: string[];
+  // Game-specific fields
+  platforms?: string[];
+  metacritic?: number | null;
+  playtimeHours?: number | null;
 }
 
 interface BackendPaginatedResponse {
@@ -244,6 +253,15 @@ function transformBackendItem(item: BackendMediaItem): MediaItem {
       provider: a.provider,
       createdAt: a.createdAt || new Date().toISOString(),
     })),
+    // Metadata fields from MediaSource
+    year: item.year,
+    releaseDate: item.releaseDate,
+    description: item.description,
+    genres: item.genres,
+    // Game-specific fields
+    platforms: item.platforms,
+    metacritic: item.metacritic,
+    playtimeHours: item.playtimeHours,
   };
 }
 

@@ -65,14 +65,17 @@ export interface MediaItem {
   rating?: number | null; // Personal rating 0-10
   imageUrl?: string; // For TMDB/MangaHook images
   refId: string; // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
-  year?: number | null; // Release year (for conflict detection, not persisted)
   friendsStatuses?: FriendStatus[]; // Friends who have this item
   activeProgress?: ActiveProgress | null; // Current playback progress for video content
   aliases?: SourceAlias[]; // Linked alternative sources for playback
+  // Metadata fields from MediaSource
+  year?: number | null; // Release year
+  releaseDate?: string | null; // Full release date string
+  description?: string | null; // Media description
+  genres?: string[]; // Genre names
   // Game-specific fields (from RAWG API)
   platforms?: string[];
   metacritic?: number | null;
-  genres?: string[];
   playtimeHours?: number | null;
 }
 
@@ -327,6 +330,13 @@ export interface CollectionItem {
   orderIndex: number;
   note: string | null;
   source: { id: string; title: string; imageUrl: string | null } | null;
+  // Metadata fields from MediaSource
+  year?: number | null;
+  releaseDate?: string | null;
+  description?: string | null;
+  genres?: string[];
+  platforms?: string[];
+  playtimeHours?: number | null;
 }
 
 export interface CollectionMember {
