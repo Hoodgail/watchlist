@@ -6,6 +6,7 @@ import {
   MediaItem,
   MediaStatus,
   User,
+  SortBy,
 } from '../../types';
 import { fetchWithAuth } from './client';
 import { transformBackendItem, StatusGroupPagination, MediaTypeFilter } from './list';
@@ -96,6 +97,7 @@ interface GroupedFriendListFilters {
   mediaTypeFilter?: MediaTypeFilter;
   statusPages?: Partial<Record<MediaStatus, number>>;
   limit?: number;
+  sortBy?: SortBy;
 }
 
 // ============ API FUNCTIONS ============
@@ -198,6 +200,7 @@ export async function getFriendGroupedList(
   if (filters?.mediaTypeFilter) params.append('mediaTypeFilter', filters.mediaTypeFilter);
   if (filters?.limit) params.append('limit', String(filters.limit));
   if (filters?.statusPages) params.append('statusPages', JSON.stringify(filters.statusPages));
+  if (filters?.sortBy) params.append('sortBy', filters.sortBy);
 
   const query = params.toString() ? `?${params.toString()}` : '';
   const response = await fetchWithAuth(`/friends/${userId}/list/grouped${query}`);

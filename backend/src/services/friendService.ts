@@ -255,11 +255,13 @@ export interface GroupedFriendListResponse {
 }
 
 export type MediaTypeFilter = 'video' | 'manga' | 'game';
+export type SortBy = 'status' | 'title' | 'rating' | 'updatedAt' | 'createdAt';
 
 export interface GroupedFriendListFilters {
   mediaTypeFilter?: MediaTypeFilter;
   statusPages?: Partial<Record<string, number>>;
   limit?: number;
+  sortBy?: SortBy;
 }
 
 const DEFAULT_LIMIT = 50;
@@ -301,6 +303,7 @@ export async function getGroupedFriendList(
 
   const limit = Math.min(MAX_LIMIT, Math.max(1, filters?.limit ?? DEFAULT_LIMIT));
   const statusPages = filters?.statusPages ?? {};
+  const sortBy = filters?.sortBy ?? 'title';
   
   // All statuses we need to fetch
   const allStatuses: MediaStatus[] = ['WATCHING', 'READING', 'PLAYING', 'PAUSED', 'PLAN_TO_WATCH', 'COMPLETED', 'DROPPED'];
@@ -319,6 +322,26 @@ export async function getGroupedFriendList(
     }
   }
   
+  // Build orderBy based on sortBy parameter
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getOrderBy = (): any[] => {
+    switch (sortBy) {
+      case 'rating':
+        // Sort by rating descending (highest first), nulls last, then by title
+        return [{ rating: { sort: 'desc', nulls: 'last' } }, { title: 'asc' }];
+      case 'updatedAt':
+        return [{ updatedAt: 'desc' }];
+      case 'createdAt':
+        return [{ createdAt: 'desc' }];
+      case 'title':
+      case 'status':
+      default:
+        return [{ title: 'asc' }];
+    }
+  };
+  
+  const orderBy = getOrderBy();
+  
   // Fetch counts and items for each status in parallel
   const statusQueries = allStatuses.map(async (status) => {
     const page = Math.max(1, statusPages[status] ?? 1);
@@ -331,7 +354,7 @@ export async function getGroupedFriendList(
       prisma.mediaItem.count({ where }),
       prisma.mediaItem.findMany({
         where,
-        orderBy: [{ title: 'asc' }],
+        orderBy,
         select: {
           id: true,
           title: true,

@@ -96,6 +96,11 @@ const MainApp: React.FC = () => {
   const [playlistSort, setPlaylistSort] = useState<SortBy>('status');
   const [playlistFriendFilter, setPlaylistFriendFilter] = useState<FriendActivityFilter>('');
 
+  // Friend list sort state (separate from user's own list sort)
+  const [friendWatchlistSort, setFriendWatchlistSort] = useState<SortBy>('status');
+  const [friendReadlistSort, setFriendReadlistSort] = useState<SortBy>('status');
+  const [friendPlaylistSort, setFriendPlaylistSort] = useState<SortBy>('status');
+
   // Derived flat lists for components that need them
   const watchlistItems = useMemo(() => {
     if (!watchlistGrouped) return [];
@@ -368,7 +373,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : friendWatchlistGrouped.groups[s].page;
       }
       
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'video' });
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'video', sortBy: friendWatchlistSort });
       
       // Replace the items for this status with the new page
       setFriendWatchlistGrouped(prev => {
@@ -390,7 +395,7 @@ const MainApp: React.FC = () => {
         return next;
       });
     }
-  }, [friendWatchlistGrouped, friendWatchlistLoadingStatuses, selectedFriend]);
+  }, [friendWatchlistGrouped, friendWatchlistLoadingStatuses, selectedFriend, friendWatchlistSort]);
 
   const loadFriendReadlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!friendReadlistGrouped || !selectedFriend || friendReadlistLoadingStatuses.has(status)) return;
@@ -404,7 +409,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : friendReadlistGrouped.groups[s].page;
       }
       
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'manga' });
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'manga', sortBy: friendReadlistSort });
       
       // Replace the items for this status with the new page
       setFriendReadlistGrouped(prev => {
@@ -426,7 +431,7 @@ const MainApp: React.FC = () => {
         return next;
       });
     }
-  }, [friendReadlistGrouped, friendReadlistLoadingStatuses, selectedFriend]);
+  }, [friendReadlistGrouped, friendReadlistLoadingStatuses, selectedFriend, friendReadlistSort]);
 
   const loadFriendPlaylistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!friendPlaylistGrouped || !selectedFriend || friendPlaylistLoadingStatuses.has(status)) return;
@@ -440,7 +445,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : friendPlaylistGrouped.groups[s].page;
       }
       
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'game' });
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'game', sortBy: friendPlaylistSort });
       
       // Replace the items for this status with the new page
       setFriendPlaylistGrouped(prev => {
@@ -462,7 +467,50 @@ const MainApp: React.FC = () => {
         return next;
       });
     }
-  }, [friendPlaylistGrouped, friendPlaylistLoadingStatuses, selectedFriend]);
+  }, [friendPlaylistGrouped, friendPlaylistLoadingStatuses, selectedFriend, friendPlaylistSort]);
+
+  // Handlers for friend list sort changes - reload the entire list with new sort
+  const handleFriendWatchlistSortChange = useCallback(async (newSort: SortBy) => {
+    if (!selectedFriend) return;
+    setFriendWatchlistSort(newSort);
+    setFriendListLoading(true);
+    try {
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'video', sortBy: newSort });
+      setFriendWatchlistGrouped(result);
+    } catch (error) {
+      console.error('Failed to reload friend watchlist with new sort:', error);
+    } finally {
+      setFriendListLoading(false);
+    }
+  }, [selectedFriend]);
+
+  const handleFriendReadlistSortChange = useCallback(async (newSort: SortBy) => {
+    if (!selectedFriend) return;
+    setFriendReadlistSort(newSort);
+    setFriendListLoading(true);
+    try {
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'manga', sortBy: newSort });
+      setFriendReadlistGrouped(result);
+    } catch (error) {
+      console.error('Failed to reload friend readlist with new sort:', error);
+    } finally {
+      setFriendListLoading(false);
+    }
+  }, [selectedFriend]);
+
+  const handleFriendPlaylistSortChange = useCallback(async (newSort: SortBy) => {
+    if (!selectedFriend) return;
+    setFriendPlaylistSort(newSort);
+    setFriendListLoading(true);
+    try {
+      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'game', sortBy: newSort });
+      setFriendPlaylistGrouped(result);
+    } catch (error) {
+      console.error('Failed to reload friend playlist with new sort:', error);
+    } finally {
+      setFriendListLoading(false);
+    }
+  }, [selectedFriend]);
 
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true);
@@ -1452,6 +1500,8 @@ const MainApp: React.FC = () => {
                   onPageChange={loadFriendWatchlistPageForStatus}
                   loadingStatuses={friendWatchlistLoadingStatuses}
                   userProgressMap={userWatchlistProgressMap}
+                  sortBy={friendWatchlistSort}
+                  onSortChange={handleFriendWatchlistSortChange}
                 />
                 <MediaList
                   title="READLIST"
@@ -1463,6 +1513,8 @@ const MainApp: React.FC = () => {
                   onPageChange={loadFriendReadlistPageForStatus}
                   loadingStatuses={friendReadlistLoadingStatuses}
                   userProgressMap={userReadlistProgressMap}
+                  sortBy={friendReadlistSort}
+                  onSortChange={handleFriendReadlistSortChange}
                 />
                 <MediaList
                   title="PLAYLIST"
@@ -1474,6 +1526,8 @@ const MainApp: React.FC = () => {
                   onPageChange={loadFriendPlaylistPageForStatus}
                   loadingStatuses={friendPlaylistLoadingStatuses}
                   userProgressMap={userPlaylistProgressMap}
+                  sortBy={friendPlaylistSort}
+                  onSortChange={handleFriendPlaylistSortChange}
                 />
               </>
             )}

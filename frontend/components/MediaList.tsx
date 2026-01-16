@@ -916,6 +916,15 @@ const RATING_OPTIONS = [
   ...Array.from({ length: 11 }, (_, i) => ({ value: i, label: String(i) })),
 ];
 
+function uniqueFriends(friends: FriendStatus[]): FriendStatus[] {
+  const seen = new Set<string>();
+  return friends.filter(friend => {
+    if (seen.has(friend.id)) return false;
+    seen.add(friend.id);
+    return true;
+  });
+}
+
 const MediaItemCard: React.FC<MediaItemCardProps> = ({
   item,
   onUpdate,
@@ -937,6 +946,8 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   const imageUrl = getImageUrl(item.imageUrl, item.refId);
   const config = getStatusConfig(item.status);
+
+  const friends = item.friendsStatuses ? uniqueFriends(Object.values(item.friendsStatuses).flat()) : []
 
   // Determine if this item is a spoiler (friend is ahead of user)
   // This is only relevant when viewing a friend's list (readonly=true) and user has progress on this item
@@ -1200,20 +1211,18 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
 
                   </div>
                   {/* Friends status summary */}
-                  {item.friendsStatuses && item.friendsStatuses.length > 0 && (
+                  {friends && friends.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {(Object.entries(friendsByStatus) as [MediaStatus, FriendStatus[]][]).map(([status, friends]) => (
-                        <div
-                          key={status}
-                          className="flex items-center gap-1.5 px-1.5 py-1 pl-[4px]   border border-neutral-700 rounded-[50px] "
-                          title={friends.map(f => f.displayName || f.username).join(', ')}
-                        >
-                          <FriendAvatarStack friends={friends} maxVisible={5} />
-                          <span className="text-[10px] text-neutral-400 uppercase">
-                            {getShortStatus(status)}
-                          </span>
-                        </div>
-                      ))}
+
+                      <div
+
+                        className="flex items-center gap-1.5 px-1.5 py-1 pl-[4px]   border border-neutral-700 rounded-[50px] "
+                        title={friends.map(f => f.displayName || f.username).join(', ')}
+                      >
+                        <FriendAvatarStack friends={friends} maxVisible={5} />
+
+                      </div>
+
                     </div>
                   )}
                 </div>
@@ -1892,10 +1901,10 @@ export const MediaList: React.FC<MediaListProps> = ({
       <SearchInput value={searchQuery} onChange={setSearchQuery} />
 
       {/* Filter and Sort Controls */}
-      {!readonly && (onFilterChange || onSortChange || onFriendActivityFilterChange) && (
+      {((!readonly && (onFilterChange || onFriendActivityFilterChange)) || onSortChange) && (
         <div className="flex flex-wrap items-center gap-1 text-xs   mt-0">
-          {/* Filter by Friend Activity */}
-          {onFriendActivityFilterChange && (
+          {/* Filter by Friend Activity - only show for own list (not readonly) */}
+          {!readonly && onFriendActivityFilterChange && (
             <div className="flex items-center gap-2">
               <span className="text-neutral-600 uppercase">FRIENDS:</span>
               <select
@@ -1912,7 +1921,7 @@ export const MediaList: React.FC<MediaListProps> = ({
             </div>
           )}
 
-          {/* Sort By */}
+          {/* Sort By - always show when handler is provided */}
           {onSortChange && (
             <div className="flex items-center gap-2">
               <span className="text-neutral-600 uppercase">SORT:</span>

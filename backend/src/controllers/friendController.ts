@@ -91,6 +91,7 @@ export async function getGroupedFriendList(
     mediaTypeFilter?: string;
     statusPages?: string;
     limit?: string;
+    sortBy?: string;
   }>,
   res: Response,
   next: NextFunction
@@ -111,10 +112,17 @@ export async function getGroupedFriendList(
       }
     }
     
+    // Validate sortBy parameter
+    const validSortBy = ['status', 'title', 'rating', 'updatedAt', 'createdAt'];
+    const sortBy = req.query.sortBy && validSortBy.includes(req.query.sortBy)
+      ? req.query.sortBy as friendService.SortBy
+      : undefined;
+    
     const filters: friendService.GroupedFriendListFilters = {
       mediaTypeFilter: req.query.mediaTypeFilter as friendService.MediaTypeFilter | undefined,
       statusPages,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
+      sortBy,
     };
     
     const friendList = await friendService.getGroupedFriendList(req.user.id, req.params.userId, filters);
