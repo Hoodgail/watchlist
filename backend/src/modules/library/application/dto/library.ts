@@ -5,7 +5,7 @@ import type {
   ListFilters,
   MediaItemResponse,
   PaginatedListResponse,
-} from '../../../../services/listService.js';
+} from '../../domain/listTypes.js';
 import type { UpdateWatchProgressInput } from '../../../../utils/schemas.js';
 import type { WatchProgressResponse } from '../../../../services/watchProgressService.js';
 
