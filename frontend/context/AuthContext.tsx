@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { AuthUser, LoginCredentials, RegisterCredentials } from '../types';
 import * as api from '../services/api';
+import { localStorageContract } from '@/shared/contracts/storage';
 
 // Key for caching user in localStorage for offline access
-const CACHED_USER_KEY = 'watchlist_cached_user';
+const CACHED_USER_KEY = localStorageContract.auth.cachedUser;
 
 interface AuthContextType {
   user: AuthUser | null;

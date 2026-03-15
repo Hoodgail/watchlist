@@ -1,23 +1,17 @@
+import { videoOfflineStorageContract } from '@/shared/contracts/storage';
+
 // IndexedDB Offline Video Storage Service
 // Manages offline storage for video media, episodes, and watch progress
 // Implements chunked storage to prevent UI freezing on large video files
 
-const DB_NAME = 'watchlist-video';
-const DB_VERSION = 2; // Bumped for HLS segment storage
+const DB_NAME = videoOfflineStorageContract.dbName;
+const DB_VERSION = videoOfflineStorageContract.dbVersion;
 
 // Chunk size: 5MB to prevent UI freezing during IDB writes
-const CHUNK_SIZE = 5 * 1024 * 1024;
+const CHUNK_SIZE = videoOfflineStorageContract.chunkSizeBytes;
 
 // Store names
-const STORES = {
-  MEDIA: 'media',
-  EPISODES: 'episodes',
-  BLOBS: 'blobs',
-  CHUNKS: 'chunks', // Store for chunked video data (5MB each)
-  HLS_SEGMENTS: 'hls_segments', // Store for HLS TS segments
-  WATCH_PROGRESS: 'watch_progress',
-  SETTINGS: 'settings',
-} as const;
+const STORES = videoOfflineStorageContract.stores;
 
 // ============ Types ============
 
@@ -1080,4 +1074,3 @@ export async function cleanupOrphanedData(): Promise<CleanupResult> {
     return result;
   }
 }
-

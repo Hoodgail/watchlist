@@ -9,6 +9,7 @@
     "dev": "tsx server.ts",
     "dev:vite": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/server.js",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:vite --external:express --external:compression"

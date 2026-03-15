@@ -18,8 +18,10 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
       "@/*": [
+        "./src/*",
         "./*"
       ],
       "@shared/*": [
@@ -29,5 +31,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["**/*", "../shared/**/*"]
+  "include": ["**/*", "src/**/*", "../shared/**/*"]
 }

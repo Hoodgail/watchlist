@@ -2,25 +2,34 @@
  * Core HTTP client with token management and automatic refresh
  */
 
+import { localStorageContract } from '@/shared/contracts/storage';
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+const {
+  auth: {
+    accessToken: ACCESS_TOKEN_KEY,
+    refreshToken: REFRESH_TOKEN_KEY,
+  },
+} = localStorageContract;
 
 // Token management - always read from localStorage to ensure consistency
 export function getAccessToken(): string | null {
-  return localStorage.getItem('accessToken');
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem('refreshToken');
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
 export function setTokens(access: string, refresh: string) {
-  localStorage.setItem('accessToken', access);
-  localStorage.setItem('refreshToken', refresh);
+  localStorage.setItem(ACCESS_TOKEN_KEY, access);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
 }
 
 export function clearTokens() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 // Store and retrieve tokens (exported for OAuth callback)

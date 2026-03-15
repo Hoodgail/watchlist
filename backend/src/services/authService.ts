@@ -5,7 +5,7 @@ import { prisma } from '../config/database.js';
 import { env } from '../config/env.js';
 import { ConflictError, UnauthorizedError } from '../utils/errors.js';
 import type { RegisterInput, LoginInput } from '../utils/schemas.js';
-import type { JwtPayload } from '../middleware/auth.js';
+import type { AuthTokenPayload } from '../shared/auth/authTypes.js';
 
 const SALT_ROUNDS = 12;
 
@@ -24,7 +24,7 @@ export interface UserResponse {
   createdAt: Date;
 }
 
-function generateAccessToken(payload: JwtPayload): string {
+function generateAccessToken(payload: AuthTokenPayload): string {
   return jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   });

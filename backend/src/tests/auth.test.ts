@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { request, app, createTestUser, generateUniqueUser, authHeader } from './helpers.js';
+import { describeDb } from './testSuites.js';
 
-describe('Auth Endpoints', () => {
+describeDb('Auth Endpoints', () => {
   describe('POST /api/auth/register', () => {
     it('should register a new user successfully', async () => {
       const userData = generateUniqueUser();

@@ -3,6 +3,27 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-key-minimum-32-characters-long';
 process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-key-minimum-32-characters-long';
 
+if (typeof globalThis.File === 'undefined') {
+  class TestFile extends Blob {
+    name: string;
+    lastModified: number;
+
+    constructor(bits: any[] = [], name = 'test-file', options: { lastModified?: number; type?: string } = {}) {
+      super(bits, options);
+      this.name = name;
+      this.lastModified = options.lastModified ?? Date.now();
+    }
+  }
+
+  globalThis.File = TestFile as typeof File;
+}
+
+export const hasConfiguredDatabase = Boolean(process.env.DATABASE_URL);
+
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'postgresql://postgres:password@localhost:5432/watchlist_test?schema=public';
+}
+
 import "dotenv/config";
 
 import { beforeAll, afterAll, beforeEach } from 'vitest';
@@ -15,6 +36,8 @@ export const availableTables = {
   avatarUrl: false,
   watchProgress: false,
 };
+
+export let databaseAvailable = false;
 
 /**
  * Check if a table exists by trying a simple query
@@ -67,8 +90,20 @@ async function cleanDatabase() {
 }
 
 beforeAll(async () => {
-  // Ensure database connection
-  await prisma.$connect();
+  if (!hasConfiguredDatabase) {
+    console.warn('DATABASE_URL is not configured; skipping database-backed backend tests.');
+    return;
+  }
+
+  try {
+    await prisma.$connect();
+    databaseAvailable = true;
+  } catch (error) {
+    console.warn('Configured DATABASE_URL is not reachable; skipping database-backed backend tests.');
+    console.warn(error instanceof Error ? error.message : String(error));
+    databaseAvailable = false;
+    return;
+  }
   
   // Check which tables/columns are available
   availableTables.suggestions = await checkTableExists('suggestions');
@@ -88,11 +123,19 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  if (!databaseAvailable) {
+    return;
+  }
+
   // Clean up database before each test
   await cleanDatabase();
 });
 
 afterAll(async () => {
+  if (!databaseAvailable) {
+    return;
+  }
+
   // Clean up and disconnect
   await cleanDatabase();
   await prisma.$disconnect();

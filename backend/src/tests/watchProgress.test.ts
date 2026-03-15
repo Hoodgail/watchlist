@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { request, app, createTestUser, authHeader } from './helpers.js';
 import { availableTables } from './setup.js';
+import { describeDb } from './testSuites.js';
 
-describe('Watch Progress Endpoints', () => {
+describeDb('Watch Progress Endpoints', () => {
   beforeAll(() => {
     if (!availableTables.watchProgress) {
       console.warn('Skipping watch progress tests - table does not exist');

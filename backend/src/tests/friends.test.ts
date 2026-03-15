@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { request, app, createTestUser, authHeader } from './helpers.js';
+import { describeDb } from './testSuites.js';
 
-describe('Friends Endpoints', () => {
+describeDb('Friends Endpoints', () => {
   describe('GET /api/friends', () => {
     it('should return empty list when not following anyone', async () => {
       const user = await createTestUser();

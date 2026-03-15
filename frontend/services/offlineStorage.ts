@@ -11,18 +11,13 @@ import {
   DownloadProgress,
   ReaderSettings,
 } from './mangadexTypes';
+import { mangaOfflineStorageContract } from '@/shared/contracts/storage';
 
-const DB_NAME = 'watchlist-manga';
-const DB_VERSION = 1;
+const DB_NAME = mangaOfflineStorageContract.dbName;
+const DB_VERSION = mangaOfflineStorageContract.dbVersion;
 
 // Store names
-const STORES = {
-  MANGA: 'manga',
-  CHAPTERS: 'chapters',
-  PAGES: 'pages',
-  READING_PROGRESS: 'reading_progress',
-  SETTINGS: 'settings',
-} as const;
+const STORES = mangaOfflineStorageContract.stores;
 
 let dbInstance: IDBDatabase | null = null;
 

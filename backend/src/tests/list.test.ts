@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { request, app, createTestUser, authHeader } from './helpers.js';
+import { describeDb } from './testSuites.js';
 
-describe('List Endpoints', () => {
+describeDb('List Endpoints', () => {
   describe('GET /api/list', () => {
     it('should return empty list for new user', async () => {
       const user = await createTestUser();

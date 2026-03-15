@@ -5,10 +5,12 @@
   "url": "https://watchlist.hoodgail.me",
   "version": "1.0.0",
   "description": "Backend API for watchlist application",
+  "type": "module",
   "main": "dist/backend/src/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc && tsc-alias",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/backend/src/index.js",
     "test": "vitest run",
     "test:watch": "vitest",

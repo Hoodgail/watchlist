@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { request, app, createTestUser, authHeader, createFollow } from './helpers.js';
 import { availableTables } from './setup.js';
+import { describeDb } from './testSuites.js';
 
 /**
  * Suggestions API Tests
@@ -11,7 +12,7 @@ import { availableTables } from './setup.js';
  * To enable these tests, run database migrations:
  * npx prisma db push
  */
-describe('Suggestions Endpoints', () => {
+describeDb('Suggestions Endpoints', () => {
   beforeAll(() => {
     if (!availableTables.suggestions) {
       console.log('\n⚠️  Skipping suggestions tests: suggestions table does not exist in database');
