@@ -2,8 +2,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const backendRoot = process.cwd();
-const repoRoot = path.resolve(backendRoot, '..');
+const repoRoot = path.resolve(process.cwd(), '..');
 
 async function collectCodeFiles(relativeDir: string): Promise<string[]> {
   const absoluteDir = path.resolve(repoRoot, relativeDir);

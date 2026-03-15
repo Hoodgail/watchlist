@@ -18,16 +18,14 @@ if (typeof globalThis.File === 'undefined') {
   globalThis.File = TestFile as typeof File;
 }
 
-export const hasConfiguredDatabase = Boolean(process.env.DATABASE_URL);
-
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://postgres:password@localhost:5432/watchlist_test?schema=public';
-}
+export const shouldRunDatabaseTests = process.env.SKIP_DB_TESTS !== '1';
+export const usingEmbeddedDatabase = shouldRunDatabaseTests && process.env.WATCHLIST_TEST_DB_MODE === 'embedded';
 
 import "dotenv/config";
 
 import { beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma } from '../config/database.js';
+import { pushPrismaSchema, startEmbeddedDatabase, stopEmbeddedDatabase } from './embeddedDatabase.js';
 
 // Track which tables exist in the database for conditional test execution
 export const availableTables = {
@@ -90,19 +88,23 @@ async function cleanDatabase() {
 }
 
 beforeAll(async () => {
-  if (!hasConfiguredDatabase) {
-    console.warn('DATABASE_URL is not configured; skipping database-backed backend tests.');
+  if (!shouldRunDatabaseTests) {
+    console.warn('SKIP_DB_TESTS=1; skipping database-backed backend tests.');
     return;
   }
 
   try {
+    if (usingEmbeddedDatabase) {
+      const databaseUrl = await startEmbeddedDatabase();
+      process.env.DATABASE_URL = databaseUrl;
+      await pushPrismaSchema(databaseUrl);
+    }
+
     await prisma.$connect();
     databaseAvailable = true;
   } catch (error) {
-    console.warn('Configured DATABASE_URL is not reachable; skipping database-backed backend tests.');
-    console.warn(error instanceof Error ? error.message : String(error));
-    databaseAvailable = false;
-    return;
+    console.error('Failed to start backend test database:', error);
+    throw error;
   }
   
   // Check which tables/columns are available
@@ -139,4 +141,8 @@ afterAll(async () => {
   // Clean up and disconnect
   await cleanDatabase();
   await prisma.$disconnect();
+
+  if (usingEmbeddedDatabase) {
+    await stopEmbeddedDatabase();
+  }
 });

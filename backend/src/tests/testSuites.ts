@@ -1,8 +1,8 @@
 import { describe } from 'vitest';
-import { databaseAvailable } from './setup.js';
+import { shouldRunDatabaseTests } from './setup.js';
 
 export function describeDb(name: string, factory: () => void): void {
-  if (databaseAvailable) {
+  if (shouldRunDatabaseTests) {
     describe(name, factory);
     return;
   }
