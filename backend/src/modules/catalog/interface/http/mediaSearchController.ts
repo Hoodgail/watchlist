@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { catalogApplication } from '../../composition/createCatalogApplication.js';
-import type { SearchCategory } from '../../../../services/mediaSearchService.js';
+import type { SearchCategory } from '../../application/dto/catalog.js';
 
 interface SearchQuery {
   q?: string;

@@ -7,7 +7,7 @@ import type {
   PaginatedListResponse,
 } from '../../domain/listTypes.js';
 import type { UpdateWatchProgressInput } from '../../../../utils/schemas.js';
-import type { WatchProgressResponse } from '../../../../services/watchProgressService.js';
+import type { WatchProgressResponse } from '../../domain/watchProgress.js';
 
 export type LibraryListFilters = ListFilters;
 export type LibraryGroupedListFilters = GroupedListFilters;

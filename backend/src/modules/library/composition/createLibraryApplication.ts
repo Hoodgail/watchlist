@@ -11,12 +11,12 @@ import { createGetWatchProgressForEpisodeUseCase } from '../application/useCases
 import { createGetWatchProgressForMediaUseCase } from '../application/useCases/getWatchProgressForMedia.js';
 import { createUpdateMediaItemUseCase } from '../application/useCases/updateMediaItem.js';
 import { createUpsertWatchProgressUseCase } from '../application/useCases/upsertWatchProgress.js';
-import { createLegacyLibraryListGateway } from '../infrastructure/legacyLibraryListGateway.js';
-import { createLegacyLibraryWatchProgressGateway } from '../infrastructure/legacyLibraryWatchProgressGateway.js';
+import { createPrismaLibraryListGateway } from '../infrastructure/prismaLibraryListGateway.js';
+import { createPrismaLibraryWatchProgressGateway } from '../infrastructure/prismaLibraryWatchProgressGateway.js';
 
 export function createLibraryApplication() {
-  const listGateway = createLegacyLibraryListGateway();
-  const watchProgressGateway = createLegacyLibraryWatchProgressGateway();
+  const listGateway = createPrismaLibraryListGateway();
+  const watchProgressGateway = createPrismaLibraryWatchProgressGateway();
 
   return {
     getUserList: createGetUserListUseCase({ listGateway }),

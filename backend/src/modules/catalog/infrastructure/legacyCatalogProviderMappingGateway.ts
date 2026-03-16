@@ -1,12 +1,6 @@
-import * as providerMappingService from '../../../services/providerMappingService.js';
 import type { CatalogProviderMappingGateway } from '../application/ports/CatalogProviderMappingGateway.js';
+import { createPrismaCatalogProviderMappingGateway } from './prismaCatalogProviderMappingGateway.js';
 
 export function createLegacyCatalogProviderMappingGateway(): CatalogProviderMappingGateway {
-  return {
-    getMapping: (refId, provider) => providerMappingService.getMapping(refId, provider),
-    getMappingsForRefId: (refId) => providerMappingService.getMappingsForRefId(refId),
-    upsertMapping: (input, userId) => providerMappingService.upsertMapping(input, userId),
-    createAutoMapping: (input) => providerMappingService.createAutoMapping(input),
-    deleteMapping: (refId, provider) => providerMappingService.deleteMapping(refId, provider),
-  };
+  return createPrismaCatalogProviderMappingGateway();
 }

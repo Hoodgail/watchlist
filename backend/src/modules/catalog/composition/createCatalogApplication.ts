@@ -15,14 +15,14 @@ import { createRemoveCatalogAliasUseCase } from '../application/useCases/removeC
 import { createSearchCatalogProviderUseCase } from '../application/useCases/searchCatalogProvider.js';
 import { createSearchCatalogUseCase } from '../application/useCases/searchCatalog.js';
 import { createUpsertCatalogProviderMappingUseCase } from '../application/useCases/upsertCatalogProviderMapping.js';
-import { createLegacyCatalogMediaGateway } from '../infrastructure/legacyCatalogMediaGateway.js';
-import { createLegacyCatalogProviderMappingGateway } from '../infrastructure/legacyCatalogProviderMappingGateway.js';
-import { createLegacyCatalogSourceGateway } from '../infrastructure/legacyCatalogSourceGateway.js';
+import { createPrismaCatalogMediaGateway } from '../infrastructure/prismaCatalogMediaGateway.js';
+import { createPrismaCatalogProviderMappingGateway } from '../infrastructure/prismaCatalogProviderMappingGateway.js';
+import { createPrismaCatalogSourceGateway } from '../infrastructure/prismaCatalogSourceGateway.js';
 
 export function createCatalogApplication() {
-  const mediaGateway = createLegacyCatalogMediaGateway();
-  const sourceGateway = createLegacyCatalogSourceGateway();
-  const providerMappingGateway = createLegacyCatalogProviderMappingGateway();
+  const mediaGateway = createPrismaCatalogMediaGateway();
+  const sourceGateway = createPrismaCatalogSourceGateway();
+  const providerMappingGateway = createPrismaCatalogProviderMappingGateway();
 
   return {
     searchCatalog: createSearchCatalogUseCase({ mediaGateway }),

@@ -2,7 +2,6 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database.js';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../../utils/errors.js';
 import type { CreateMediaItemInput, UpdateMediaItemInput } from '../../../utils/schemas.js';
-import { getOrCreateMediaSource } from '../../../services/mediaSourceService.js';
 import type { LibraryListGateway } from '../application/ports/LibraryListGateway.js';
 import type {
   BulkStatusItem,
@@ -15,6 +14,7 @@ import type {
   SortByOption,
 } from '../domain/listTypes.js';
 import { attachGroupedLibraryExtras, attachLibraryExtras, mediaItemSelect, resolveMediaItemResponse } from '../domain/enrichment.js';
+import { getOrCreateCatalogMediaSource } from '../../catalog/infrastructure/prismaCatalogSourceGateway.js';
 
 const STATUS_PRIORITY = {
   WATCHING: 1,
@@ -29,6 +29,10 @@ const STATUS_PRIORITY = {
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
+
+function getResolvedTitle(item: Pick<MediaItemWithSource, 'title' | 'source'>): string {
+  return item.source?.title ?? item.title ?? 'Unknown';
+}
 
 function buildBaseListWhere(userId: string, filters?: Pick<ListFilters, 'type' | 'status' | 'search'>): Prisma.MediaItemWhereInput {
   const where: Prisma.MediaItemWhereInput = { userId };
@@ -76,18 +80,21 @@ export function createPrismaLibraryListGateway(): LibraryListGateway {
       const where = buildBaseListWhere(userId, filters);
       const total = await prisma.mediaItem.count({ where });
       const sortByStatus = !filters?.sortBy || filters.sortBy === 'status';
+      const sortByTitle = filters?.sortBy === 'title';
       const orderBy = getOrderBy(filters?.sortBy);
 
       let items: MediaItemWithSource[];
-      if (sortByStatus) {
+      if (sortByStatus || sortByTitle) {
         const allItems = await prisma.mediaItem.findMany({ where, orderBy, select: mediaItemSelect });
-        allItems.sort((a, b) => {
-          const priorityDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
-          if (priorityDiff !== 0) return priorityDiff;
-          const titleA = a.source?.title ?? a.title ?? 'Unknown';
-          const titleB = b.source?.title ?? b.title ?? 'Unknown';
-          return titleA.localeCompare(titleB);
-        });
+        if (sortByStatus) {
+          allItems.sort((a, b) => {
+            const priorityDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
+            if (priorityDiff !== 0) return priorityDiff;
+            return getResolvedTitle(a).localeCompare(getResolvedTitle(b));
+          });
+        } else {
+          allItems.sort((a, b) => getResolvedTitle(a).localeCompare(getResolvedTitle(b)));
+        }
         items = allItems.slice(skip, skip + limit);
       } else {
         items = await prisma.mediaItem.findMany({ where, orderBy, select: mediaItemSelect, skip, take: limit });
@@ -162,7 +169,7 @@ export function createPrismaLibraryListGateway(): LibraryListGateway {
       }
 
       try {
-        const source = await getOrCreateMediaSource(input.refId, input.type);
+        const source = await getOrCreateCatalogMediaSource(input.refId, input.type);
         const item = await prisma.mediaItem.create({
           data: {
             userId,

@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { MediaStatus, MediaType } from '@prisma/client';
 import type { CreateMediaItemInput, UpdateMediaItemInput } from '../../../../utils/schemas.js';
-import type { MediaTypeFilter, SortByOption } from '../../../../services/listService.js';
+import type { MediaTypeFilter, SortByOption } from '../../domain/listTypes.js';
 import { libraryApplication } from '../../composition/createLibraryApplication.js';
 import { requireAuthenticatedUser } from '../../../../shared/interface/http/requireAuthenticatedUser.js';
 
