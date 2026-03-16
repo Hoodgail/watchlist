@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MediaItem, SearchResult, MediaStatus } from '../types';
+import { getStatusesByRefIds, type BulkStatusItem } from '@/features/library/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { 
   getAllTrendingCategories, 
   TrendingCategory, 
@@ -7,23 +9,12 @@ import {
 } from '../services/mediaSearch';
 import { SuggestToFriendModal } from './SuggestToFriendModal';
 import { QuickAddModal } from './QuickAddModal';
-import { getStatusesByRefIds, BulkStatusItem } from '../services/api';
 import PublicCommentsFeed from './PublicCommentsFeed';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
 
 interface TrendingPageProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
   onViewMedia?: (refId: string, mediaType: string, title?: string) => void;
 }
-
-// Helper to get full image URL
-const getImageUrl = (imageUrl?: string): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 // Horizontal scrollable row component
 const TrendingRow: React.FC<{
@@ -159,7 +150,7 @@ const TrendingCard: React.FC<{
 }> = ({ item, onQuickAdd, onAddWithDetails, onSuggest, isAdded, isAdding, userStatus }) => {
   const [imageError, setImageError] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl);
   
   // Check if user already has this in their list
   const isInList = !!userStatus;

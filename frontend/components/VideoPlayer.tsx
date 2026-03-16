@@ -1,16 +1,12 @@
 // VideoPlayer Component - Full-screen HLS video player with controls, subtitles, and episode navigation
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Hls from 'hls.js';
+import { createOfflineHLSConfig, getOfflineM3U8Url, isHLSEpisodeOffline } from '@/features/offline/video/hls';
+import { getOfflineEpisode } from '@/features/offline/video/storage';
 import { VideoEpisode, StreamingSources, StreamingSubtitle, VideoProviderName } from '../types';
 import * as video from '../services/video';
 import { getProxyUrl } from '../services/video';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
-import { getOfflineEpisode } from '../services/offlineVideoStorage';
-import { 
-  getOfflineM3U8Url, 
-  createOfflineHLSConfig, 
-  isHLSEpisodeOffline 
-} from '../services/hlsOfflineLoader';
 import {
   getWorkingProviders,
   getProviderDisplayName,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createCollection, updateCollection } from '@/features/collections/api';
 import { Collection } from '../types';
-import * as api from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 interface CollectionFormProps {
@@ -68,10 +68,10 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
       let result: Collection;
 
       if (isEditing && collection) {
-        result = await api.updateCollection(collection.id, data);
+        result = await updateCollection(collection.id, data);
         showToast('List updated successfully', 'success');
       } else {
-        result = await api.createCollection(data);
+        result = await createCollection(data);
         showToast('List created successfully', 'success');
       }
 

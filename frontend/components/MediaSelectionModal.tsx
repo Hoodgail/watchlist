@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { VideoProviderName, SearchResult } from '../types';
 import { searchWithProvider, PaginatedSearchResults } from '../services/mediaSearch';
 import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
+import { getProxiedImageUrl } from '@/shared/media';
 
 interface MediaSelectionModalProps {
   /** Title being searched */
@@ -16,17 +17,6 @@ interface MediaSelectionModalProps {
   onSelect: (result: SearchResult, provider: VideoProviderName) => void;
   /** Called to close the modal */
   onClose: () => void;
-}
-
-// Helper to proxy image URLs with provider referer
-function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
-  if (!url) return null;
-  if (url.startsWith('blob:') || url.startsWith('/api/')) return url;
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (providerReferer) {
-    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
-  }
-  return proxyUrl;
 }
 
 export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
@@ -158,7 +148,7 @@ export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
                   <div className="flex-shrink-0 w-16">
                     {result.imageUrl ? (
                       <img
-                        src={proxyImageUrl(result.imageUrl, VIDEO_PROVIDER_BASE_URLS[selectedProvider]) || ''}
+                        src={getProxiedImageUrl(result.imageUrl, VIDEO_PROVIDER_BASE_URLS[selectedProvider]) || ''}
                         alt={result.title}
                         className="w-full aspect-[2/3] object-cover border border-neutral-800 bg-neutral-900"
                         onError={(e) => {

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { SearchResult, MediaType } from '../types';
 
 interface FormatSelectionModalProps {
@@ -12,14 +13,6 @@ interface FormatSelectionModalProps {
   onSelect: (result: SearchResult) => void;
   /** Called to close the modal */
   onClose: () => void;
-}
-
-// Helper to get image URL
-function getImageUrl(imageUrl?: string): string | null {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `https://image.tmdb.org/t/p/w200${imageUrl}`;
-  return imageUrl;
 }
 
 export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
@@ -45,7 +38,7 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  const imageUrl = getImageUrl(result.imageUrl || animeResult?.imageUrl || mangaResult?.imageUrl);
+  const imageUrl = resolveMediaImageUrl(result.imageUrl || animeResult?.imageUrl || mangaResult?.imageUrl);
 
   return (
     <div

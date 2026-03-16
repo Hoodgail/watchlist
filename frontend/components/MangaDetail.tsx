@@ -6,6 +6,7 @@ import { MangaProviderName, MangaChapter, MANGA_PROVIDER_BASE_URLS, proxyImageUr
 import { isMangaPlusUrl } from '../services/mangaplus';
 import { useOffline } from '../context/OfflineContext';
 import { useToast } from '../context/ToastContext';
+import { getProxiedImageUrl } from '@/shared/media';
 
 interface MangaDetailProps {
   mangaId: string;
@@ -17,12 +18,8 @@ interface MangaDetailProps {
 // Helper to proxy image URLs with provider referer
 function proxyImageUrl(url: string | null, provider: MangaProviderName = 'mangadex'): string | null {
   if (!url) return null;
-  // Don't proxy blob URLs or already-proxied URLs
-  if (url.startsWith('blob:') || url.startsWith('/api/')) {
-    return url;
-  }
   const referer = MANGA_PROVIDER_BASE_URLS[provider];
-  return proxyImageUrlBase(url, referer);
+  return getProxiedImageUrl(url, referer) ?? proxyImageUrlBase(url, referer);
 }
 
 export const MangaDetail: React.FC<MangaDetailProps> = ({
@@ -827,4 +824,3 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     </div>
   );
 };
-

@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import {
+  addCollectionComment,
+  deleteCollectionComment,
+  getCollectionComments,
+  updateCollectionComment,
+} from '@/features/collections/api';
 import { CollectionComment } from '../types';
-import * as api from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 interface CollectionCommentsProps {
@@ -43,7 +48,7 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
     const loadComments = async () => {
       setLoading(true);
       try {
-        const data = await api.getCollectionComments(collectionId);
+        const data = await getCollectionComments(collectionId);
         setComments(data);
       } catch (err: any) {
         console.error('Failed to load comments:', err);
@@ -62,7 +67,7 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
 
     setActionLoading('add');
     try {
-      const comment = await api.addCollectionComment(collectionId, newComment.trim());
+      const comment = await addCollectionComment(collectionId, newComment.trim());
       setComments(prev => [comment, ...prev]);
       setNewComment('');
       showToast('Comment posted', 'success');
@@ -92,7 +97,7 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
 
     setActionLoading(commentId);
     try {
-      const updated = await api.updateCollectionComment(collectionId, commentId, editContent.trim());
+      const updated = await updateCollectionComment(collectionId, commentId, editContent.trim());
       setComments(prev => prev.map(c => (c.id === commentId ? updated : c)));
       setEditingCommentId(null);
       setEditContent('');
@@ -109,7 +114,7 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
   const handleDelete = async (commentId: string) => {
     setActionLoading(commentId);
     try {
-      await api.deleteCollectionComment(collectionId, commentId);
+      await deleteCollectionComment(collectionId, commentId);
       setComments(prev => prev.filter(c => c.id !== commentId));
       showToast('Comment deleted', 'success');
     } catch (err: any) {

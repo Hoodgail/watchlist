@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { getPublicProfile } from '@/features/profile/api';
+import { followUser, unfollowUser } from '@/features/social/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { PublicProfile as PublicProfileType, PublicProfileMediaItem, MediaStatus } from '../types';
-import * as api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -17,14 +19,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; borderColor:
   DROPPED: { label: 'DROPPED', color: 'text-red-400', borderColor: 'border-l-red-500' },
 };
 
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoodgail.me';
-
-function getImageUrl(imageUrl: string | null): string | undefined {
-  if (!imageUrl) return undefined;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  return `${TMDB_IMAGE_BASE}${imageUrl}`;
-}
 
 function StarRating({ rating }: { rating: number | null }) {
   if (rating === null || rating === undefined) return null;
@@ -40,7 +35,7 @@ function StarRating({ rating }: { rating: number | null }) {
 }
 
 function MediaCard({ item }: { item: PublicProfileMediaItem; key?: string }) {
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl);
   const config = STATUS_CONFIG[item.status] || STATUS_CONFIG.WATCHING;
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   
@@ -273,7 +268,7 @@ function MediaListSection({ title, items }: { title: string; items: PublicProfil
 
 export function PublicProfile() {
   const { username } = useParams<{ username: string }>();
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const { showToast } = useToast();
   
   const [profile, setProfile] = useState<PublicProfileType | null>(null);
@@ -289,7 +284,7 @@ export function PublicProfile() {
       setError(null);
       
       try {
-        const data = await api.getPublicProfile(username);
+        const data = await getPublicProfile(username);
         setProfile(data);
       } catch (err: any) {
         setError(err.message || 'Failed to load profile');
@@ -306,7 +301,7 @@ export function PublicProfile() {
     setIsFollowLoading(true);
     
     try {
-      await api.followUser(profile.id);
+      await followUser(profile.id);
       setProfile(prev => prev ? { ...prev, isFollowing: true, followerCount: prev.followerCount + 1 } : null);
       showToast('User followed successfully', 'success');
     } catch (err: any) {
@@ -321,7 +316,7 @@ export function PublicProfile() {
     setIsFollowLoading(true);
     
     try {
-      await api.unfollowUser(profile.id);
+      await unfollowUser(profile.id);
       setProfile(prev => prev ? { ...prev, isFollowing: false, followerCount: prev.followerCount - 1 } : null);
       showToast('User unfollowed', 'success');
     } catch (err: any) {

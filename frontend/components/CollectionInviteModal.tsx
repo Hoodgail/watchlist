@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import {
+  createCollectionInvite,
+  getCollectionInvites,
+  revokeCollectionInvite,
+} from '@/features/collections/api';
 import { CollectionInvite, CollectionRole } from '../types';
-import { createCollectionInvite, getCollectionInvites, revokeCollectionInvite } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 // Format relative time

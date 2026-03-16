@@ -1,65 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { MediaItem, MediaType } from '../types';
 import { useToast } from '../context/ToastContext';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-/**
- * Helper to get full image URL
- */
-function getImageUrl(imageUrl?: string): string | null {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-}
+import { extractProviderFromRefId, getProviderDisplayName, getProxiedImageUrl, resolveMediaImageUrl } from '@/shared/media';
 
 /**
  * Helper to proxy image URLs with provider referer
  */
 function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
-  if (!url) return null;
-  if (url.startsWith('blob:') || url.startsWith('/api/')) return url;
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (providerReferer) {
-    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
-  }
-  return proxyUrl;
+  return getProxiedImageUrl(url, providerReferer);
 }
 
 /**
  * Extract source name from refId (e.g., "tmdb:12345" -> "tmdb")
  */
 function extractSourceName(refId: string): string {
-  const colonIndex = refId.indexOf(':');
-  if (colonIndex > 0) {
-    return refId.substring(0, colonIndex);
-  }
-  return 'unknown';
+  return extractProviderFromRefId(refId) ?? 'unknown';
 }
 
 /**
  * Get display name for a source
  */
 function getSourceDisplayName(source: string): string {
-  const displayNames: Record<string, string> = {
-    tmdb: 'TMDB',
-    anilist: 'AniList',
-    'anilist-manga': 'AniList Manga',
-    hianime: 'HiAnime',
-    animepahe: 'AnimePahe',
-    animekai: 'AnimeKai',
-    flixhq: 'FlixHQ',
-    goku: 'Goku',
-    mangadex: 'MangaDex',
-    comick: 'ComicK',
-    mangapill: 'MangaPill',
-    mangahere: 'MangaHere',
-    mangakakalot: 'MangaKakalot',
-    mangareader: 'MangaReader',
-    asurascans: 'AsuraScans',
-  };
-  return displayNames[source.toLowerCase()] || source.toUpperCase();
+  return getProviderDisplayName(source as never);
 }
 
 /**
@@ -218,8 +180,8 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
   };
 
   // Image URLs
-  const existingImageUrl = getImageUrl(existingItem.imageUrl);
-  const newImageUrl = getImageUrl(newItem.imageUrl);
+  const existingImageUrl = resolveMediaImageUrl(existingItem.imageUrl);
+  const newImageUrl = resolveMediaImageUrl(newItem.imageUrl);
 
   if (!isOpen) return null;
 

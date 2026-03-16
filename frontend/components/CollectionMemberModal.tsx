@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import {
+  addCollectionMember,
+  getCollectionMembers,
+  removeCollectionMember,
+  updateMemberRole,
+} from '@/features/collections/api';
 import { CollectionMember, CollectionRole } from '../types';
-import { 
-  getCollectionMembers, 
-  addCollectionMember, 
-  updateMemberRole, 
-  removeCollectionMember 
-} from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 // User avatar component

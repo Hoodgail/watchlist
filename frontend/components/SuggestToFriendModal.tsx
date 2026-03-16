@@ -1,17 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MediaItem, User } from '../types';
-import * as api from '../services/api';
+import { getFollowing, sendSuggestion } from '@/features/social/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { useToast } from '../context/ToastContext';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-// Helper to get full image URL
-const getImageUrl = (imageUrl?: string): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 interface SuggestToFriendModalProps {
   item: MediaItem;
@@ -30,7 +21,7 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
   const [sending, setSending] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl);
 
   useEffect(() => {
     loadFriends();
@@ -38,7 +29,7 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
 
   const loadFriends = async () => {
     try {
-      const following = await api.getFollowing();
+      const following = await getFollowing();
       setFriends(following);
     } catch (error) {
       console.error('Failed to load friends:', error);
@@ -61,7 +52,7 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
 
     setSending(true);
     try {
-      await api.sendSuggestion(selectedFriendId, {
+      await sendSuggestion(selectedFriendId, {
         type: item.type,
         refId: item.refId,
         message: message.trim() || undefined,

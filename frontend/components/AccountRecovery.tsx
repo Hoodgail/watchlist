@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import * as api from '../services/api';
+import {
+  completeAccountRecovery,
+  initiateAccountRecovery,
+} from '@/features/auth/api';
 import { useAuth } from '../context/AuthContext';
 
 interface AccountRecoveryProps {
@@ -24,7 +27,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
     setError(null);
     
     try {
-      await api.initiateAccountRecovery(email.trim());
+      await initiateAccountRecovery(email.trim());
       setSuccess('If a recovery email exists for this address, you will receive a recovery link shortly.');
       setStep('token');
     } catch (err) {
@@ -52,7 +55,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
     setError(null);
     
     try {
-      await api.completeAccountRecovery(token.trim(), newPassword);
+      await completeAccountRecovery(token.trim(), newPassword);
       // Refresh user context with new tokens
       await refreshUser();
       setSuccess('Account recovered successfully! You are now logged in.');

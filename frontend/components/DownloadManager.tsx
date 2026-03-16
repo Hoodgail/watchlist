@@ -1,7 +1,7 @@
 // DownloadManager Component - Shows download queue, progress, and storage info
 import React, { useState, useEffect } from 'react';
+import { formatBytes, type StorageInfo } from '@/features/offline/manga/storage';
 import { useOffline } from '../context/OfflineContext';
-import { formatBytes, StorageInfo } from '../services/offlineStorage';
 import { getProviderDisplayName, MangaProviderName } from '../services/manga';
 
 interface DownloadManagerProps {

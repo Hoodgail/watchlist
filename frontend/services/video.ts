@@ -6,7 +6,11 @@
  * This service provides video-specific types, utilities, and re-exports.
  */
 
-import { createRefId, parseRefId } from '@shared/refId';
+import {
+  createVideoRefId as createSharedVideoRefId,
+  getVideoProviderDisplayName,
+  parseVideoRefId as parseSharedVideoRefId,
+} from '@/shared/media';
 import {
   VideoProviderName,
   VideoEpisode,
@@ -123,20 +127,7 @@ export async function getEpisodeServers(
  * Get human-readable display name for a video provider
  */
 export function getProviderDisplayName(provider: VideoProviderName): string {
-  const names: Record<VideoProviderName, string> = {
-    // Anime providers
-    hianime: 'HiAnime',
-    animepahe: 'AnimePahe',
-    animekai: 'AnimeKai',
-    kickassanime: 'KickAssAnime',
-    // Movie/TV providers
-    flixhq: 'FlixHQ',
-    goku: 'Goku',
-    sflix: 'SFlix',
-    himovies: 'HiMovies',
-    dramacool: 'DramaCool',
-  };
-  return names[provider] || provider;
+  return getVideoProviderDisplayName(provider);
 }
 
 /**
@@ -148,7 +139,7 @@ export function getProviderDisplayName(provider: VideoProviderName): string {
  * @returns Formatted refId (e.g., "hianime:abc123")
  */
 export function createVideoRefId(mediaId: string, provider: VideoProviderName): string {
-  return createRefId(provider, mediaId);
+  return createSharedVideoRefId(mediaId, provider);
 }
 
 /**
@@ -158,23 +149,7 @@ export function createVideoRefId(mediaId: string, provider: VideoProviderName): 
  * @returns Parsed object with mediaId and provider, or null if invalid
  */
 export function parseVideoRefId(refId: string): { mediaId: string; provider: VideoProviderName } | null {
-  const parsed = parseRefId(refId);
-  if (!parsed) return null;
-  
-  // Validate that the source is a valid video provider
-  const validProviders: VideoProviderName[] = [
-    'hianime', 'animepahe', 'animekai', 'kickassanime',
-    'flixhq', 'goku', 'sflix', 'himovies', 'dramacool',
-  ];
-  
-  if (!validProviders.includes(parsed.source as VideoProviderName)) {
-    return null;
-  }
-  
-  return {
-    provider: parsed.source as VideoProviderName,
-    mediaId: parsed.id,
-  };
+  return parseSharedVideoRefId(refId);
 }
 
 /**

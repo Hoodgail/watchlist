@@ -17,18 +17,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CollectionItem, MediaType } from '../types';
-import * as api from '../services/api';
+import {
+  removeCollectionItem,
+  reorderCollectionItems,
+  updateCollectionItem,
+} from '@/features/collections/api';
+import { resolveMediaImageUrl } from '@/shared/media';
+import { CollectionItem } from '../types';
 import { useToast } from '../context/ToastContext';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-const getImageUrl = (imageUrl?: string | null): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 interface CollectionItemListProps {
   collectionId: string;
@@ -72,7 +68,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const imageUrl = getImageUrl(item.imageUrl || item.source?.imageUrl);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl || item.source?.imageUrl);
   const title = item.title || item.source?.title || 'Unknown Title';
 
   const handleNoteSave = () => {
@@ -259,7 +255,7 @@ export const CollectionItemList: React.FC<CollectionItemListProps> = ({
           id: item.id,
           orderIndex: index,
         }));
-        await api.reorderCollectionItems(collectionId, reorderPayload);
+        await reorderCollectionItems(collectionId, reorderPayload);
       } catch (error) {
         console.error('Failed to reorder items:', error);
         showToast('Failed to save new order', 'error');
@@ -271,7 +267,7 @@ export const CollectionItemList: React.FC<CollectionItemListProps> = ({
 
   const handleNoteUpdate = async (itemId: string, note: string) => {
     try {
-      await api.updateCollectionItem(collectionId, itemId, { note });
+      await updateCollectionItem(collectionId, itemId, { note });
       const updatedItems = items.map((item) =>
         item.id === itemId ? { ...item, note } : item
       );
@@ -285,7 +281,7 @@ export const CollectionItemList: React.FC<CollectionItemListProps> = ({
 
   const handleRemoveItem = async (itemId: string) => {
     try {
-      await api.removeCollectionItem(collectionId, itemId);
+      await removeCollectionItem(collectionId, itemId);
       const updatedItems = items.filter((item) => item.id !== itemId);
       onItemsChange(updatedItems);
       showToast('Item removed', 'info');

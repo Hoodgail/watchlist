@@ -8,6 +8,7 @@
  * - Handles CORS and referer requirements automatically
  */
 import React, { useState, useCallback, useEffect } from 'react';
+import { getProxiedImageUrl } from '@/shared/media';
 
 type ImageLoadingState = 'loading' | 'loaded' | 'error';
 
@@ -33,37 +34,6 @@ interface ProxiedImageProps {
   onError?: () => void;
   /** Custom load callback */
   onLoad?: () => void;
-}
-
-/**
- * Get the proxied URL for an image
- * Handles various URL types and adds proper proxy parameters
- */
-export function getProxiedImageUrl(
-  url: string | null | undefined, 
-  referer?: string,
-  skipProxy?: boolean
-): string | null {
-  if (!url) return null;
-  
-  // Skip proxying if requested
-  if (skipProxy) return url;
-  
-  // Don't proxy blob URLs, data URLs, or already-proxied URLs
-  if (url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('/api/')) {
-    return url;
-  }
-  
-  // Don't proxy TMDB images - they don't need proxying
-  if (url.includes('image.tmdb.org')) {
-    return url;
-  }
-  
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (referer) {
-    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
-  }
-  return proxyUrl;
 }
 
 /**

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import {
+  getMyCollections,
+  getPublicCollections,
+  getStarredCollections,
+} from '@/features/collections/api';
 import { Collection, CollectionRole } from '../types';
-import * as api from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 interface CollectionsProps {
@@ -43,13 +47,13 @@ export const Collections: React.FC<CollectionsProps> = ({
     setLoading(true);
     try {
       if (activeTab === 'my') {
-        const data = await api.getMyCollections();
+        const data = await getMyCollections();
         const collectionsArray = Array.isArray(data) ? data : [];
         setCollections(collectionsArray);
         setTotal(collectionsArray.length);
         setHasMore(false);
       } else if (activeTab === 'public') {
-        const result = await api.getPublicCollections({
+        const result = await getPublicCollections({
           page,
           limit: 20,
           search: searchQuery || undefined,
@@ -63,7 +67,7 @@ export const Collections: React.FC<CollectionsProps> = ({
         setTotal(result.total || 0);
         setHasMore(newData.length === 20 && collections.length + newData.length < (result.total || 0));
       } else if (activeTab === 'starred') {
-        const data = await api.getStarredCollections();
+        const data = await getStarredCollections();
         const collectionsArray = Array.isArray(data) ? data : [];
         setCollections(collectionsArray);
         setTotal(collectionsArray.length);

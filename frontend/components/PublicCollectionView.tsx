@@ -1,4 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import {
+  getPublicCollection,
+  starCollection,
+  unstarCollection,
+} from '@/features/collections/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import {
@@ -6,18 +12,10 @@ import {
   CollectionItem,
   CollectionRole,
 } from '../types';
-import * as api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoodgail.me';
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-function getImageUrl(imageUrl: string | null): string | undefined {
-  if (!imageUrl) return undefined;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  return `${TMDB_IMAGE_BASE}${imageUrl}`;
-}
 
 // Format relative time
 const formatRelativeTime = (dateString: string): string => {
@@ -100,7 +98,7 @@ const StarOutlineIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-
 
 // Collection item card
 function CollectionItemCard({ item }: { item: CollectionItem }) {
-  const imageUrl = getImageUrl(item.imageUrl || item.source?.imageUrl || null);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl || item.source?.imageUrl || null);
   const title = item.title || item.source?.title || 'Unknown';
 
   return (
@@ -192,7 +190,7 @@ export function PublicCollectionView() {
       setIsPrivate(false);
 
       try {
-        const data = await api.getPublicCollection(collectionId);
+        const data = await getPublicCollection(collectionId);
         setCollection(data);
       } catch (err: any) {
         const message = err.message || 'Failed to load collection';
@@ -218,11 +216,11 @@ export function PublicCollectionView() {
     setStarLoading(true);
     try {
       if (collection.isStarred) {
-        await api.unstarCollection(collection.id);
+        await unstarCollection(collection.id);
         setCollection({ ...collection, isStarred: false, starCount: collection.starCount - 1 });
         showToast('Collection unstarred', 'info');
       } else {
-        await api.starCollection(collection.id);
+        await starCollection(collection.id);
         setCollection({ ...collection, isStarred: true, starCount: collection.starCount + 1 });
         showToast('Collection starred', 'success');
       }

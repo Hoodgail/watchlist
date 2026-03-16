@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
+  deleteCollection,
+  getCollection,
+  leaveCollection,
+  removeCollectionMember,
+  starCollection,
+  unstarCollection,
+} from '@/features/collections/api';
+import {
   Collection,
   CollectionWithDetails,
-  CollectionMember,
   CollectionRole,
 } from '../types';
-import * as api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import CollectionItemList from './CollectionItemList';
 import CollectionComments from './CollectionComments';
@@ -137,7 +143,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
   const loadCollection = async () => {
     setLoading(true);
     try {
-      const data = await api.getCollection(collectionId);
+      const data = await getCollection(collectionId);
       setCollection(data);
     } catch (error: any) {
       console.error('Failed to load collection:', error);
@@ -152,11 +158,11 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
     setActionLoading('star');
     try {
       if (collection.isStarred) {
-        await api.unstarCollection(collectionId);
+        await unstarCollection(collectionId);
         setCollection({ ...collection, isStarred: false, starCount: collection.starCount - 1 });
         showToast('Collection unstarred', 'info');
       } else {
-        await api.starCollection(collectionId);
+        await starCollection(collectionId);
         setCollection({ ...collection, isStarred: true, starCount: collection.starCount + 1 });
         showToast('Collection starred', 'success');
       }
@@ -172,7 +178,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
     if (!collection) return;
     setActionLoading('delete');
     try {
-      await api.deleteCollection(collectionId);
+      await deleteCollection(collectionId);
       showToast('Collection deleted', 'success');
       onBack();
     } catch (error: any) {
@@ -188,7 +194,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
     if (!collection) return;
     setActionLoading('leave');
     try {
-      await api.leaveCollection(collectionId);
+      await leaveCollection(collectionId);
       showToast('Left collection', 'info');
       onBack();
     } catch (error: any) {
@@ -203,7 +209,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
     if (!collection) return;
     setActionLoading(`remove-${userId}`);
     try {
-      await api.removeCollectionMember(collectionId, userId);
+      await removeCollectionMember(collectionId, userId);
       setCollection({
         ...collection,
         members: collection.members.filter(m => m.user.id !== userId),

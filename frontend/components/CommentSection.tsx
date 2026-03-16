@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  addCommentReaction,
+  createComment,
+  getMediaComments,
+  removeCommentReaction,
+  type Comment as ApiComment,
+  type CommentMediaType,
+} from '@/features/social/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { 
-  getMediaComments, 
-  createComment, 
-  addCommentReaction, 
-  removeCommentReaction,
-  Comment as ApiComment,
-  CommentMediaType,
-} from '../services/api';
 
 // Types
 interface CommentUser {

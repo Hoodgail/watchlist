@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import {
+  changePassword,
+  getLinkedProviders,
+  getOAuthUrl,
+  removeRecoveryEmail,
+  setPassword,
+  setRecoveryEmail,
+  unlinkOAuthAccount,
+} from '@/features/auth/api';
+import { updatePrivacySettings } from '@/features/profile/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useSpoilerProtection } from '../context/SpoilerContext';
-import * as api from '../services/api';
 import { UserAvatar } from './Layout';
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoodgail.me';
@@ -33,7 +42,7 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
-  const { user, refreshUser, initiateOAuthLogin } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
   const { spoilerProtectionEnabled, setSpoilerProtectionEnabled } = useSpoilerProtection();
   
@@ -79,7 +88,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
         if (user?.oauthProviders) {
           setLinkedProviders(user.oauthProviders);
         } else {
-          const providers = await api.getLinkedProviders();
+          const providers = await getLinkedProviders();
           setLinkedProviders(providers);
         }
       } catch (error) {
@@ -115,7 +124,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     const newValue = !isPublic;
     
     try {
-      await api.updatePrivacySettings(newValue);
+      await updatePrivacySettings(newValue);
       setIsPublic(newValue);
       await refreshUser();
       showToast(newValue ? 'Your profile is now public' : 'Your profile is now private', 'success');
@@ -132,7 +141,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     try {
       // Get OAuth URL and redirect - when user returns, the callback will handle linking
       // For account linking, we need a different flow
-      const authUrl = await api.getOAuthUrl('discord');
+      const authUrl = await getOAuthUrl('discord');
       // Add state parameter to indicate this is a link operation
       const url = new URL(authUrl);
       url.searchParams.set('state', 'link');
@@ -158,7 +167,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
 
     setUnlinkingProvider(provider);
     try {
-      await api.unlinkOAuthAccount(provider);
+      await unlinkOAuthAccount(provider);
       setLinkedProviders(prev => prev.filter(p => p !== provider));
       await refreshUser();
       showToast(`${provider.charAt(0).toUpperCase() + provider.slice(1)} account unlinked`, 'success');
@@ -176,7 +185,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     
     setRecoveryEmailLoading(true);
     try {
-      await api.setRecoveryEmail(recoveryEmail.trim());
+      await setRecoveryEmail(recoveryEmail.trim());
       await refreshUser();
       showToast('Recovery email set. Please check your inbox to verify.', 'success');
       setRecoveryEmail('');
@@ -197,7 +206,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     
     setRecoveryEmailLoading(true);
     try {
-      await api.removeRecoveryEmail();
+      await removeRecoveryEmail();
       await refreshUser();
       showToast('Recovery email removed', 'success');
     } catch (error) {
@@ -225,11 +234,11 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     try {
       if (hasPassword) {
         // Change password
-        await api.changePassword(currentPassword, newPassword);
+        await changePassword(currentPassword, newPassword);
         showToast('Password changed successfully', 'success');
       } else {
         // Set new password
-        await api.setPassword(newPassword);
+        await setPassword(newPassword);
         showToast('Password set successfully', 'success');
       }
       await refreshUser();

@@ -21,13 +21,16 @@ import VideoPlayer from './components/VideoPlayer';
 import Collections from './components/Collections';
 import CollectionView from './components/CollectionView';
 import CollectionForm from './components/CollectionForm';
+import * as libraryApi from '@/features/library/api';
+import * as socialApi from '@/features/social/api';
+import type { GroupedListResponse } from '@/features/library/api';
+import type { GroupedFriendListResponse } from '@/features/social/api';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { useOffline } from './context/OfflineContext';
 import { OfflineVideoProvider, useOfflineVideo } from './context/OfflineVideoContext';
 import { View, User, MediaItem, MediaStatus, SortBy, FriendActivityFilter, VideoProviderName, VideoEpisode, ProviderName, Collection } from './types';
 import { ChapterInfo } from './services/mangadexTypes';
-import * as api from './services/api';
 import * as manga from './services/manga';
 import { calculateSimilarity, MatchableItem } from '@shared/matching';
 import { ConflictResolutionModal, NewItemData } from './components/ConflictResolutionModal';
@@ -68,18 +71,18 @@ const MainApp: React.FC = () => {
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
 
   // Friend's grouped lists (for FRIEND_VIEW)
-  const [friendWatchlistGrouped, setFriendWatchlistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
-  const [friendReadlistGrouped, setFriendReadlistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
-  const [friendPlaylistGrouped, setFriendPlaylistGrouped] = useState<api.GroupedFriendListResponse | null>(null);
+  const [friendWatchlistGrouped, setFriendWatchlistGrouped] = useState<GroupedFriendListResponse | null>(null);
+  const [friendReadlistGrouped, setFriendReadlistGrouped] = useState<GroupedFriendListResponse | null>(null);
+  const [friendPlaylistGrouped, setFriendPlaylistGrouped] = useState<GroupedFriendListResponse | null>(null);
   const [friendListLoading, setFriendListLoading] = useState(false);
   const [friendWatchlistLoadingStatuses, setFriendWatchlistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
   const [friendReadlistLoadingStatuses, setFriendReadlistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
   const [friendPlaylistLoadingStatuses, setFriendPlaylistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
 
   // User's own lists - separate state for watchlist (video), readlist (manga), and playlist (game)
-  const [watchlistGrouped, setWatchlistGrouped] = useState<api.GroupedListResponse | null>(null);
-  const [readlistGrouped, setReadlistGrouped] = useState<api.GroupedListResponse | null>(null);
-  const [playlistGrouped, setPlaylistGrouped] = useState<api.GroupedListResponse | null>(null);
+  const [watchlistGrouped, setWatchlistGrouped] = useState<GroupedListResponse | null>(null);
+  const [readlistGrouped, setReadlistGrouped] = useState<GroupedListResponse | null>(null);
+  const [playlistGrouped, setPlaylistGrouped] = useState<GroupedListResponse | null>(null);
   const [listLoading, setListLoading] = useState(false);
   const [watchlistLoadingStatuses, setWatchlistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
   const [readlistLoadingStatuses, setReadlistLoadingStatuses] = useState<Set<MediaStatus>>(new Set());
@@ -239,9 +242,9 @@ const MainApp: React.FC = () => {
     try {
       // Load watchlist (video), readlist (manga), and playlist (game) in parallel
       const [watchlistResult, readlistResult, playlistResult] = await Promise.all([
-        api.getMyGroupedList({ limit: 50, mediaTypeFilter: 'video' }),
-        api.getMyGroupedList({ limit: 50, mediaTypeFilter: 'manga' }),
-        api.getMyGroupedList({ limit: 50, mediaTypeFilter: 'game' }),
+        libraryApi.getMyGroupedList({ limit: 50, mediaTypeFilter: 'video' }),
+        libraryApi.getMyGroupedList({ limit: 50, mediaTypeFilter: 'manga' }),
+        libraryApi.getMyGroupedList({ limit: 50, mediaTypeFilter: 'game' }),
       ]);
       setWatchlistGrouped(watchlistResult);
       setReadlistGrouped(readlistResult);
@@ -265,7 +268,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : watchlistGrouped.groups[s].page;
       }
       
-      const result = await api.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'video' });
+      const result = await libraryApi.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'video' });
       
       // Replace the items for this status with the new page
       setWatchlistGrouped(prev => {
@@ -301,7 +304,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : readlistGrouped.groups[s].page;
       }
       
-      const result = await api.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'manga' });
+      const result = await libraryApi.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'manga' });
       
       // Replace the items for this status with the new page
       setReadlistGrouped(prev => {
@@ -337,7 +340,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : playlistGrouped.groups[s].page;
       }
       
-      const result = await api.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'game' });
+      const result = await libraryApi.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'game' });
       
       // Replace the items for this status with the new page
       setPlaylistGrouped(prev => {
@@ -373,7 +376,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : friendWatchlistGrouped.groups[s].page;
       }
       
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'video', sortBy: friendWatchlistSort });
+      const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'video', sortBy: friendWatchlistSort });
       
       // Replace the items for this status with the new page
       setFriendWatchlistGrouped(prev => {
@@ -409,7 +412,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : friendReadlistGrouped.groups[s].page;
       }
       
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'manga', sortBy: friendReadlistSort });
+      const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'manga', sortBy: friendReadlistSort });
       
       // Replace the items for this status with the new page
       setFriendReadlistGrouped(prev => {
@@ -445,7 +448,7 @@ const MainApp: React.FC = () => {
         statusPages[s] = s === status ? page : friendPlaylistGrouped.groups[s].page;
       }
       
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'game', sortBy: friendPlaylistSort });
+      const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'game', sortBy: friendPlaylistSort });
       
       // Replace the items for this status with the new page
       setFriendPlaylistGrouped(prev => {
@@ -475,7 +478,7 @@ const MainApp: React.FC = () => {
     setFriendWatchlistSort(newSort);
     setFriendListLoading(true);
     try {
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'video', sortBy: newSort });
+      const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'video', sortBy: newSort });
       setFriendWatchlistGrouped(result);
     } catch (error) {
       console.error('Failed to reload friend watchlist with new sort:', error);
@@ -489,7 +492,7 @@ const MainApp: React.FC = () => {
     setFriendReadlistSort(newSort);
     setFriendListLoading(true);
     try {
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'manga', sortBy: newSort });
+      const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'manga', sortBy: newSort });
       setFriendReadlistGrouped(result);
     } catch (error) {
       console.error('Failed to reload friend readlist with new sort:', error);
@@ -503,7 +506,7 @@ const MainApp: React.FC = () => {
     setFriendPlaylistSort(newSort);
     setFriendListLoading(true);
     try {
-      const result = await api.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'game', sortBy: newSort });
+      const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, mediaTypeFilter: 'game', sortBy: newSort });
       setFriendPlaylistGrouped(result);
     } catch (error) {
       console.error('Failed to reload friend playlist with new sort:', error);
@@ -515,7 +518,7 @@ const MainApp: React.FC = () => {
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true);
     try {
-      const following = await api.getFollowing();
+      const following = await socialApi.getFollowing();
       setFriends(following);
     } catch (error) {
       console.error('Failed to load friends:', error);
@@ -526,7 +529,7 @@ const MainApp: React.FC = () => {
 
   const loadPendingSuggestionsCount = useCallback(async () => {
     try {
-      const suggestions = await api.getReceivedSuggestions('PENDING');
+      const suggestions = await socialApi.getReceivedSuggestions('PENDING');
       setPendingSuggestionsCount(suggestions.length);
     } catch (error) {
       console.error('Failed to load suggestions count:', error);
@@ -620,7 +623,7 @@ const MainApp: React.FC = () => {
       }
 
       // 3. No conflict - proceed with normal add
-      const created = await api.addToList(newItem);
+      const created = await libraryApi.addToList(newItem);
       const status = created.status;
       const isManga = created.type === 'MANGA';
       const isGame = created.type === 'GAME';
@@ -692,7 +695,7 @@ const MainApp: React.FC = () => {
     const existingItem = conflictData.existingItem;
     
     // Call API to link the new refId as an alias to the existing source
-    await api.linkSource(existingItem.refId, newRefId);
+    await libraryApi.linkSource(existingItem.refId, newRefId);
     
     // Refresh list to get updated aliases
     await loadMyList();
@@ -702,10 +705,10 @@ const MainApp: React.FC = () => {
     if (!conflictData) return;
     
     // Remove old item
-    await api.deleteListItem(existingItemId);
+    await libraryApi.deleteListItem(existingItemId);
     
     // Add new item
-    const created = await api.addToList(conflictData.newItem);
+    const created = await libraryApi.addToList(conflictData.newItem);
     
     // Update local state
     const status = created.status;
@@ -764,7 +767,7 @@ const MainApp: React.FC = () => {
     if (!conflictData) return;
     
     // Just add the new item normally
-    const created = await api.addToList(conflictData.newItem);
+      const created = await libraryApi.addToList(conflictData.newItem);
     
     const status = created.status;
     const isManga = created.type === 'MANGA';
@@ -839,7 +842,7 @@ const MainApp: React.FC = () => {
     };
     
     try {
-      const created = await api.addToList(newItem);
+      const created = await libraryApi.addToList(newItem);
       const isManga = created.type === 'MANGA';
       const isGame = created.type === 'GAME';
       const setGrouped = isManga ? setReadlistGrouped : isGame ? setPlaylistGrouped : setWatchlistGrouped;
@@ -956,7 +959,7 @@ const MainApp: React.FC = () => {
     });
 
     try {
-      await api.updateListItem(id, updates);
+      await libraryApi.updateListItem(id, updates);
     } catch (error) {
       console.error('Failed to update item:', error);
       showToast('Failed to update item', 'error');
@@ -1025,7 +1028,7 @@ const MainApp: React.FC = () => {
     }
 
     try {
-      await api.deleteListItem(id);
+      await libraryApi.deleteListItem(id);
       showToast('Item removed from your list', 'success');
     } catch (error) {
       console.error('Failed to delete item:', error);
@@ -1043,9 +1046,9 @@ const MainApp: React.FC = () => {
     try {
       // Load friend's grouped lists for video, manga, and game in parallel
       const [watchlistResult, readlistResult, playlistResult] = await Promise.all([
-        api.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'video' }),
-        api.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'manga' }),
-        api.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'game' }),
+        socialApi.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'video' }),
+        socialApi.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'manga' }),
+        socialApi.getFriendGroupedList(friend.id, { limit: 50, mediaTypeFilter: 'game' }),
       ]);
       setFriendWatchlistGrouped(watchlistResult);
       setFriendReadlistGrouped(readlistResult);
@@ -1058,12 +1061,12 @@ const MainApp: React.FC = () => {
   };
 
   const handleSearchUsers = async (query: string): Promise<User[]> => {
-    return await api.searchUsers(query);
+    return await socialApi.searchUsers(query);
   };
 
   const handleFollowUser = async (userId: string) => {
     try {
-      await api.followUser(userId);
+      await socialApi.followUser(userId);
       await loadFriends(); // Reload friends list
       showToast('User followed successfully', 'success');
     } catch (error) {
@@ -1074,7 +1077,7 @@ const MainApp: React.FC = () => {
 
   const handleUnfollowUser = async (userId: string) => {
     try {
-      await api.unfollowUser(userId);
+      await socialApi.unfollowUser(userId);
       setFriends((prev) => prev.filter((f) => f.id !== userId));
       showToast('User unfollowed', 'success');
     } catch (error) {

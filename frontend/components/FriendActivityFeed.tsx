@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { getFriendCommentsFeed, type Comment } from '@/features/social/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { FriendAvatar } from './FriendList';
-import { getFriendCommentsFeed, Comment } from '../services/api';
 
 // Type alias for cleaner code
 type FeedComment = Comment;
@@ -13,18 +14,10 @@ interface FriendActivityFeedProps {
 
 // ==================== Constants ====================
 
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 const DEFAULT_LIMIT = 20;
 const COMMENT_PREVIEW_LENGTH = 100;
 
 // ==================== Helpers ====================
-
-const getImageUrl = (imageUrl?: string | null): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 const formatRelativeTime = (dateString: string): string => {
   const date = new Date(dateString);
@@ -123,7 +116,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   const authorDisplayName = comment.author?.displayName || comment.externalAuthor || authorUsername;
   const authorAvatarUrl = comment.author?.avatarUrl || comment.externalAuthorAvatar;
   
-  const imageUrl = getImageUrl(comment.media?.imageUrl);
+  const imageUrl = resolveMediaImageUrl(comment.media?.imageUrl);
   const mediaContext = formatMediaContext(comment);
   const mediaTypeIcon = getMediaTypeIcon(comment.mediaType);
   

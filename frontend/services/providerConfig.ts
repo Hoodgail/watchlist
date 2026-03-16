@@ -8,6 +8,12 @@
  */
 
 import type { VideoProviderName } from '../types';
+import {
+  getVideoProviderDisplayName as getSharedVideoProviderDisplayName,
+  VIDEO_PROVIDER_BASE_URLS,
+} from '@/shared/media';
+
+export { VIDEO_PROVIDER_BASE_URLS } from '@/shared/media';
 
 // ============ Provider Status ============
 
@@ -216,7 +222,7 @@ export function isProviderWorking(name: VideoProviderName): boolean {
  */
 export function getProviderDisplayName(name: VideoProviderName): string {
   const info = getProviderInfo(name);
-  return info?.displayName ?? name;
+  return info?.displayName ?? getSharedVideoProviderDisplayName(name);
 }
 
 // ============ Default Exports ============
@@ -237,20 +243,6 @@ export const ALL_VIDEO_PROVIDERS: VideoProviderName[] = [
 
 // ============ Provider Base URLs ============
 // Used as referer headers for image proxying (mirrors backend providerRegistry.ts)
-
-export const VIDEO_PROVIDER_BASE_URLS: Record<VideoProviderName, string> = {
-  // Anime providers
-  'hianime': 'https://hianime.to',
-  'animepahe': 'https://animepahe.com',
-  'animekai': 'https://animekai.to',
-  'kickassanime': 'https://kickassanime.am',
-  // Movie/TV providers
-  'flixhq': 'https://flixhq.to',
-  'goku': 'https://goku.sx',
-  'sflix': 'https://sflix.to',
-  'himovies': 'https://himovies.to',
-  'dramacool': 'https://dramacool.ee',
-};
 
 /**
  * Get the base URL for a video provider (for referer headers)

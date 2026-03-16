@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { storeTokens } from '@/shared/api/client';
 import { useAuth } from '../context/AuthContext';
-import * as api from '../services/api';
 
 interface OAuthCallbackProps {
   onComplete: (isNewUser?: boolean) => void;
@@ -41,7 +41,7 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
         }
 
         // Store tokens
-        api.storeTokens(accessToken, refreshToken);
+        storeTokens(accessToken, refreshToken);
         
         // Refresh user data
         await refreshUser();

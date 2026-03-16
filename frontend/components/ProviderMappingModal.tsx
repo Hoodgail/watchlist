@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { saveProviderMapping } from '@/features/profile/api';
 import { VideoProviderName, SearchResult } from '../types';
 import { searchWithProvider, PaginatedSearchResults } from '../services/mediaSearch';
-import { saveProviderMapping } from '../services/api';
 import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
 import { useToast } from '../context/ToastContext';
+import { getProxiedImageUrl } from '@/shared/media';
 
 interface ProviderMappingModalProps {
   /** The reference ID to map (e.g., "tmdb:12345") */
@@ -18,17 +19,6 @@ interface ProviderMappingModalProps {
   onMappingSaved: (providerId: string, providerTitle: string, provider: VideoProviderName) => void;
   /** Called to close the modal */
   onClose: () => void;
-}
-
-// Helper to proxy image URLs with provider referer
-function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
-  if (!url) return null;
-  if (url.startsWith('blob:') || url.startsWith('/api/')) return url;
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (providerReferer) {
-    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
-  }
-  return proxyUrl;
 }
 
 export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
@@ -216,7 +206,7 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
                   <div className="flex-shrink-0 w-16">
                     {result.imageUrl ? (
                       <img
-                        src={proxyImageUrl(result.imageUrl, VIDEO_PROVIDER_BASE_URLS[selectedProvider]) || ''}
+                        src={getProxiedImageUrl(result.imageUrl, VIDEO_PROVIDER_BASE_URLS[selectedProvider]) || ''}
                         alt={result.title}
                         className="w-full aspect-[2/3] object-cover border border-neutral-800 bg-neutral-900"
                         onError={(e) => {

@@ -1,19 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { addCollectionItem, getMyCollections } from '@/features/collections/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { Collection, MediaType, SearchResult, MediaItem } from '../types';
-import { getMyCollections, addCollectionItem } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { createRefId } from '@shared/refId';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-// Helper to get full image URL
-const getImageUrl = (imageUrl?: string): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 // Data that can be added to a collection (works for both SearchResult and MediaItem)
 export interface CollectionItemData {
@@ -49,7 +40,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
 
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl);
 
   // Get the refId for the item using shared utility
   const getItemRefId = (): string => {

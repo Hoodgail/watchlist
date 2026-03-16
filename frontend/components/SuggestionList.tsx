@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Suggestion, SuggestionStatus, SuggestionUser } from '../types';
-import * as api from '../services/api';
+import {
+  acceptSuggestion,
+  deleteSuggestion,
+  dismissSuggestion,
+  getReceivedSuggestions,
+  getSentSuggestions,
+} from '@/features/social/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { useToast } from '../context/ToastContext';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
 
 const STATUS_FILTER_OPTIONS: { value: SuggestionStatus | ''; label: string }[] = [
   { value: 'PENDING', label: 'PENDING' },
   { value: 'ACCEPTED', label: 'ACCEPTED' },
   { value: 'DISMISSED', label: 'DISMISSED' },
 ];
-
-// Helper to get full image URL
-const getImageUrl = (imageUrl?: string): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 // Format relative time
 const formatRelativeTime = (dateString: string): string => {
@@ -90,10 +87,10 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
     setLoading(true);
     try {
       if (activeTab === 'received') {
-        const data = await api.getReceivedSuggestions(statusFilter);
+        const data = await getReceivedSuggestions(statusFilter);
         setReceivedSuggestions(data);
       } else {
-        const data = await api.getSentSuggestions();
+        const data = await getSentSuggestions();
         setSentSuggestions(data);
       }
     } catch (error) {
@@ -118,7 +115,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
   const handleAccept = async (id: string) => {
     setActionLoading(id);
     try {
-      await api.acceptSuggestion(id);
+      await acceptSuggestion(id);
       setReceivedSuggestions((prev) => prev.filter((s) => s.id !== id));
       showToast('Suggestion accepted and added to your list!', 'success');
       if (onSuggestionCountChange) {
@@ -135,7 +132,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
   const handleDismiss = async (id: string) => {
     setActionLoading(id);
     try {
-      await api.dismissSuggestion(id);
+      await dismissSuggestion(id);
       setReceivedSuggestions((prev) => prev.filter((s) => s.id !== id));
       showToast('Suggestion dismissed', 'info');
       if (onSuggestionCountChange) {
@@ -152,7 +149,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
   const handleDelete = async (id: string) => {
     setActionLoading(id);
     try {
-      await api.deleteSuggestion(id);
+      await deleteSuggestion(id);
       setSentSuggestions((prev) => prev.filter((s) => s.id !== id));
       showToast('Suggestion deleted', 'info');
     } catch (error: any) {
@@ -277,7 +274,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
   isLoading,
 }) => {
   const [imageError, setImageError] = useState(false);
-  const imageUrl = getImageUrl(suggestion.imageUrl);
+  const imageUrl = resolveMediaImageUrl(suggestion.imageUrl);
   const user = isReceived ? suggestion.fromUser : suggestion.toUser;
 
   return (

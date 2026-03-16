@@ -10,8 +10,8 @@ import {
   ReaderSettings,
   MangaProviderName,
 } from '../services/mangadexTypes';
+import * as offlineStorage from '@/features/offline/manga/storage';
 import * as manga from '../services/manga';
-import * as offlineStorage from '../services/offlineStorage';
 
 interface OfflineContextType {
   // Online status

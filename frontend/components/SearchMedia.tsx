@@ -1,53 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MediaItem, SearchResult, ProviderInfo, ProviderName } from '../types';
-import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, getProviders, searchWithProvider } from '../services/mediaSearch';
+import { MediaItem, SearchResult, ProviderName } from '../types';
+import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, searchWithProvider } from '../services/mediaSearch';
 import { QuickAddModal } from './QuickAddModal';
 import { FormatSelectionModal } from './FormatSelectionModal';
 import { AddToCollectionModal, CollectionItemData } from './AddToCollectionModal';
-
-// Provider base URLs for referer headers
-const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
-  // Anime providers
-  'hianime': 'https://hianime.to',
-  'animepahe': 'https://animepahe.com',
-  'animekai': 'https://animekai.to',
-  'kickassanime': 'https://kickassanime.am',
-  // Movie/TV providers
-  'flixhq': 'https://flixhq.to',
-  'goku': 'https://goku.sx',
-  'sflix': 'https://sflix.to',
-  'himovies': 'https://himovies.to',
-  'dramacool': 'https://dramacool.ee',
-  // Manga providers
-  'mangadex': 'https://mangadex.org',
-  'mangahere': 'https://mangahere.cc',
-  'mangapill': 'https://mangapill.com',
-  'comick': 'https://comick.io',
-  'mangakakalot': 'https://mangakakalot.com',
-  'mangareader': 'https://mangareader.to',
-  'asurascans': 'https://asuracomic.net',
-  // Meta providers
-  'anilist': 'https://anilist.co',
-  'anilist-manga': 'https://anilist.co',
-  'tmdb': 'https://www.themoviedb.org',
-  // Other providers
-  'libgen': 'https://libgen.is',
-  'readlightnovels': 'https://readlightnovels.net',
-  'getcomics': 'https://getcomics.info',
-};
-
-// Helper to proxy image URLs through our server to bypass hotlink protection
-function proxyImageUrl(url: string, referer?: string): string {
-  // Don't proxy blob URLs or already-proxied URLs
-  if (url.startsWith('blob:') || url.startsWith('/api/')) {
-    return url;
-  }
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (referer) {
-    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
-  }
-  return proxyUrl;
-}
+import { getProviderDisplayName, getProviderImageUrl } from '@/shared/media';
 
 interface SearchMediaProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
@@ -77,33 +34,6 @@ const CATEGORY_PROVIDERS: Record<SearchCategory, ProviderName[]> = {
   book: ['libgen'],
   lightnovel: ['readlightnovels'],
   comic: ['getcomics'],
-};
-
-// Display names for providers
-const PROVIDER_NAMES: Record<ProviderName, string> = {
-  'hianime': 'HiAnime',
-  'animepahe': 'AnimePahe',
-  'animekai': 'AnimeKai',
-  'kickassanime': 'KickAssAnime',
-  'flixhq': 'FlixHQ',
-  'goku': 'Goku',
-  'sflix': 'SFlix',
-  'himovies': 'HiMovies',
-  'dramacool': 'DramaCool',
-  'mangadex': 'MangaDex',
-  'comick': 'ComicK',
-  'mangapill': 'MangaPill',
-  'mangahere': 'MangaHere',
-  'mangakakalot': 'MangaKakalot',
-  'mangareader': 'MangaReader',
-  'asurascans': 'AsuraScans',
-  'anilist': 'AniList',
-  'anilist-manga': 'AniList',
-  'tmdb': 'TMDB',
-  'libgen': 'Libgen',
-  'readlightnovels': 'ReadLightNovels',
-  'getcomics': 'GetComics',
-  'rawg': 'RAWG',
 };
 
 // Platform icons for games
@@ -505,7 +435,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                   onClick={() => setShowProviderDropdown(!showProviderDropdown)}
                   className="bg-black border border-neutral-700 px-3 py-1 text-xs uppercase tracking-wider text-white hover:border-neutral-500 focus:border-white outline-none flex items-center gap-2"
                 >
-                  {provider ? PROVIDER_NAMES[provider] : 'Auto'}
+                  {provider ? getProviderDisplayName(provider) : 'Auto'}
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -537,7 +467,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                           provider === p ? 'text-white bg-neutral-800' : 'text-neutral-400'
                         }`}
                       >
-                        {PROVIDER_NAMES[p]}
+                        {getProviderDisplayName(p)}
                       </button>
                     ))}
                   </div>
@@ -618,7 +548,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                   {item.imageUrl && (
                     <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
                       <img
-                        src={proxyImageUrl(item.imageUrl, item.provider ? PROVIDER_BASE_URLS[item.provider] : undefined)}
+                        src={getProviderImageUrl(item.imageUrl, item.provider) || ''}
                         alt={item.title}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -671,7 +601,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                       {item.year && <span className="text-neutral-600">{item.year}</span>}
                       {item.provider && (
                         <span className="text-neutral-700 bg-neutral-900/50 px-1">
-                          {PROVIDER_NAMES[item.provider] || item.provider}
+                          {getProviderDisplayName(item.provider)}
                         </span>
                       )}
                     </div>

@@ -1,8 +1,12 @@
 // VideoDownloadManager Component - Shows video download queue, progress, and storage info
 import React, { useState, useEffect } from 'react';
+import { type QualityOption } from '@/features/offline/video/hls';
+import {
+  formatBytes,
+  requestPersistentStorage,
+  type VideoStorageInfo,
+} from '@/features/offline/video/storage';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
-import { formatBytes, VideoStorageInfo, requestPersistentStorage } from '../services/offlineVideoStorage';
-import { QualityOption } from '../services/hlsDownloader';
 
 interface VideoDownloadManagerProps {
   onMediaClick?: (mediaId: string) => void;

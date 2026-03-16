@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getPublicCommentsFeed, Comment } from '../services/api';
+import { getPublicCommentsFeed, type Comment } from '@/features/social/api';
+import { resolveMediaImageUrl } from '@/shared/media';
 
 // ==================== Types ====================
 
@@ -12,16 +13,6 @@ interface PublicCommentsFeedProps {
 }
 
 // ==================== Helpers ====================
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
-
-// Helper to get full image URL
-const getImageUrl = (imageUrl?: string): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 // Format relative time
 const formatRelativeTime = (dateString: string): string => {
@@ -105,7 +96,7 @@ interface CommentCardProps {
 
 const CommentCard: React.FC<CommentCardProps> = ({ comment, onClick }) => {
   const [spoilerRevealed, setSpoilerRevealed] = useState(false);
-  const imageUrl = getImageUrl(comment.media?.imageUrl);
+  const imageUrl = resolveMediaImageUrl(comment.media?.imageUrl);
   const authorUsername = comment.author?.username || comment.externalAuthor || 'Unknown';
   const displayName = comment.author?.displayName || comment.externalAuthor || authorUsername;
   const avatarUrl = comment.author?.avatarUrl || comment.externalAuthorAvatar;

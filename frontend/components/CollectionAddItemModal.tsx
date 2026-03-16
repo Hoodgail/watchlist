@@ -1,32 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { addCollectionItem } from '@/features/collections/api';
 import { SearchResult, MediaType, ProviderName } from '../types';
 import { searchMedia, SearchCategory, SearchOptions, searchWithProvider } from '../services/mediaSearch';
-import { addCollectionItem } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { createRefId } from '@shared/refId';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-// Provider base URLs for referer headers
-const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
-  'hianime': 'https://hianime.to',
-  'animepahe': 'https://animepahe.com',
-  'mangadex': 'https://mangadex.org',
-  'anilist': 'https://anilist.co',
-  'tmdb': 'https://www.themoviedb.org',
-};
-
-// Helper to proxy image URLs
-function proxyImageUrl(url: string, referer?: string): string {
-  if (url.startsWith('blob:') || url.startsWith('/api/')) {
-    return url;
-  }
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (referer) {
-    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
-  }
-  return proxyUrl;
-}
+import { getProxiedImageUrl, getProviderBaseUrl } from '@/shared/media';
 
 const CATEGORIES: { value: SearchCategory; label: string }[] = [
   { value: 'all', label: 'ALL' },
@@ -245,7 +223,7 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
                   {item.imageUrl && (
                     <div className="flex-shrink-0 w-10 h-14 bg-neutral-900 overflow-hidden">
                       <img
-                        src={proxyImageUrl(item.imageUrl, item.provider ? PROVIDER_BASE_URLS[item.provider] : undefined)}
+                        src={getProxiedImageUrl(item.imageUrl, item.provider ? getProviderBaseUrl(item.provider) : undefined) || ''}
                         alt={item.title}
                         className="w-full h-full object-cover"
                         onError={(e) => {

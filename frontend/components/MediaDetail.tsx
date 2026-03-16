@@ -1,13 +1,21 @@
 // MediaDetail Component - Shows TV/Movie/Anime details with episode listing
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  findMediaSourceByRefId,
+  getWatchProgressForMedia,
+  linkMediaSource,
+  type MediaSourceWithAliases,
+  unlinkMediaSource,
+  type WatchProgressData,
+} from '@/features/playback/api';
+import { getAccessToken } from '@/shared/api/client';
+import { type OfflineVideoEpisode, getOfflineEpisodesForMedia } from '@/features/offline/video/storage';
 import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress, SourceAlias } from '../types';
 import * as videoService from '../services/video';
 import { VideoMediaInfo } from '../services/video';
 import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider, MatchResult, resolveWithAlternatives, ResolutionWithAlternatives } from '../services/videoResolver';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
 import { useToast } from '../context/ToastContext';
-import { getWatchProgressForMedia, WatchProgressData, getAccessToken, findMediaSourceByRefId, linkMediaSource, unlinkMediaSource, MediaSourceWithAliases } from '../services/api';
-import { getOfflineEpisodesForMedia, OfflineVideoEpisode } from '../services/offlineVideoStorage';
 import ProviderMappingModal from './ProviderMappingModal';
 import MediaSelectionModal from './MediaSelectionModal';
 import ConfidenceCheckModal from './ConfidenceCheckModal';
@@ -15,6 +23,7 @@ import SourceSearchModal from './SourceSearchModal';
 import { VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
 import { SearchResult, ProviderName } from '../types';
 import { CommentSection } from './CommentSection';
+import { getProxiedImageUrl } from '@/shared/media';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -31,16 +40,7 @@ interface MediaDetailProps {
 
 // Helper to proxy image URLs with provider referer
 function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
-  if (!url) return null;
-  // Don't proxy blob URLs or already-proxied URLs
-  if (url.startsWith('blob:') || url.startsWith('/api/')) {
-    return url;
-  }
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (providerReferer) {
-    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
-  }
-  return proxyUrl;
+  return getProxiedImageUrl(url, providerReferer);
 }
 
 export const MediaDetail: React.FC<MediaDetailProps> = ({

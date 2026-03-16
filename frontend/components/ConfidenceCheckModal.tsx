@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { saveProviderMapping } from '@/features/profile/api';
 import { VideoProviderName } from '../types';
 import { MatchResult, searchWithProvider, findTopMatches, LOW_CONFIDENCE_THRESHOLD } from '../services/videoResolver';
-import { saveProviderMapping } from '../services/api';
 import { getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../services/providerConfig';
 import { useToast } from '../context/ToastContext';
+import { getProxiedImageUrl } from '@/shared/media';
 
 interface ConfidenceCheckModalProps {
   /** The original reference ID (e.g., "tmdb:12345") */
@@ -28,17 +29,6 @@ interface ConfidenceCheckModalProps {
   onSearchManually: () => void;
   /** Called to close modal (cancel) */
   onClose: () => void;
-}
-
-// Helper to proxy image URLs with provider referer
-function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
-  if (!url) return null;
-  if (url.startsWith('blob:') || url.startsWith('/api/')) return url;
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (providerReferer) {
-    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
-  }
-  return proxyUrl;
 }
 
 // Format confidence score as percentage with color
@@ -216,7 +206,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
                       {alt.imageUrl && (
                         <div className="flex-shrink-0 w-12">
                           <img
-                            src={proxyImageUrl(alt.imageUrl, VIDEO_PROVIDER_BASE_URLS[provider]) || ''}
+                            src={getProxiedImageUrl(alt.imageUrl, VIDEO_PROVIDER_BASE_URLS[provider]) || ''}
                             alt={alt.title}
                             className="w-full aspect-[2/3] object-cover border border-neutral-800 bg-neutral-900"
                             onError={(e) => {

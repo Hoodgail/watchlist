@@ -3,28 +3,21 @@
  * Supports multiple manga providers through the consumet backend
  */
 
-import { createRefId, parseRefId, isSourceRefId } from '@shared/refId';
+import { buildApiUrl } from '@/shared/api/client';
+import {
+  createMangaRefId as createSharedMangaRefId,
+  getMangaProviderDisplayName,
+  getMangaPlusImageProxyUrl,
+  getProxiedImageUrl,
+  isMangaProviderRefId,
+  MANGA_PROVIDER_BASE_URLS,
+  parseMangaRefId as parseSharedMangaRefId,
+  type MangaProviderName,
+} from '@/shared/media';
 
 // Types
-export type MangaProviderName = 
-  | 'mangadex' 
-  | 'mangahere'
-  | 'mangapill' 
-  | 'comick' 
-  | 'mangareader'
-  | 'asurascans'
-  | 'anilist-manga';
-
-// Provider base URLs for referer headers (mirrors backend providerRegistry.ts)
-export const MANGA_PROVIDER_BASE_URLS: Record<MangaProviderName, string> = {
-  'mangadex': 'https://mangadex.org',
-  'mangahere': 'https://mangahere.cc',
-  'mangapill': 'https://mangapill.com',
-  'comick': 'https://comick.io',
-  'mangareader': 'https://mangareader.to',
-  'asurascans': 'https://asuracomic.net',
-  'anilist-manga': 'https://anilist.co',
-};
+export type { MangaProviderName } from '@/shared/media';
+export { MANGA_PROVIDER_BASE_URLS } from '@/shared/media';
 
 export interface MangaProvider {
   id: MangaProviderName;
@@ -123,9 +116,7 @@ export function supportsPaginatedChapters(provider: MangaProviderName): boolean 
   return PROVIDERS_WITH_PAGINATED_CHAPTERS.includes(provider);
 }
 
-// API base - use same pattern as api.ts
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-const API_BASE = `${API_BASE_URL}/manga`;
+const API_BASE = '/manga';
 
 // Rate limiting for API calls
 const REQUEST_QUEUE: { resolve: () => void; timestamp: number }[] = [];
@@ -161,7 +152,7 @@ async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Res
  * Get list of available manga providers
  */
 export async function getProviders(): Promise<MangaProvider[]> {
-  const response = await rateLimitedFetch(`${API_BASE}/providers`);
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/providers`));
   if (!response.ok) {
     throw new Error('Failed to fetch providers');
   }
@@ -183,7 +174,7 @@ export async function searchManga(
     page: String(page),
   });
 
-  const response = await rateLimitedFetch(`${API_BASE}/search?${params.toString()}`);
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/search?${params.toString()}`));
   if (!response.ok) {
     throw new Error('Failed to search manga');
   }
@@ -197,7 +188,7 @@ export async function getMangaInfo(
   mangaId: string,
   provider: MangaProviderName = 'mangadex'
 ): Promise<MangaInfo> {
-  const response = await rateLimitedFetch(`${API_BASE}/${provider}/${encodeURIComponent(mangaId)}`);
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/${provider}/${encodeURIComponent(mangaId)}`));
   if (!response.ok) {
     throw new Error('Failed to fetch manga info');
   }
@@ -212,7 +203,7 @@ export async function getChapterPages(
   provider: MangaProviderName = 'mangadex'
 ): Promise<ChapterPages> {
   const response = await rateLimitedFetch(
-    `${API_BASE}/${provider}/chapter/${encodeURIComponent(chapterId)}/pages`
+    buildApiUrl(`${API_BASE}/${provider}/chapter/${encodeURIComponent(chapterId)}/pages`)
   );
   if (!response.ok) {
     throw new Error('Failed to fetch chapter pages');
@@ -232,7 +223,7 @@ export async function getPopularManga(
     perPage: String(perPage),
   });
 
-  const response = await rateLimitedFetch(`${API_BASE}/popular?${params.toString()}`);
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/popular?${params.toString()}`));
   if (!response.ok) {
     throw new Error('Failed to fetch popular manga');
   }
@@ -251,7 +242,7 @@ export async function getLatestManga(
     perPage: String(perPage),
   });
 
-  const response = await rateLimitedFetch(`${API_BASE}/latest?${params.toString()}`);
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/latest?${params.toString()}`));
   if (!response.ok) {
     throw new Error('Failed to fetch latest manga');
   }
@@ -280,7 +271,7 @@ export async function getChaptersPaginated(
   });
 
   const response = await rateLimitedFetch(
-    `${API_BASE}/${provider}/${encodeURIComponent(mangaId)}/chapters?${params.toString()}`
+    buildApiUrl(`${API_BASE}/${provider}/${encodeURIComponent(mangaId)}/chapters?${params.toString()}`)
   );
   
   if (!response.ok) {
@@ -385,43 +376,28 @@ export function sortChaptersDesc(chapters: MangaChapter[]): MangaChapter[] {
  * Format: provider:mangaId
  */
 export function createMangaRefId(mangaId: string, provider: MangaProviderName): string {
-  return createRefId(provider, mangaId);
+  return createSharedMangaRefId(mangaId, provider);
 }
 
 /**
  * Parse a reference ID to get provider and manga ID
  */
 export function parseMangaRefId(refId: string): { provider: MangaProviderName; mangaId: string } | null {
-  const parsed = parseRefId(refId);
-  if (!parsed) return null;
-  
-  return { 
-    provider: parsed.source as MangaProviderName, 
-    mangaId: parsed.id 
-  };
+  return parseSharedMangaRefId(refId);
 }
 
 /**
  * Check if a refId is for a specific provider
  */
 export function isProviderRefId(refId: string, provider: MangaProviderName): boolean {
-  return isSourceRefId(refId, provider);
+  return isMangaProviderRefId(refId, provider);
 }
 
 /**
  * Get provider display name
  */
 export function getProviderDisplayName(provider: MangaProviderName): string {
-  const names: Record<MangaProviderName, string> = {
-    mangadex: 'MangaDex',
-    mangahere: 'MangaHere',
-    mangapill: 'MangaPill',
-    comick: 'ComicK',
-    mangareader: 'MangaReader',
-    asurascans: 'AsuraScans',
-    'anilist-manga': 'AniList',
-  };
-  return names[provider] || provider;
+  return getMangaProviderDisplayName(provider);
 }
 
 // Default provider
@@ -495,15 +471,7 @@ export interface ChapterPageUrlsResult {
  * @param referer - Optional referer URL (e.g., provider's baseUrl) to use for the request
  */
 export function proxyImageUrl(url: string, referer?: string): string {
-  // Don't proxy blob URLs or already-proxied URLs
-  if (url.startsWith('blob:') || url.startsWith('/api/')) {
-    return url;
-  }
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (referer) {
-    proxyUrl += `&referer=${encodeURIComponent(referer)}`;
-  }
-  return proxyUrl;
+  return getProxiedImageUrl(url, referer) || url;
 }
 
 /**
@@ -541,10 +509,10 @@ export async function getChapterPageUrls(
     
     if (chapterInfo.type === 'mangaplus') {
       // MangaPlus chapter - build proxy URLs
-      const mangaPlusPages = chapterInfo.pages as mediaSearch.MangaPlusPageInfo[];
-      const urls = mangaPlusPages.map(p => 
-        mediaSearch.getMangaPlusImageUrl(p.url, p.encryptionKey)
-      );
+        const mangaPlusPages = chapterInfo.pages as mediaSearch.MangaPlusPageInfo[];
+        const urls = mangaPlusPages.map(p => 
+         getMangaPlusImageProxyUrl(p.url, p.encryptionKey)
+        );
       return {
         urls,
         headers: mangaPlusPages.map(() => undefined),

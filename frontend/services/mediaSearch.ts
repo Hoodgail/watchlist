@@ -1,6 +1,10 @@
 import { MediaItem, SearchResult, ProviderInfo, ProviderName, StreamingSources, ChapterPages } from '../types';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { fetchApi } from '@/shared/api/client';
+import {
+  extractIdFromRefId as extractIdFromSharedRefId,
+  extractProviderFromRefId as extractProviderFromSharedRefId,
+  getMangaPlusImageProxyUrl,
+} from '@/shared/media';
 
 export interface SearchOptions {
   year?: string;
@@ -33,7 +37,7 @@ export async function getProviders(category?: SearchCategory): Promise<ProviderI
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     
-    const response = await fetch(`${API_BASE_URL}/media/providers?${params}`);
+    const response = await fetchApi(`/media/providers?${params}`);
     if (!response.ok) {
       console.error('Providers fetch failed:', response.status);
       return [];
@@ -63,7 +67,7 @@ export async function searchMedia(
   if (options.perPage) params.append('perPage', options.perPage.toString());
 
   try {
-    const response = await fetch(`${API_BASE_URL}/media/search?${params}`);
+    const response = await fetchApi(`/media/search?${params}`);
     if (!response.ok) {
       console.error('Media search failed:', response.status);
       return [];
@@ -90,7 +94,7 @@ export async function searchWithProvider(
   if (options.perPage) params.append('perPage', options.perPage.toString());
 
   try {
-    const response = await fetch(`${API_BASE_URL}/media/search/${provider}?${params}`);
+    const response = await fetchApi(`/media/search/${provider}?${params}`);
     if (!response.ok) {
       console.error('Provider search failed:', response.status);
       return { currentPage: 1, hasNextPage: false, results: [] };
@@ -114,7 +118,7 @@ export async function getMediaInfo(
     const params = new URLSearchParams();
     if (mediaType) params.append('mediaType', mediaType);
     
-    const response = await fetch(`${API_BASE_URL}/media/info/${provider}/${encodeURIComponent(id)}?${params}`);
+    const response = await fetchApi(`/media/info/${provider}/${encodeURIComponent(id)}?${params}`);
     if (!response.ok) {
       console.error('Media info fetch failed:', response.status);
       return null;
@@ -138,7 +142,7 @@ export async function getEpisodeSources(
     const params = new URLSearchParams();
     if (mediaId) params.append('mediaId', mediaId);
     
-    const response = await fetch(`${API_BASE_URL}/media/sources/${provider}/${encodeURIComponent(episodeId)}?${params}`);
+    const response = await fetchApi(`/media/sources/${provider}/${encodeURIComponent(episodeId)}?${params}`);
     if (!response.ok) {
       console.error('Episode sources fetch failed:', response.status);
       return null;
@@ -160,7 +164,7 @@ export async function getEpisodeServers(
     const params = new URLSearchParams();
     if (mediaId) params.append('mediaId', mediaId);
     
-    const response = await fetch(`${API_BASE_URL}/media/servers/${provider}/${encodeURIComponent(episodeId)}?${params}`);
+    const response = await fetchApi(`/media/servers/${provider}/${encodeURIComponent(episodeId)}?${params}`);
     if (!response.ok) {
       console.error('Episode servers fetch failed:', response.status);
       return [];
@@ -199,7 +203,7 @@ export async function getExternalChapterInfo(
   chapterId: string
 ): Promise<ExternalChapterInfo | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/manga/external/chapter/${encodeURIComponent(chapterId)}/info`);
+    const response = await fetchApi(`/manga/external/chapter/${encodeURIComponent(chapterId)}/info`);
     if (!response.ok) {
       console.error('External chapter info fetch failed:', response.status);
       return null;
@@ -213,7 +217,7 @@ export async function getExternalChapterInfo(
 
 // Build MangaPlus image proxy URL
 export function getMangaPlusImageUrl(url: string, key: string): string {
-  return `${API_BASE_URL}/manga/external/mangaplus/image?url=${encodeURIComponent(url)}&key=${key}`;
+  return getMangaPlusImageProxyUrl(url, key);
 }
 
 // Get chapter pages for manga reading
@@ -222,7 +226,7 @@ export async function getChapterPages(
   chapterId: string
 ): Promise<ChapterPages | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/pages/${provider}/${encodeURIComponent(chapterId)}`);
+    const response = await fetchApi(`/media/pages/${provider}/${encodeURIComponent(chapterId)}`);
     if (!response.ok) {
       console.error('Chapter pages fetch failed:', response.status);
       return null;
@@ -239,7 +243,7 @@ export async function getChapterPages(
 // Get all trending categories via backend
 export async function getAllTrendingCategories(): Promise<TrendingCategory[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending`);
+    const response = await fetchApi('/media/trending');
     if (!response.ok) {
       console.error('Trending fetch failed:', response.status);
       return [];
@@ -254,7 +258,7 @@ export async function getAllTrendingCategories(): Promise<TrendingCategory[]> {
 // Get trending movies via backend
 export async function getTrendingMovies(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/movies`);
+    const response = await fetchApi('/media/trending/movies');
     if (!response.ok) {
       console.error('Trending movies fetch failed:', response.status);
       return [];
@@ -269,7 +273,7 @@ export async function getTrendingMovies(): Promise<SearchResult[]> {
 // Get trending TV shows via backend
 export async function getTrendingTV(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/tv`);
+    const response = await fetchApi('/media/trending/tv');
     if (!response.ok) {
       console.error('Trending TV fetch failed:', response.status);
       return [];
@@ -284,7 +288,7 @@ export async function getTrendingTV(): Promise<SearchResult[]> {
 // Get trending anime via backend
 export async function getTrendingAnime(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/anime`);
+    const response = await fetchApi('/media/trending/anime');
     if (!response.ok) {
       console.error('Trending anime fetch failed:', response.status);
       return [];
@@ -299,7 +303,7 @@ export async function getTrendingAnime(): Promise<SearchResult[]> {
 // Get popular anime
 export async function getPopularAnime(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/anime/popular`);
+    const response = await fetchApi('/media/trending/anime/popular');
     if (!response.ok) {
       console.error('Popular anime fetch failed:', response.status);
       return [];
@@ -314,7 +318,7 @@ export async function getPopularAnime(): Promise<SearchResult[]> {
 // Get popular manga
 export async function getPopularManga(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/manga`);
+    const response = await fetchApi('/media/trending/manga');
     if (!response.ok) {
       console.error('Popular manga fetch failed:', response.status);
       return [];
@@ -329,7 +333,7 @@ export async function getPopularManga(): Promise<SearchResult[]> {
 // Get trending games via backend
 export async function getTrendingGames(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/games`);
+    const response = await fetchApi('/media/trending/games');
     if (!response.ok) {
       console.error('Trending games fetch failed:', response.status);
       return [];
@@ -344,7 +348,7 @@ export async function getTrendingGames(): Promise<SearchResult[]> {
 // Get popular games via backend
 export async function getPopularGames(): Promise<SearchResult[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/media/trending/games/popular`);
+    const response = await fetchApi('/media/trending/games/popular');
     if (!response.ok) {
       console.error('Popular games fetch failed:', response.status);
       return [];
@@ -396,12 +400,10 @@ export function searchResultToMediaItem(result: SearchResult): Omit<MediaItem, '
 
 // Extract provider from a refId (e.g., "mangadex:abc123" -> "mangadex")
 export function extractProviderFromRefId(refId: string): ProviderName | null {
-  const [provider] = refId.split(':');
-  return provider as ProviderName;
+  return extractProviderFromSharedRefId(refId);
 }
 
 // Extract ID from a refId (e.g., "mangadex:abc123" -> "abc123")
 export function extractIdFromRefId(refId: string): string {
-  const parts = refId.split(':');
-  return parts.slice(1).join(':');
+  return extractIdFromSharedRefId(refId);
 }

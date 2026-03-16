@@ -1,43 +1,43 @@
 // Offline Video Context - manages offline video downloads, queue, and watch progress
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { VideoProviderName, VideoEpisode, WatchProgress } from '../types';
 import {
-  OfflineVideoMedia,
-  VideoStorageInfo,
-  saveMediaOffline,
-  getOfflineMedia,
-  getAllOfflineMedia,
-  deleteOfflineMedia,
-  saveEpisodeOffline,
-  getOfflineEpisode,
-  getOfflineEpisodesForMedia,
-  getOfflineVideoUrl,
-  deleteOfflineEpisode,
-  saveWatchProgress,
-  getWatchProgress as getStoredWatchProgress,
-  getAllWatchProgress,
-  getVideoStorageInfo,
-  fetchVideoAsBlob,
-  requestPersistentStorage,
-  initVideoDatabase,
-  saveHLSSegment,
-  saveHLSEpisodeOffline,
-  getDownloadedSegmentIndices,
-  formatBytes,
-  saveHLSInitSegment,
-  hasHLSInitSegment,
-  cleanupOrphanedData,
-} from '../services/offlineVideoStorage';
-import { updateWatchProgress as syncWatchProgressToBackend, getAccessToken } from '../services/api';
-import { getStreamingUrl } from '../services/video';
-import {
-  getQualityOptions,
+  type QualityOption,
+  type HLSDownloadProgress,
   downloadHLSStream,
   estimateTotalSize,
+  getQualityOptions,
   parseM3U8,
-  QualityOption,
-  HLSDownloadProgress,
-} from '../services/hlsDownloader';
+} from '@/features/offline/video/hls';
+import {
+  cleanupOrphanedData,
+  deleteOfflineEpisode,
+  deleteOfflineMedia,
+  fetchVideoAsBlob,
+  formatBytes,
+  getAllOfflineMedia,
+  getAllWatchProgress,
+  getDownloadedSegmentIndices,
+  getOfflineEpisode,
+  getOfflineEpisodesForMedia,
+  getOfflineMedia,
+  getOfflineVideoUrl,
+  getVideoStorageInfo,
+  hasHLSInitSegment,
+  initVideoDatabase,
+  type OfflineVideoMedia,
+  requestPersistentStorage,
+  saveEpisodeOffline,
+  saveHLSEpisodeOffline,
+  saveHLSInitSegment,
+  saveHLSSegment,
+  saveMediaOffline,
+  saveWatchProgress,
+  type VideoStorageInfo,
+} from '@/features/offline/video/storage';
+import { updateWatchProgress as syncWatchProgressToBackend } from '@/features/playback/api';
+import { getAccessToken } from '@/shared/api/client';
+import { VideoProviderName, VideoEpisode, WatchProgress } from '../types';
+import { getStreamingUrl } from '../services/video';
 
 // ============ Types ============
 

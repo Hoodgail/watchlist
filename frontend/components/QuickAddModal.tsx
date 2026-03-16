@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { resolveMediaImageUrl } from '@/shared/media';
 import { MediaItem, MediaStatus, MediaType, SearchResult } from '../types';
 import { STATUS_OPTIONS } from '../constants';
-
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';
-
-// Helper to get full image URL
-const getImageUrl = (imageUrl?: string): string | null => {
-  if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;
-  if (imageUrl.startsWith('/')) return `${TMDB_IMAGE_BASE}${imageUrl}`;
-  return imageUrl;
-};
 
 // Star icon component
 function StarIcon({ filled }: { filled: boolean }) {
@@ -44,7 +35,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  const imageUrl = getImageUrl(item.imageUrl);
+  const imageUrl = resolveMediaImageUrl(item.imageUrl);
 
   // Determine default status based on media type
   useEffect(() => {

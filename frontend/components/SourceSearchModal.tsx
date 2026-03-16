@@ -1,57 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ProviderName, SearchResult } from '../types';
 import { searchWithProvider, searchMedia, SearchCategory } from '../services/mediaSearch';
+import { getProviderDisplayName, getProviderImageUrl } from '@/shared/media';
 
 // All available providers for source switching
-const ALL_PROVIDERS: { name: ProviderName; displayName: string; category: 'anime' | 'manga' | 'movie' | 'tv' }[] = [
+const ALL_PROVIDERS: { name: ProviderName; category: 'anime' | 'manga' | 'movie' | 'tv' }[] = [
   // Anime providers
-  { name: 'anilist', displayName: 'AniList', category: 'anime' },
-  { name: 'hianime', displayName: 'HiAnime', category: 'anime' },
-  { name: 'animepahe', displayName: 'AnimePahe', category: 'anime' },
-  { name: 'animekai', displayName: 'AnimeKai', category: 'anime' },
+  { name: 'anilist', category: 'anime' },
+  { name: 'hianime', category: 'anime' },
+  { name: 'animepahe', category: 'anime' },
+  { name: 'animekai', category: 'anime' },
   // Movie/TV providers
-  { name: 'tmdb', displayName: 'TMDB', category: 'movie' },
-  { name: 'flixhq', displayName: 'FlixHQ', category: 'movie' },
-  { name: 'goku', displayName: 'Goku', category: 'movie' },
+  { name: 'tmdb', category: 'movie' },
+  { name: 'flixhq', category: 'movie' },
+  { name: 'goku', category: 'movie' },
   // Manga providers
-  { name: 'anilist-manga', displayName: 'AniList Manga', category: 'manga' },
-  { name: 'mangadex', displayName: 'MangaDex', category: 'manga' },
-  { name: 'comick', displayName: 'ComicK', category: 'manga' },
-  { name: 'mangapill', displayName: 'MangaPill', category: 'manga' },
-  { name: 'mangahere', displayName: 'MangaHere', category: 'manga' },
-  { name: 'mangakakalot', displayName: 'MangaKakalot', category: 'manga' },
-  { name: 'mangareader', displayName: 'MangaReader', category: 'manga' },
-  { name: 'asurascans', displayName: 'AsuraScans', category: 'manga' },
+  { name: 'anilist-manga', category: 'manga' },
+  { name: 'mangadex', category: 'manga' },
+  { name: 'comick', category: 'manga' },
+  { name: 'mangapill', category: 'manga' },
+  { name: 'mangahere', category: 'manga' },
+  { name: 'mangakakalot', category: 'manga' },
+  { name: 'mangareader', category: 'manga' },
+  { name: 'asurascans', category: 'manga' },
 ];
-
-// Provider base URLs for referer headers
-const PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
-  'hianime': 'https://hianime.to',
-  'animepahe': 'https://animepahe.com',
-  'animekai': 'https://animekai.to',
-  'flixhq': 'https://flixhq.to',
-  'goku': 'https://goku.sx',
-  'mangadex': 'https://mangadex.org',
-  'mangapill': 'https://mangapill.com',
-  'comick': 'https://comick.io',
-  'mangakakalot': 'https://mangakakalot.com',
-  'mangareader': 'https://mangareader.to',
-  'asurascans': 'https://asuracomic.net',
-  'anilist': 'https://anilist.co',
-  'anilist-manga': 'https://anilist.co',
-  'tmdb': 'https://www.themoviedb.org',
-};
-
-// Helper to proxy image URLs with provider referer
-function proxyImageUrl(url: string | null, providerReferer?: string): string | null {
-  if (!url) return null;
-  if (url.startsWith('blob:') || url.startsWith('/api/')) return url;
-  let proxyUrl = `/api/proxy/image?url=${encodeURIComponent(url)}`;
-  if (providerReferer) {
-    proxyUrl += `&referer=${encodeURIComponent(providerReferer)}`;
-  }
-  return proxyUrl;
-}
 
 interface SourceSearchModalProps {
   /** Current title for pre-filling search */
@@ -153,11 +125,6 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
     }
   };
 
-  const getProviderDisplayName = (name: ProviderName): string => {
-    const provider = ALL_PROVIDERS.find(p => p.name === name);
-    return provider?.displayName || name;
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -196,11 +163,11 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
               onChange={(e) => setSelectedProvider(e.target.value as ProviderName)}
               className="flex-1 bg-neutral-950 border border-neutral-800 text-white px-3 py-2 text-sm uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
             >
-              {availableProviders.map(provider => (
-                <option key={provider.name} value={provider.name} className="bg-black">
-                  {provider.displayName}
-                </option>
-              ))}
+                {availableProviders.map(provider => (
+                  <option key={provider.name} value={provider.name} className="bg-black">
+                  {getProviderDisplayName(provider.name)}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -264,10 +231,10 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
                   {/* Thumbnail */}
                   <div className="flex-shrink-0 w-16">
                     {result.imageUrl ? (
-                      <img
-                        src={proxyImageUrl(result.imageUrl, selectedProvider ? PROVIDER_BASE_URLS[selectedProvider] : undefined) || ''}
-                        alt={result.title}
-                        className="w-full aspect-[2/3] object-cover border border-neutral-800 bg-neutral-900"
+                        <img
+                         src={getProviderImageUrl(result.imageUrl, selectedProvider ?? undefined) || ''}
+                         alt={result.title}
+                         className="w-full aspect-[2/3] object-cover border border-neutral-800 bg-neutral-900"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}

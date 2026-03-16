@@ -1,11 +1,14 @@
 // UnifiedDownloadManager Component - Shows both video and manga downloads
 // Allows users to access their downloaded content without WiFi
 import React, { useState, useEffect, useCallback } from 'react';
+import { type QualityOption } from '@/features/offline/video/hls';
+import { formatBytes, type StorageInfo } from '@/features/offline/manga/storage';
+import {
+  formatBytes as formatVideoBytes,
+  type VideoStorageInfo,
+} from '@/features/offline/video/storage';
 import { useOffline } from '../context/OfflineContext';
 import { useOfflineVideo } from '../context/OfflineVideoContext';
-import { formatBytes, StorageInfo } from '../services/offlineStorage';
-import { VideoStorageInfo, formatBytes as formatVideoBytes } from '../services/offlineVideoStorage';
-import { QualityOption } from '../services/hlsDownloader';
 import { getProviderDisplayName, MangaProviderName } from '../services/manga';
 import { VideoProviderName } from '../types';
 
