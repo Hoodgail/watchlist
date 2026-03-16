@@ -15,11 +15,11 @@ import {
   CollectionRole,
 } from '@/types';
 import { useToast } from '@/context/ToastContext';
-import CollectionItemList from '@/components/CollectionItemList';
-import CollectionComments from '@/components/CollectionComments';
-import { CollectionAddItemModal } from '@/components/CollectionAddItemModal';
-import { CollectionInviteModal } from '@/components/CollectionInviteModal';
-import { CollectionMemberModal } from '@/components/CollectionMemberModal';
+import CollectionItemList from '@/features/collections/components/CollectionItemList';
+import CollectionComments from '@/features/comments/components/CollectionComments';
+import { CollectionAddItemModal } from '@/features/collections/components/CollectionAddItemModal';
+import { CollectionInviteModal } from '@/features/collections/components/CollectionInviteModal';
+import { CollectionMemberModal } from '@/features/collections/components/CollectionMemberModal';
 
 // Role badge component
 const RoleBadge: React.FC<{ role: CollectionRole }> = ({ role }) => {

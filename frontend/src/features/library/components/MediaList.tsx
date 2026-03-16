@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress } from '@/types';
 import { STATUS_OPTIONS } from '@/constants';
-import { SuggestToFriendModal } from '@/components/SuggestToFriendModal';
-import { FriendAvatar } from '@/components/FriendList';
-import { SpoilerBlur, SpoilerIndicator } from '@/components/SpoilerBlur';
+import { SuggestToFriendModal } from '@/features/social/components/SuggestToFriendModal';
+import { FriendAvatar } from '@/features/social/components/FriendList';
+import { SpoilerBlur, SpoilerIndicator } from '@/shared/ui/SpoilerBlur';
 import { useSpoilerProtection } from '@/context/SpoilerContext';
-import { AddToCollectionModal, CollectionItemData } from '@/components/AddToCollectionModal';
+import { AddToCollectionModal, CollectionItemData } from '@/features/collections/components/AddToCollectionModal';
 import type { GroupedListResponse, StatusGroupPagination } from '@/features/library/api';
-import { ProxiedImage, ProxiedImageCompact } from '@/components/ProxiedImage';
+import { ProxiedImage, ProxiedImageCompact } from '@/shared/ui/ProxiedImage';
 import { getRefIdImageUrl } from '@/shared/media';
 
 // ==================== Swipe Gesture Hook ====================

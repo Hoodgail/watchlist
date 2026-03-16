@@ -16,13 +16,13 @@ import { VideoMediaInfo } from '@/services/video';
 import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider, MatchResult, resolveWithAlternatives, ResolutionWithAlternatives } from '@/services/videoResolver';
 import { useOfflineVideo } from '@/context/OfflineVideoContext';
 import { useToast } from '@/context/ToastContext';
-import ProviderMappingModal from '@/components/ProviderMappingModal';
-import MediaSelectionModal from '@/components/MediaSelectionModal';
-import ConfidenceCheckModal from '@/components/ConfidenceCheckModal';
-import SourceSearchModal from '@/components/SourceSearchModal';
+import ProviderMappingModal from '@/features/playback/components/ProviderMappingModal';
+import MediaSelectionModal from '@/features/playback/components/MediaSelectionModal';
+import ConfidenceCheckModal from '@/features/playback/components/ConfidenceCheckModal';
+import SourceSearchModal from '@/features/playback/components/SourceSearchModal';
 import { VIDEO_PROVIDER_BASE_URLS } from '@/services/providerConfig';
 import { SearchResult, ProviderName } from '@/types';
-import { CommentSection } from '@/components/CommentSection';
+import { CommentSection } from '@/features/comments/components/CommentSection';
 import { getProviderImageUrl } from '@/shared/media';
 
 interface MediaDetailProps {

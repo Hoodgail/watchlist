@@ -7,9 +7,9 @@ import {
   TrendingCategory, 
   searchResultToMediaItem 
 } from '@/services/mediaSearch';
-import { SuggestToFriendModal } from '@/components/SuggestToFriendModal';
-import { QuickAddModal } from '@/components/QuickAddModal';
-import PublicCommentsFeed from '@/components/PublicCommentsFeed';
+import { SuggestToFriendModal } from '@/features/social/components/SuggestToFriendModal';
+import { QuickAddModal } from '@/features/collections/components/QuickAddModal';
+import PublicCommentsFeed from '@/features/comments/components/PublicCommentsFeed';
 
 interface TrendingPageProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;

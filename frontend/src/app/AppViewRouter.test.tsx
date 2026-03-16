@@ -3,15 +3,15 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppViewRouter, type AppViewRouterProps } from './AppViewRouter';
 
-vi.mock('@/components/MediaList', () => ({ MediaList: ({ title }: { title: string }) => <div>{title}</div> }));
-vi.mock('@/components/SearchMedia', () => ({ SearchMedia: () => <div>SEARCH</div> }));
-vi.mock('@/components/TrendingPage', () => ({ TrendingPage: () => <div>TRENDING</div>, default: () => <div>TRENDING</div> }));
-vi.mock('@/components/FriendList', () => ({ FriendList: () => <div>FRIENDS</div> }));
-vi.mock('@/components/SuggestionList', () => ({ SuggestionList: () => <div>SUGGESTIONS</div> }));
-vi.mock('@/components/Settings', () => ({ Settings: () => <div>SETTINGS</div> }));
-vi.mock('@/components/UnifiedDownloadManager', () => ({ UnifiedDownloadManager: () => <div>DOWNLOADS</div> }));
-vi.mock('@/components/Collections', () => ({ Collections: () => <div>COLLECTIONS</div>, default: () => <div>COLLECTIONS</div> }));
-vi.mock('@/components/CollectionView', () => ({ CollectionView: () => <div>COLLECTION VIEW</div>, default: () => <div>COLLECTION VIEW</div> }));
+vi.mock('@/features/library/components/MediaList', () => ({ MediaList: ({ title }: { title: string }) => <div>{title}</div> }));
+vi.mock('@/features/library/components/SearchMedia', () => ({ SearchMedia: () => <div>SEARCH</div> }));
+vi.mock('@/features/discovery/components/TrendingPage', () => ({ TrendingPage: () => <div>TRENDING</div>, default: () => <div>TRENDING</div> }));
+vi.mock('@/features/social/components/FriendList', () => ({ FriendList: () => <div>FRIENDS</div> }));
+vi.mock('@/features/social/components/SuggestionList', () => ({ SuggestionList: () => <div>SUGGESTIONS</div> }));
+vi.mock('@/features/profile/components/Settings', () => ({ Settings: () => <div>SETTINGS</div> }));
+vi.mock('@/features/offline/components/UnifiedDownloadManager', () => ({ UnifiedDownloadManager: () => <div>DOWNLOADS</div> }));
+vi.mock('@/features/collections/components/Collections', () => ({ Collections: () => <div>COLLECTIONS</div>, default: () => <div>COLLECTIONS</div> }));
+vi.mock('@/features/collections/components/CollectionView', () => ({ CollectionView: () => <div>COLLECTION VIEW</div>, default: () => <div>COLLECTION VIEW</div> }));
 
 const baseProps: AppViewRouterProps = {
   currentView: 'WATCHLIST',

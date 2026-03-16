@@ -1,10 +1,10 @@
 import React from 'react';
-import CollectionForm from '@/components/CollectionForm';
-import { ConflictResolutionModal } from '@/components/ConflictResolutionModal';
-import { ChapterReader } from '@/components/ChapterReader';
-import { MangaDetail } from '@/components/MangaDetail';
-import MediaDetail from '@/components/MediaDetail';
-import VideoPlayer from '@/components/VideoPlayer';
+import CollectionForm from '@/features/collections/components/CollectionForm';
+import { ConflictResolutionModal } from '@/features/playback/components/ConflictResolutionModal';
+import { ChapterReader } from '@/features/manga/components/ChapterReader';
+import { MangaDetail } from '@/features/manga/components/MangaDetail';
+import MediaDetail from '@/features/playback/components/MediaDetail';
+import VideoPlayer from '@/features/playback/components/VideoPlayer';
 import { OfflineVideoProvider } from '@/context/OfflineVideoContext';
 import type { ChapterInfo } from '@/services/mangadexTypes';
 import type { NewItemData } from '@/features/playback/components/ConflictResolutionModal';

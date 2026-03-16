@@ -5,7 +5,7 @@ import * as manga from '@/services/manga';
 import { MangaProviderName } from '@/services/manga';
 import { useOffline } from '@/context/OfflineContext';
 import { useToast } from '@/context/ToastContext';
-import { CommentSection } from '@/components/CommentSection';
+import { CommentSection } from '@/features/comments/components/CommentSection';
 
 // ============================================================================
 // VIRTUALIZED LONG STRIP - Types and Constants

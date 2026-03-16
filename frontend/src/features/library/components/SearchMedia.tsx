@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MediaItem, SearchResult, ProviderName } from '@/types';
 import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, searchWithProvider } from '@/services/mediaSearch';
-import { QuickAddModal } from '@/components/QuickAddModal';
-import { FormatSelectionModal } from '@/components/FormatSelectionModal';
-import { AddToCollectionModal, CollectionItemData } from '@/components/AddToCollectionModal';
+import { QuickAddModal } from '@/features/collections/components/QuickAddModal';
+import { FormatSelectionModal } from '@/features/playback/components/FormatSelectionModal';
+import { AddToCollectionModal, CollectionItemData } from '@/features/collections/components/AddToCollectionModal';
 import { getProviderDisplayName, getProviderImageUrl } from '@/shared/media';
 
 interface SearchMediaProps {
