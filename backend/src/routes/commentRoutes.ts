@@ -9,7 +9,7 @@ import {
   feedQuerySchema,
   reactionSchema,
   importExternalCommentSchema,
-} from '../validators/commentValidators.js';
+} from '../modules/comments/interface/http/commentSchemas.js';
 
 const router = Router();
 

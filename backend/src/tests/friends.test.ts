@@ -1,6 +1,21 @@
 import { describe, it, expect } from 'vitest';
+import { prisma } from '../config/database.js';
 import { request, app, createTestUser, authHeader } from './helpers.js';
 import { describeDb } from './testSuites.js';
+
+let sourceCounter = 0;
+
+async function seedMediaSource(input: { refId: string; title: string; type: 'TV' | 'MANGA'; total?: number | null }) {
+  sourceCounter += 1;
+  return prisma.mediaSource.create({
+    data: {
+      refId: `${input.refId}-${sourceCounter}`,
+      title: input.title,
+      type: input.type,
+      total: input.total ?? null,
+    },
+  });
+}
 
 describeDb('Friends Endpoints', () => {
   describe('GET /api/friends', () => {
@@ -159,15 +174,17 @@ describeDb('Friends Endpoints', () => {
       const user2 = await createTestUser();
 
       // User2 adds items to their list
+      const showSource = await seedMediaSource({ refId: 'tmdb:friend-show', title: 'Show 1', type: 'TV', total: 10 });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
-        .send({ title: 'Show 1', type: 'TV', status: 'WATCHING', current: 5, total: 10 });
+        .send({ refId: showSource.refId, type: 'TV', status: 'WATCHING', current: 5 });
 
+      const mangaSource = await seedMediaSource({ refId: 'anilist-manga:friend-manga', title: 'Manga 1', type: 'MANGA' });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
-        .send({ title: 'Manga 1', type: 'MANGA', status: 'READING', current: 100 });
+        .send({ refId: mangaSource.refId, type: 'MANGA', status: 'READING', current: 100 });
 
       // User1 follows User2
       await request(app)
@@ -261,20 +278,23 @@ describeDb('Friends Endpoints', () => {
       const user2 = await createTestUser();
 
       // User2 adds items
+      const activeShowSource = await seedMediaSource({ refId: 'tmdb:active-show', title: 'Active Show', type: 'TV' });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
-        .send({ title: 'Active Show', type: 'TV', status: 'WATCHING', current: 5 });
+        .send({ refId: activeShowSource.refId, type: 'TV', status: 'WATCHING', current: 5 });
 
+      const completedShowSource = await seedMediaSource({ refId: 'tmdb:completed-show', title: 'Completed Show', type: 'TV', total: 10 });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
-        .send({ title: 'Completed Show', type: 'TV', status: 'COMPLETED', current: 10, total: 10 });
+        .send({ refId: completedShowSource.refId, type: 'TV', status: 'COMPLETED', current: 10 });
 
+      const readingMangaSource = await seedMediaSource({ refId: 'anilist-manga:reading-manga', title: 'Reading Manga', type: 'MANGA' });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
-        .send({ title: 'Reading Manga', type: 'MANGA', status: 'READING', current: 50 });
+        .send({ refId: readingMangaSource.refId, type: 'MANGA', status: 'READING', current: 50 });
 
       // User1 follows User2
       await request(app)

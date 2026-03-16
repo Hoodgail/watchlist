@@ -83,7 +83,12 @@ async function cleanDatabase() {
   
   await prisma.friendRequest.deleteMany();
   await prisma.friendship.deleteMany();
+  await prisma.commentReaction.deleteMany();
+  await prisma.comment.deleteMany();
+  await prisma.mediaSourceAlias.deleteMany();
+  await prisma.providerMapping.deleteMany();
   await prisma.mediaItem.deleteMany();
+  await prisma.mediaSource.deleteMany();
   await prisma.user.deleteMany();
 }
 

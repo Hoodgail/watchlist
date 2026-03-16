@@ -2,14 +2,9 @@ import { Router } from 'express';
 import * as profileController from '../controllers/profileController.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { z } from 'zod';
+import { updatePrivacySchema } from '../modules/social/interface/http/profileSchemas.js';
 
 const router = Router();
-
-// Schema for privacy settings update
-const updatePrivacySchema = z.object({
-  isPublic: z.boolean(),
-});
 
 // Public profile route - uses optional auth to check if viewer is following
 router.get('/:username', optionalAuth, profileController.getPublicProfile);
