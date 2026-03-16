@@ -47,6 +47,14 @@ export function getProxiedImageUrl(
   return `${buildApiUrl('/proxy/image')}?${params.toString()}`;
 }
 
+export function getProviderImageUrl(
+  url: string | null | undefined,
+  referer?: string,
+  fallback?: string | null,
+): string | null {
+  return getProxiedImageUrl(url, referer) ?? fallback ?? null;
+}
+
 export function getMangaPlusImageProxyUrl(url: string, key: string): string {
   const params = new URLSearchParams({ url, key });
   return `${buildApiUrl('/manga/external/mangaplus/image')}?${params.toString()}`;
