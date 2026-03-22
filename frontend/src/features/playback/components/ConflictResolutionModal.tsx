@@ -180,12 +180,12 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="modal-shell max-w-2xl">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex-shrink-0">
+        <div className="modal-header">
           <div className="flex items-center gap-3">
             <svg
               className="w-5 h-5 text-yellow-500 flex-shrink-0"
@@ -214,10 +214,10 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {/* Side-by-side comparison */}
-          <div className="p-4 border-b border-neutral-800">
+          <div className="modal-section">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Existing Item */}
-              <div className="border border-neutral-800 bg-neutral-950 p-3">
+              <div className="option-card bg-neutral-950 p-3">
                 <p className="text-xs text-neutral-600 uppercase tracking-wider mb-2">
                   IN YOUR LIST
                 </p>
@@ -263,7 +263,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
               </div>
 
               {/* New Item */}
-              <div className="border border-neutral-800 bg-neutral-950 p-3">
+              <div className="option-card bg-neutral-950 p-3">
                 <p className="text-xs text-neutral-600 uppercase tracking-wider mb-2">
                   NEW ITEM
                 </p>
@@ -313,7 +313,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
           </div>
 
           {/* Similarity Score */}
-          <div className="px-4 py-3 border-b border-neutral-800 bg-neutral-950">
+          <div className="modal-section bg-neutral-950">
             <div className="flex items-center justify-between">
               <span className="text-xs text-neutral-600 uppercase tracking-wider">
                 Similarity
@@ -340,9 +340,9 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
           </div>
 
           {/* Explanation / Warning */}
-          <div className="px-4 py-3 border-b border-neutral-800">
+          <div className="modal-section">
             <div
-              className={`flex items-start gap-2 p-3 border ${
+              className={`option-card flex items-start gap-2 p-3 ${
                 seasonMismatch
                   ? 'border-yellow-900 bg-yellow-950/30'
                   : similarityScore >= 0.9
@@ -401,12 +401,12 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-neutral-800 space-y-2 flex-shrink-0">
+        <div className="modal-footer flex-col">
           {/* Primary Action - Link Sources */}
           <button
             onClick={handleMerge}
             disabled={loadingAction !== null}
-            className="w-full py-3 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="action-btn w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loadingAction === 'merge' ? (
               <>
@@ -449,7 +449,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
             <button
               onClick={handleReplace}
               disabled={loadingAction !== null}
-              className="py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="action-btn-ghost disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loadingAction === 'replace' ? (
                 <>
@@ -480,7 +480,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
             <button
               onClick={handleKeepBoth}
               disabled={loadingAction !== null}
-              className="py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="action-btn-ghost disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loadingAction === 'keepBoth' ? (
                 <>
@@ -513,7 +513,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
           <button
             onClick={onClose}
             disabled={loadingAction !== null}
-            className="w-full py-2 text-xs uppercase tracking-wider text-neutral-600 hover:text-neutral-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="action-btn-ghost w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
             CANCEL
           </button>

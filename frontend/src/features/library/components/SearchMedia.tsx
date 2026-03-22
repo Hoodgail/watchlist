@@ -399,22 +399,29 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   };
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-4">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
-          ADD CONTENT
-        </h2>
+    <div className="screen-stack">
+      <div className="screen-head">
+        <div className="screen-head-block">
+          <span className="screen-kicker">Search across providers</span>
+          <h2 className="screen-title">Add something new</h2>
+          <p className="screen-note">Pull in films, anime, manga, games, and books from the same polished search flow.</p>
+        </div>
+      </div>
 
-        {/* Category Filter */}
-        <div className="flex gap-2 flex-wrap">
+      <div className="screen-panel pad soft space-y-4">
+        <div className="section-label-row">
+          <h3>Search Filters</h3>
+        </div>
+
+        <div className="chip-tabs">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.value}
               onClick={() => setCategory(cat.value)}
-              className={`px-3 py-1 text-xs uppercase tracking-wider border transition-colors ${
+              className={`chip-tab ${
                 category === cat.value
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500'
+                  ? 'active'
+                  : ''
               }`}
             >
               {cat.label}
@@ -424,16 +431,16 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
 
         {/* Provider Selection (only show if category has providers) */}
         {availableProviders.length > 0 && (
-          <div className="relative">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-neutral-500 uppercase tracking-wider">
+          <div className="relative screen-panel pad">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <label className="screen-kicker">
                 Source
               </label>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                  className="bg-black border border-neutral-700 px-3 py-1 text-xs uppercase tracking-wider text-white hover:border-neutral-500 focus:border-white outline-none flex items-center gap-2"
+                  className="inline-select flex items-center gap-2 text-xs uppercase tracking-wider"
                 >
                   {provider ? getProviderDisplayName(provider) : 'Auto'}
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -442,7 +449,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                 </button>
                 
                 {showProviderDropdown && (
-                  <div className="absolute top-full left-0 mt-1 bg-black border border-neutral-700 z-10 min-w-[150px]">
+                  <div className="absolute top-full left-0 mt-1 z-10 min-w-[180px] overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 shadow-xl">
                     <button
                       type="button"
                       onClick={() => {
@@ -478,9 +485,9 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
         )}
 
         {/* Search Options */}
-        <div className="flex gap-4 items-center flex-wrap">
+        <div className="screen-panel pad flex gap-4 items-center flex-wrap">
           <div className="flex items-center gap-2">
-            <label htmlFor="year" className="text-xs text-neutral-500 uppercase tracking-wider">
+            <label htmlFor="year" className="screen-kicker">
               Year
             </label>
             <input
@@ -489,7 +496,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
               value={year}
               onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
               placeholder="e.g. 2024"
-              className="w-20 bg-black border border-neutral-700 px-2 py-1 text-white placeholder-neutral-700 text-xs focus:border-white outline-none font-mono rounded-none"
+              className="w-24 inline-field text-xs font-mono"
             />
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
@@ -497,27 +504,27 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
               type="checkbox"
               checked={includeAdult}
               onChange={(e) => setIncludeAdult(e.target.checked)}
-              className="w-4 h-4 bg-black border border-neutral-700 rounded-none accent-white cursor-pointer"
+              className="w-4 h-4 accent-white cursor-pointer"
             />
-            <span className="text-xs text-neutral-500 uppercase tracking-wider">
+            <span className="screen-kicker">
               Include Adult
             </span>
           </label>
         </div>
 
-        <form onSubmit={handleSearch} className="flex gap-0">
+        <form onSubmit={handleSearch} className="screen-panel pad flex gap-3 flex-col sm:flex-row">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="TYPE TITLE (e.g. 'AKIRA')"
-            className="flex-grow bg-black border border-neutral-700 p-4 text-white placeholder-neutral-700 uppercase focus:border-white outline-none font-mono rounded-none"
+            className="search-field flex-grow uppercase font-mono"
             autoFocus
           />
           <button
             type="submit"
             disabled={loading}
-            className="bg-white text-black font-bold uppercase px-6 py-4 hover:bg-neutral-300 disabled:opacity-50 rounded-none border-l-0"
+            className="action-btn px-6 disabled:opacity-50"
           >
             {loading ? '...' : 'FIND'}
           </button>
@@ -525,28 +532,30 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
       </div>
 
       {hasSearched && (
-        <div className="space-y-4 animate-fade-in">
-          <h3 className="text-xs text-neutral-600 uppercase tracking-widest">
+        <div className="screen-stack animate-fade-in">
+          <div className="section-label-row">
+            <h3>
             {loading ? 'SEARCHING...' : `RESULTS FOR "${query}"`}
-          </h3>
+            </h3>
+          </div>
 
           {!loading && results.length === 0 && (
-            <div className="p-4 border border-red-900/50 text-red-700 uppercase text-sm">
+            <div className="empty-state text-sm uppercase text-red-400">
               No results found. Try a different query.
             </div>
           )}
 
-          <div className="flex flex-col gap-4 overflow-hidden">
+          <div className="editorial-grid overflow-hidden">
             {results.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border border-neutral-800 hover:border-white transition-colors group bg-black"
+                className="list-card pad flex flex-col sm:flex-row sm:items-center gap-4 group"
               >
                 {/* Image & Info Container */}
                 <div className="flex items-center gap-4 flex-grow min-w-0">
                   {/* Image */}
                   {item.imageUrl && (
-                    <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 overflow-hidden">
+                    <div className="flex-shrink-0 w-14 h-20 rounded-xl bg-neutral-900 overflow-hidden border border-neutral-800">
                       <img
                         src={getProviderImageUrl(item.imageUrl, item.provider) || ''}
                         alt={item.title}
@@ -563,10 +572,10 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                     <h4 className="font-bold text-lg uppercase tracking-tight truncate">
                       {item.title}
                     </h4>
-                    <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase flex-wrap">
-                      <span className="bg-neutral-900 px-1 border border-neutral-800">
-                        {getTypeLabel(item.type)}
-                      </span>
+                      <div className="flex gap-2 text-xs text-neutral-500 mt-2 uppercase flex-wrap items-center">
+                        <span className="meta-pill">
+                          {getTypeLabel(item.type)}
+                        </span>
                       {/* For games, show platforms and genres instead of ONGOING */}
                       {item.type === 'GAME' ? (
                         <>
@@ -625,7 +634,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                             item.type === 'TV' ? 'tv' : undefined;
                           onOpenMedia(item.id, item.provider!, item.title, mediaType);
                         }}
-                        className="text-sm border border-blue-700 text-blue-400 px-3 py-2 hover:border-blue-500 hover:text-blue-300 transition-all uppercase rounded-none font-bold flex items-center gap-1 flex-1 sm:flex-initial justify-center"
+                        className="action-btn-ghost text-sm flex items-center gap-1 flex-1 sm:flex-initial justify-center"
                       >
                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M8 5v14l11-7z" />
@@ -636,20 +645,20 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                     <button
                       onClick={() => handleAddWithFormatCheck(item)}
                       disabled={addingItems.has(item.id) || checkingFormats.has(item.id)}
-                      className="text-sm bg-white text-black px-3 py-2 hover:bg-neutral-200 transition-all uppercase rounded-none disabled:opacity-50 font-bold flex-1 sm:flex-initial"
+                      className="action-btn text-sm flex-1 sm:flex-initial disabled:opacity-50"
                     >
                       {checkingFormats.has(item.id) ? '...' : addingItems.has(item.id) ? '...' : '+ Planned'}
                     </button>
                     <button
                       onClick={() => setQuickAddItem(item)}
                       disabled={addingItems.has(item.id)}
-                      className="text-sm border border-neutral-700 text-neutral-400 px-3 py-2 hover:border-white hover:text-white transition-all uppercase rounded-none disabled:opacity-50 flex-1 sm:flex-initial"
+                      className="action-btn-ghost text-sm flex-1 sm:flex-initial disabled:opacity-50"
                     >
                       + Details
                     </button>
                     <button
                       onClick={() => setAddToCollectionItem(item)}
-                      className="text-sm border border-neutral-700 text-neutral-400 px-3 py-2 hover:border-white hover:text-white transition-all uppercase rounded-none flex-1 sm:flex-initial"
+                      className="action-btn-ghost text-sm flex-1 sm:flex-initial"
                     >
                       + Collection
                     </button>
@@ -663,10 +672,10 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
 
       {/* Visual filler for empty state */}
       {!hasSearched && (
-        <div className="text-neutral-800 text-center py-20 select-none">
-          <div className="text-6xl mb-4 opacity-20">Type</div>
-          <div className="text-6xl mb-4 opacity-10">To</div>
-          <div className="text-6xl opacity-5">Search</div>
+        <div className="screen-panel pad text-center py-20 select-none overflow-hidden">
+          <div className="text-6xl mb-4 opacity-20 font-[var(--font-display)] italic">Type</div>
+          <div className="text-6xl mb-4 opacity-10 font-[var(--font-display)]">To</div>
+          <div className="text-6xl opacity-5 font-[var(--font-display)] italic">Search</div>
         </div>
       )}
 

@@ -147,12 +147,12 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="modal-shell max-w-md overflow-y-auto">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+        <div className="modal-header">
           <h3 className="text-sm font-bold uppercase tracking-widest">
             ADD TO COLLECTION
           </h3>
@@ -165,7 +165,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
         </div>
 
         {/* Media Info */}
-        <div className="p-4 border-b border-neutral-800 bg-neutral-950">
+        <div className="modal-section bg-neutral-950">
           <div className="flex gap-4">
             {imageUrl && !imageError && (
               <div className="flex-shrink-0 w-16">
@@ -193,7 +193,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="modal-content space-y-4">
           {loading ? (
             <div className="py-8 text-center text-neutral-500 uppercase tracking-wider animate-pulse">
               Loading collections...
@@ -203,7 +203,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
               {error}
             </div>
           ) : collections.length === 0 ? (
-            <div className="py-8 text-center text-neutral-600 border border-neutral-800 border-dashed">
+            <div className="empty-state py-8">
               <p className="text-sm uppercase">NO COLLECTIONS</p>
               <p className="text-xs mt-2 text-neutral-700">
                 Create a collection first to add items
@@ -221,10 +221,10 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
                     <button
                       key={collection.id}
                       onClick={() => setSelectedCollectionId(collection.id)}
-                      className={`w-full p-3 text-left border transition-colors ${
+                    className={`option-card text-left ${
                         selectedCollectionId === collection.id
-                          ? 'border-white bg-neutral-900'
-                          : 'border-neutral-800 hover:border-neutral-600'
+                          ? 'selected'
+                          : ''
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -259,7 +259,7 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Add a note about this item..."
-                  className="w-full bg-neutral-950 border border-neutral-800 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none resize-none min-h-[80px]"
+                  className="search-field w-full text-sm resize-none min-h-[80px]"
                 />
               </div>
             </>
@@ -267,17 +267,17 @@ export const AddToCollectionModal: React.FC<AddToCollectionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex gap-3">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="flex-1 py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost flex-1"
           >
             CANCEL
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !selectedCollectionId || collections.length === 0}
-            className="flex-1 py-3 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="action-btn flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'ADDING...' : 'ADD'}
           </button>

@@ -208,11 +208,11 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
 
   if (!collection) {
     return (
-      <div className="py-12 text-center text-neutral-600 border border-neutral-800 border-dashed">
+      <div className="empty-state">
         <p className="text-sm uppercase">COLLECTION NOT FOUND</p>
         <button
           onClick={onBack}
-          className="mt-4 text-xs px-4 py-2 border border-neutral-700 text-neutral-400 uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+          className="mt-4 action-btn-ghost px-4"
         >
           GO BACK
         </button>
@@ -221,7 +221,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="screen-stack">
       {/* Back Button */}
       <button
         onClick={onBack}
@@ -232,7 +232,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
       </button>
 
       {/* Header Section */}
-      <div className="border border-neutral-800 bg-black">
+      <div className="screen-panel overflow-hidden">
         {/* Cover Image */}
         {collection.coverUrl ? (
           <div className="w-full h-48 overflow-hidden">
@@ -254,7 +254,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
           {/* Title and Badges */}
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold uppercase tracking-tight text-white">
+              <h1 className="screen-title text-xl">
                 {collection.title}
               </h1>
               {collection.description && (
@@ -264,7 +264,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <span className={`px-2 py-0.5 text-xs uppercase ${collection.isPublic ? 'bg-green-950 border border-green-900 text-green-400' : 'bg-neutral-900 border border-neutral-800 text-neutral-500'}`}>
+              <span className={`px-2 py-0.5 text-xs uppercase rounded-xl ${collection.isPublic ? 'bg-green-950 border border-green-900 text-green-400' : 'bg-neutral-900 border border-neutral-800 text-neutral-500'}`}>
                 {collection.isPublic ? 'PUBLIC' : 'PRIVATE'}
               </span>
               {collection.myRole && <RoleBadge role={collection.myRole} />}
@@ -281,30 +281,21 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
           </div>
 
           {/* Stats */}
-          <div className="flex flex-wrap gap-4 text-xs uppercase">
-            <div className="flex items-center gap-1">
-              <span className="text-neutral-500">ITEMS:</span>
-              <span className="text-white font-bold">{collection.itemCount}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <StarFilledIcon className="w-3 h-3 text-amber-500" />
-              <span className="text-white font-bold">{collection.starCount}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-neutral-500">MEMBERS:</span>
-              <span className="text-white font-bold">{collection.members.length + 1}</span>
-            </div>
+          <div className="stats-grid text-xs uppercase">
+            <div className="stats-card"><strong>{collection.itemCount}</strong><span>Items</span></div>
+            <div className="stats-card"><strong>{collection.starCount}</strong><span>Stars</span></div>
+            <div className="stats-card"><strong>{collection.members.length + 1}</strong><span>Members</span></div>
           </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="split-actions">
         {/* Star/Unstar Button */}
         <button
           onClick={handleStar}
           disabled={actionLoading === 'star'}
-          className={`flex items-center gap-2 text-xs px-4 py-2 font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${collection.isStarred
+          className={`flex items-center gap-2 text-xs px-4 py-2 font-bold uppercase tracking-wider transition-colors disabled:opacity-50 rounded-xl ${collection.isStarred
             ? 'bg-amber-950 border border-amber-800 text-amber-400 hover:bg-amber-900'
             : 'border border-neutral-700 text-neutral-400 hover:border-amber-700 hover:text-amber-400'
             }`}
@@ -326,23 +317,23 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {!showPrivateLinkWarning ? (
           <button
             onClick={handleCopyLink}
-            className="flex items-center gap-2 text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost flex items-center gap-2"
           >
             <LinkIcon className="w-4 h-4" />
             COPY LINK
           </button>
         ) : (
-          <div className="flex items-center gap-2 px-3 py-2 border border-amber-900 bg-amber-950/50">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-900 bg-amber-950/50">
             <span className="text-xs text-amber-400 uppercase">Private - only members can view</span>
             <button
               onClick={handleCopyLink}
-              className="text-xs px-3 py-1 bg-amber-900 text-amber-100 font-bold uppercase tracking-wider hover:bg-amber-800 transition-colors"
+              className="action-btn-ghost px-3 py-1 !min-h-0"
             >
               COPY ANYWAY
             </button>
             <button
               onClick={() => setShowPrivateLinkWarning(false)}
-              className="text-xs px-3 py-1 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+              className="action-btn-ghost px-3 py-1 !min-h-0"
             >
               CANCEL
             </button>
@@ -353,7 +344,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {canEdit && (
           <button
             onClick={() => onEdit(collection)}
-            className="text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost"
           >
             EDIT
           </button>
@@ -363,7 +354,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {canEdit && (
           <button
             onClick={() => onAddItem ? onAddItem() : setShowAddItemModal(true)}
-            className="text-xs px-4 py-2 bg-white text-black font-bold uppercase tracking-wider hover:bg-neutral-200 transition-colors"
+            className="action-btn"
           >
             ADD ITEM
           </button>
@@ -373,7 +364,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {isOwner && (
           <button
             onClick={() => setShowMemberModal(true)}
-            className="text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost"
           >
             MANAGE MEMBERS
           </button>
@@ -383,7 +374,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {isOwner && (
           <button
             onClick={() => setShowInviteModal(true)}
-            className="text-xs px-4 py-2 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost"
           >
             CREATE INVITE
           </button>
@@ -394,7 +385,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
           <button
             onClick={handleLeave}
             disabled={actionLoading === 'leave'}
-            className="text-xs px-4 py-2 border border-neutral-800 text-neutral-500 font-bold uppercase tracking-wider hover:border-red-900 hover:text-red-500 transition-colors disabled:opacity-50"
+            className="action-btn-danger disabled:opacity-50"
           >
             {actionLoading === 'leave' ? '...' : 'LEAVE'}
           </button>
@@ -404,7 +395,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
         {isOwner && !deleteConfirm && (
           <button
             onClick={() => setDeleteConfirm(true)}
-            className="text-xs px-4 py-2 border border-neutral-800 text-neutral-500 font-bold uppercase tracking-wider hover:border-red-900 hover:text-red-500 transition-colors"
+            className="action-btn-danger"
           >
             DELETE
           </button>
@@ -412,18 +403,18 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
 
         {/* Delete Confirmation */}
         {isOwner && deleteConfirm && (
-          <div className="flex items-center gap-2 px-3 py-2 border border-red-900 bg-red-950/50">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-red-900 bg-red-950/50">
             <span className="text-xs text-red-400 uppercase">Are you sure?</span>
             <button
               onClick={handleDelete}
               disabled={actionLoading === 'delete'}
-              className="text-xs px-3 py-1 bg-red-900 text-red-100 font-bold uppercase tracking-wider hover:bg-red-800 transition-colors disabled:opacity-50"
+              className="action-btn-danger px-3 py-1 !min-h-0 disabled:opacity-50"
             >
               {actionLoading === 'delete' ? '...' : 'YES'}
             </button>
             <button
               onClick={() => setDeleteConfirm(false)}
-              className="text-xs px-3 py-1 border border-neutral-700 text-neutral-400 font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+              className="action-btn-ghost px-3 py-1 !min-h-0"
             >
               CANCEL
             </button>
@@ -432,31 +423,22 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
       </div>
 
       {/* Tab Sections */}
-      <div className="flex border border-neutral-800">
+      <div className="chip-tabs">
         <button
           onClick={() => setActiveSection('items')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeSection === 'items'
-            ? 'bg-white text-black'
-            : 'text-neutral-500 hover:bg-neutral-900'
-            }`}
+          className={`chip-tab ${activeSection === 'items' ? 'active' : ''}`}
         >
           ITEMS ({collection.items.length})
         </button>
         <button
           onClick={() => setActiveSection('members')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${activeSection === 'members'
-            ? 'bg-white text-black'
-            : 'text-neutral-500 hover:bg-neutral-900'
-            }`}
+          className={`chip-tab ${activeSection === 'members' ? 'active' : ''}`}
         >
           MEMBERS ({collection.members.length + 1})
         </button>
         <button
           onClick={() => setActiveSection('comments')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${activeSection === 'comments'
-            ? 'bg-white text-black'
-            : 'text-neutral-500 hover:bg-neutral-900'
-            }`}
+          className={`chip-tab ${activeSection === 'comments' ? 'active' : ''}`}
         >
           COMMENTS
         </button>
@@ -474,9 +456,9 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
       )}
 
       {activeSection === 'members' && (
-        <div className="space-y-3">
+        <div className="editorial-grid">
           {/* Owner */}
-          <div className="border border-neutral-800 bg-black p-4">
+          <div className="list-card pad">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <UserAvatar username={collection.owner.username} displayName={collection.owner.displayName} avatarUrl={collection.owner.avatarUrl} sizeClassName="w-8 h-8 text-xs" fallbackClassName="bg-neutral-800 text-neutral-400 border border-neutral-700" />
@@ -493,7 +475,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
 
           {/* Members */}
           {collection.members.map((member) => (
-            <div key={member.id} className="border border-neutral-800 bg-black p-4">
+            <div key={member.id} className="list-card pad">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <UserAvatar username={member.user.username} displayName={member.user.displayName} avatarUrl={member.user.avatarUrl} sizeClassName="w-8 h-8 text-xs" fallbackClassName="bg-neutral-800 text-neutral-400 border border-neutral-700" />
@@ -512,7 +494,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
                     <button
                       onClick={() => handleRemoveMember(member.user.id)}
                       disabled={actionLoading === `remove-${member.user.id}`}
-                      className="text-xs px-2 py-1 border border-neutral-800 text-neutral-500 uppercase tracking-wider hover:border-red-900 hover:text-red-500 transition-colors disabled:opacity-50"
+                      className="action-btn-danger px-3 py-2 disabled:opacity-50"
                     >
                       {actionLoading === `remove-${member.user.id}` ? '...' : 'REMOVE'}
                     </button>
@@ -523,7 +505,7 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
           ))}
 
           {collection.members.length === 0 && (
-            <div className="py-8 text-center text-neutral-600 border border-neutral-800 border-dashed">
+            <div className="empty-state">
               <p className="text-sm uppercase">NO OTHER MEMBERS</p>
               {isOwner && (
                 <p className="text-xs mt-2 text-neutral-700">

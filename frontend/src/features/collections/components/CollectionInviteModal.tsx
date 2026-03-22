@@ -138,10 +138,10 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
   };
 
   return (
-    <ModalFrame className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClose={onClose}>
-      <div className="bg-black border border-neutral-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+    <ModalFrame onClose={onClose}>
+      <div className="modal-shell max-w-lg">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               INVITE LINKS
@@ -159,17 +159,17 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="modal-content space-y-4">
           {/* Create New Invite */}
           {!showForm ? (
             <button
               onClick={() => setShowForm(true)}
-              className="w-full py-3 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
+              className="action-btn w-full"
             >
               CREATE NEW INVITE
             </button>
           ) : (
-            <div className="border border-neutral-800 p-4 space-y-4">
+            <div className="screen-panel pad space-y-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                 NEW INVITE LINK
               </h4>
@@ -184,10 +184,8 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
                     <button
                       key={option.value}
                       onClick={() => setRole(option.value)}
-                      className={`flex-1 p-3 text-left border transition-colors ${
-                        role === option.value
-                          ? 'border-white bg-neutral-900'
-                          : 'border-neutral-800 hover:border-neutral-600'
+                  className={`option-card flex-1 text-left ${
+                        role === option.value ? 'selected' : ''
                       }`}
                     >
                       <div className="text-xs font-bold text-white uppercase">
@@ -211,11 +209,7 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
                     <button
                       key={option.value ?? 'never'}
                       onClick={() => setExpiresInDays(option.value)}
-                      className={`px-3 py-2 text-xs uppercase tracking-wider border transition-colors ${
-                        expiresInDays === option.value
-                          ? 'bg-white text-black border-white'
-                          : 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500'
-                      }`}
+                        className={`chip-tab ${expiresInDays === option.value ? 'active' : ''}`}
                     >
                       {option.label}
                     </button>
@@ -233,11 +227,7 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
                     <button
                       key={option.value ?? 'unlimited'}
                       onClick={() => setMaxUses(option.value)}
-                      className={`px-3 py-2 text-xs uppercase tracking-wider border transition-colors ${
-                        maxUses === option.value
-                          ? 'bg-white text-black border-white'
-                          : 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500'
-                      }`}
+                        className={`chip-tab ${maxUses === option.value ? 'active' : ''}`}
                     >
                       {option.label}
                     </button>
@@ -249,14 +239,14 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => setShowForm(false)}
-                  className="flex-1 py-2 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+                  className="action-btn-ghost flex-1"
                 >
                   CANCEL
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={creating}
-                  className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50"
+                  className="action-btn flex-1 disabled:opacity-50"
                 >
                   {creating ? 'CREATING...' : 'CREATE'}
                 </button>

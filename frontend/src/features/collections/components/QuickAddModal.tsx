@@ -112,12 +112,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="modal-shell max-w-md overflow-y-auto">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+        <div className="modal-header">
           <h3 className="text-sm font-bold uppercase tracking-widest">
             ADD TO LIST
           </h3>
@@ -130,7 +130,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         </div>
 
         {/* Media Info */}
-        <div className="p-4 border-b border-neutral-800 bg-neutral-950">
+        <div className="modal-section bg-neutral-950">
           <div className="flex gap-4">
             {imageUrl && !imageError && (
               <div className="flex-shrink-0 w-16">
@@ -185,7 +185,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="modal-content space-y-4">
           {/* Status Selection */}
           <div className="space-y-2">
             <label className="text-xs text-neutral-600 uppercase tracking-wider block">
@@ -194,7 +194,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as MediaStatus)}
-              className="w-full bg-neutral-950 border border-neutral-800 text-white px-3 py-2 text-sm uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
+              className="inline-select w-full text-sm uppercase"
             >
               {getStatusOptions().map(opt => (
                 <option key={opt.value} value={opt.value} className="bg-black">
@@ -212,7 +212,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrent(Math.max(0, current - 1))}
-                className="w-10 h-10 border border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
+                className="action-btn-ghost w-10 h-10 px-0 py-0 !min-h-0"
               >
                 -
               </button>
@@ -220,11 +220,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 type="number"
                 value={current}
                 onChange={(e) => setCurrent(parseInt(e.target.value) || 0)}
-                className="w-20 h-10 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
+                className="inline-field w-20 h-10 text-center font-mono"
               />
               <button
                 onClick={() => setCurrent(current + 1)}
-                className="w-10 h-10 border border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
+                className="action-btn-ghost w-10 h-10 px-0 py-0 !min-h-0"
               >
                 +
               </button>
@@ -265,23 +265,23 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add your notes..."
-              className="w-full bg-neutral-950 border border-neutral-800 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none resize-none min-h-[80px]"
+              className="search-field w-full text-sm resize-none min-h-[80px]"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex gap-3">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="flex-1 py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost flex-1"
           >
             CANCEL
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="action-btn flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'ADDING...' : 'ADD'}
           </button>

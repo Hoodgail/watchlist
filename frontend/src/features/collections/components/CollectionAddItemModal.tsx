@@ -137,12 +137,12 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="modal-shell max-w-2xl">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               ADD TO COLLECTION
@@ -160,18 +160,14 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
         </div>
 
         {/* Search Form */}
-        <div className="p-4 border-b border-neutral-800 space-y-3 flex-shrink-0">
+        <div className="modal-section space-y-3">
           {/* Category Filter */}
-          <div className="flex gap-2 flex-wrap">
+          <div className="chip-tabs">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.value}
                 onClick={() => setCategory(cat.value)}
-                className={`px-2 py-1 text-xs uppercase tracking-wider border transition-colors ${
-                  category === cat.value
-                    ? 'bg-white text-black border-white'
-                    : 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500'
-                }`}
+                className={`chip-tab ${category === cat.value ? 'active' : ''}`}
               >
                 {cat.label}
               </button>
@@ -179,19 +175,19 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
           </div>
 
           {/* Search Input */}
-          <form onSubmit={handleSearch} className="flex gap-0">
+          <form onSubmit={handleSearch} className="flex gap-3">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="SEARCH FOR MEDIA..."
-              className="flex-grow bg-black border border-neutral-700 p-3 text-white placeholder-neutral-700 uppercase focus:border-white outline-none font-mono text-sm"
+              className="search-field flex-grow uppercase font-mono text-sm"
               autoFocus
             />
             <button
               type="submit"
               disabled={loading}
-              className="bg-white text-black font-bold uppercase px-4 py-3 hover:bg-neutral-300 disabled:opacity-50 text-sm"
+              className="action-btn px-4 disabled:opacity-50 text-sm"
             >
               {loading ? '...' : 'FIND'}
             </button>
@@ -199,7 +195,7 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
         </div>
 
         {/* Results */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="modal-content">
           {!hasSearched ? (
             <div className="py-8 text-center text-neutral-600">
               <p className="text-sm uppercase">SEARCH FOR MEDIA TO ADD</p>
@@ -209,7 +205,7 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
               Searching...
             </div>
           ) : results.length === 0 ? (
-            <div className="py-8 text-center text-neutral-600 border border-neutral-800 border-dashed">
+              <div className="empty-state py-8">
               <p className="text-sm uppercase">NO RESULTS FOUND</p>
             </div>
           ) : (
@@ -217,7 +213,7 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
               {results.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-3 p-3 border border-neutral-800 hover:border-neutral-600 transition-colors bg-black"
+                  className="option-card flex items-center gap-3"
                 >
                   {/* Image */}
                   {item.imageUrl && (
@@ -239,7 +235,7 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
                       {item.title}
                     </h4>
                     <div className="flex gap-2 text-xs text-neutral-500 mt-1 uppercase flex-wrap">
-                      <span className="bg-neutral-900 px-1 border border-neutral-800">
+                        <span className="meta-pill">
                         {getTypeLabel(item.type)}
                       </span>
                       <span>
@@ -253,14 +249,14 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
 
                   {/* Add Button */}
                   {addedItems.has(item.id) ? (
-                    <span className="flex-shrink-0 text-xs border border-green-700 text-green-500 px-3 py-1.5 uppercase">
+                      <span className="flex-shrink-0 text-xs border border-green-700 text-green-500 px-3 py-1.5 uppercase rounded-xl">
                       Added
                     </span>
                   ) : (
                     <button
                       onClick={() => handleAddToCollection(item)}
                       disabled={addingItems.has(item.id)}
-                      className="flex-shrink-0 text-xs bg-white text-black px-3 py-1.5 hover:bg-neutral-200 transition-all uppercase font-bold disabled:opacity-50"
+                      className="action-btn flex-shrink-0 px-3 py-1.5 !min-h-0 disabled:opacity-50"
                     >
                       {addingItems.has(item.id) ? '...' : 'ADD'}
                     </button>
@@ -272,10 +268,10 @@ export const CollectionAddItemModal: React.FC<CollectionAddItemModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex-shrink-0">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="w-full py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost w-full"
           >
             DONE
           </button>

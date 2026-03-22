@@ -58,12 +58,12 @@ const TrendingRow: React.FC<{
         {category.title}
       </h3>
       
-      <div className="relative group">
+      <div className="relative group screen-panel pad soft">
         {/* Left Arrow */}
         {showLeftArrow && (
           <button
             onClick={() => scroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-black/80 border border-neutral-700 p-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-neutral-900"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 app-icon-button opacity-0 group-hover:opacity-100"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -75,7 +75,7 @@ const TrendingRow: React.FC<{
         {showRightArrow && (
           <button
             onClick={() => scroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-black/80 border border-neutral-700 p-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-neutral-900"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 app-icon-button opacity-0 group-hover:opacity-100"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -87,7 +87,7 @@ const TrendingRow: React.FC<{
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6"
+          className="flex gap-3 overflow-x-auto scrollbar-hide pb-2"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {category.items.map((item) => (
@@ -157,13 +157,13 @@ const TrendingCard: React.FC<{
   const statusBadge = userStatus ? formatStatusBadge(userStatus) : null;
 
   return (
-    <div
-      className="flex-shrink-0 w-32 sm:w-40 group/card"
+      <div
+      className="poster-card flex-shrink-0 w-36 sm:w-40 group/card"
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
       {/* Poster */}
-      <div className="relative aspect-[2/3] bg-neutral-900 border border-neutral-800 overflow-hidden">
+      <div className="relative aspect-[2/3] bg-neutral-900 overflow-hidden">
         {imageUrl && !imageError ? (
           <img
             src={imageUrl}
@@ -178,7 +178,7 @@ const TrendingCard: React.FC<{
         )}
 
         {/* Type Badge */}
-        <div className="absolute top-2 left-2 bg-black/80 px-1.5 py-0.5 text-[10px] uppercase tracking-wider border border-neutral-700">
+        <div className="absolute top-2 left-2 meta-pill">
           {item.type}
         </div>
 
@@ -242,7 +242,7 @@ const TrendingCard: React.FC<{
       </div>
 
       {/* Title */}
-      <div className="mt-2 space-y-0.5">
+      <div className="poster-card-body space-y-1">
         <h4 className="text-xs font-bold uppercase tracking-tight truncate" title={item.title}>
           {item.title}
         </h4>
@@ -396,11 +396,12 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }
 
   if (loading) {
     return (
-      <div className="space-y-8">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
-          TRENDING
-        </h2>
-        <div className="flex items-center justify-center min-h-[40vh]">
+      <div className="screen-stack">
+        <div className="screen-head-block">
+          <span className="screen-kicker">Discovery feed</span>
+          <h2 className="screen-title">Trending now</h2>
+        </div>
+        <div className="screen-panel pad flex items-center justify-center min-h-[40vh]">
           <div className="text-neutral-500 uppercase tracking-wider animate-pulse">
             Loading trending...
           </div>
@@ -410,10 +411,12 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }
   }
 
   return (
-    <div className="space-y-8">
-      <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
-        TRENDING
-      </h2>
+    <div className="screen-stack">
+      <div className="screen-head-block">
+        <span className="screen-kicker">Discovery feed</span>
+        <h2 className="screen-title">Trending now</h2>
+        <p className="screen-note">A rolling front page of breakout titles, hot discussions, and fast adds.</p>
+      </div>
 
       {/* Public Comments Feed - Hot Discussions */}
       <PublicCommentsFeed 
@@ -422,7 +425,7 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }
       />
 
       {categories.length === 0 ? (
-        <div className="text-center py-20 text-neutral-600">
+        <div className="empty-state">
           <p className="uppercase tracking-wider">No trending content available</p>
         </div>
       ) : (

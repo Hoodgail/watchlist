@@ -89,12 +89,12 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="modal-shell max-w-md overflow-y-auto">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+        <div className="modal-header">
           <h3 className="text-sm font-bold uppercase tracking-widest">
             SUGGEST TO FRIEND
           </h3>
@@ -107,7 +107,7 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
         </div>
 
         {/* Media Info */}
-        <div className="p-4 border-b border-neutral-800 bg-neutral-950">
+        <div className="modal-section bg-neutral-950">
           <div className="flex gap-4">
             {imageUrl && !imageError && (
               <div className="flex-shrink-0 w-16">
@@ -131,7 +131,7 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="modal-content space-y-4">
           {/* Friend Selection */}
           <div className="space-y-2">
             <label className="text-xs text-neutral-600 uppercase tracking-wider block">
@@ -143,7 +143,7 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
                 Loading friends...
               </div>
             ) : friends.length === 0 ? (
-              <div className="py-4 text-center text-neutral-600 text-sm border border-dashed border-neutral-800">
+                <div className="empty-state py-4">
                 <p>NO FRIENDS TO SUGGEST TO</p>
                 <p className="text-xs mt-1 text-neutral-700">Follow users first</p>
               </div>
@@ -153,10 +153,10 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
                   <button
                     key={friend.id}
                     onClick={() => setSelectedFriendId(friend.id)}
-                    className={`w-full p-3 text-left border transition-colors ${selectedFriendId === friend.id
-                        ? 'border-white bg-white text-black'
-                        : 'border-neutral-800 hover:border-neutral-600 text-white'
-                      }`}
+                    className={`option-card text-left ${selectedFriendId === friend.id
+                        ? 'selected text-white'
+                        : 'text-white'
+                       }`}
                   >
                     <span className="text-sm font-bold uppercase">
                       {friend.username}
@@ -177,8 +177,8 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Add a note..."
               maxLength={200}
-              className="w-full bg-neutral-950 border border-neutral-800 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none resize-none min-h-[80px]"
-            />
+                className="search-field w-full text-sm resize-none min-h-[80px]"
+              />
             <div className="text-xs text-neutral-700 text-right">
               {message.length}/200
             </div>
@@ -186,17 +186,17 @@ export const SuggestToFriendModal: React.FC<SuggestToFriendModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex gap-3">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="flex-1 py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost flex-1"
           >
             CANCEL
           </button>
           <button
             onClick={handleSend}
             disabled={sending || !selectedFriendId || friends.length === 0}
-            className="flex-1 py-3 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="action-btn flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {sending ? 'SENDING...' : 'SEND'}
           </button>

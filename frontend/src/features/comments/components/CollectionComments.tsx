@@ -119,23 +119,23 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="screen-stack">
       {/* Add comment form */}
       {canComment && (
-        <div className="bg-neutral-950 p-4 border border-neutral-800">
+        <div className="screen-panel pad soft">
           <textarea
             value={newComment}
             onChange={e => setNewComment(e.target.value)}
             placeholder="Add a comment..."
             rows={3}
-            className="w-full bg-black border border-neutral-800 p-3 text-sm text-white placeholder-neutral-600 resize-none outline-none focus:border-white transition-colors"
+            className="w-full search-field text-sm resize-none"
             disabled={actionLoading === 'add'}
           />
           <div className="flex justify-end mt-2">
             <button
               onClick={handleAddComment}
               disabled={!newComment.trim() || actionLoading === 'add'}
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="action-btn disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {actionLoading === 'add' ? 'POSTING...' : 'POST'}
             </button>
@@ -154,7 +154,7 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
 
       {/* Empty state */}
       {!loading && comments.length === 0 && (
-        <div className="py-8 text-center border border-dashed border-neutral-800">
+        <div className="empty-state">
           <p className="text-neutral-600 text-sm uppercase">No comments yet</p>
           {canComment && (
             <p className="text-neutral-700 text-xs mt-1">Be the first to comment!</p>
@@ -164,11 +164,11 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
 
       {/* Comments list */}
       {!loading && comments.length > 0 && (
-        <div className="space-y-0">
+        <div className="editorial-grid">
           {comments.map(comment => (
             <div
               key={comment.id}
-              className="border-b border-neutral-800 py-4 first:pt-0 last:border-b-0"
+              className="list-card pad"
             >
               {editingCommentId === comment.id ? (
                 // Edit mode
@@ -177,21 +177,21 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
                     value={editContent}
                     onChange={e => setEditContent(e.target.value)}
                     rows={3}
-                    className="w-full bg-black border border-neutral-800 p-3 text-sm text-white placeholder-neutral-600 resize-none outline-none focus:border-white transition-colors"
+                    className="w-full search-field text-sm resize-none"
                     disabled={actionLoading === comment.id}
                   />
                   <div className="flex gap-2 justify-end">
                     <button
                       onClick={handleCancelEdit}
                       disabled={actionLoading === comment.id}
-                      className="px-3 py-1.5 text-xs uppercase tracking-wider text-neutral-400 hover:text-white transition-colors"
+                      className="action-btn-ghost px-3 py-1.5 !min-h-0"
                     >
                       CANCEL
                     </button>
                     <button
                       onClick={() => handleSaveEdit(comment.id)}
                       disabled={!editContent.trim() || actionLoading === comment.id}
-                      className="px-3 py-1.5 text-xs uppercase tracking-wider bg-white text-black hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="action-btn px-3 py-1.5 !min-h-0 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {actionLoading === comment.id ? 'SAVING...' : 'SAVE'}
                     </button>
@@ -229,14 +229,14 @@ export const CollectionComments: React.FC<CollectionCommentsProps> = ({
                         <button
                           onClick={() => handleStartEdit(comment)}
                           disabled={actionLoading === comment.id}
-                          className="text-xs uppercase text-neutral-500 hover:text-white transition-colors disabled:opacity-50"
+                          className="action-btn-ghost px-3 py-1.5 !min-h-0 disabled:opacity-50"
                         >
                           EDIT
                         </button>
                         <button
                           onClick={() => handleDelete(comment.id)}
                           disabled={actionLoading === comment.id}
-                          className="text-xs uppercase text-neutral-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                          className="action-btn-danger px-3 py-1.5 !min-h-0 disabled:opacity-50"
                         >
                           {actionLoading === comment.id ? 'DELETING...' : 'DELETE'}
                         </button>

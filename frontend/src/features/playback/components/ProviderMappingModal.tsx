@@ -116,12 +116,12 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="modal-shell max-w-lg">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               LINK SOURCE
@@ -139,7 +139,7 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
         </div>
 
         {/* Search controls */}
-        <div className="p-4 border-b border-neutral-800 space-y-3 flex-shrink-0">
+        <div className="modal-section space-y-3">
           {/* Provider selector */}
           <div className="flex gap-2">
             <label className="text-xs text-neutral-600 uppercase tracking-wider self-center w-20">
@@ -148,7 +148,7 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
             <select
               value={selectedProvider}
               onChange={(e) => setSelectedProvider(e.target.value as VideoProviderName)}
-              className="flex-1 bg-neutral-950 border border-neutral-800 text-white px-3 py-2 text-sm uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
+              className="inline-select flex-1 text-sm uppercase"
             >
               {workingProviders.map(provider => (
                 <option key={provider} value={provider} className="bg-black">
@@ -166,13 +166,13 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search title..."
-              className="flex-1 bg-neutral-950 border border-neutral-800 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-white outline-none"
+              className="search-field flex-1 text-sm"
               autoFocus
             />
             <button
               onClick={handleSearch}
               disabled={isSearching || !searchQuery.trim()}
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="action-btn px-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSearching ? 'SEARCHING...' : 'SEARCH'}
             </button>
@@ -200,7 +200,7 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
                   key={result.id || idx}
                   onClick={() => handleSelectResult(result)}
                   disabled={isSaving}
-                  className="w-full p-4 flex gap-4 text-left hover:bg-neutral-900 transition-colors disabled:opacity-50"
+                  className="option-card rounded-none border-x-0 border-t-0 first:rounded-t-none last:border-b-0 flex gap-4 text-left disabled:opacity-50"
                 >
                   {/* Thumbnail */}
                   <div className="flex-shrink-0 w-16">
@@ -256,10 +256,10 @@ export const ProviderMappingModal: React.FC<ProviderMappingModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex-shrink-0">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="w-full py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost w-full"
           >
             CANCEL
           </button>

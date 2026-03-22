@@ -53,7 +53,7 @@ const truncateComment = (content: string, maxLength: number = COMMENT_PREVIEW_LE
 // ==================== Skeleton Loader ====================
 
 const ActivitySkeleton: React.FC = () => (
-  <div className="border border-neutral-800 bg-black p-4 animate-pulse">
+  <div className="list-card pad animate-pulse">
     <div className="flex gap-3 items-start">
       {/* Avatar skeleton */}
       <div className="w-10 h-10 rounded-full bg-neutral-800 flex-shrink-0" />
@@ -121,7 +121,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   return (
     <div 
-      className="border border-neutral-800 bg-black hover:border-neutral-600 hover:bg-neutral-950 transition-all cursor-pointer group"
+      className="list-card hover:border-neutral-600 transition-all cursor-pointer group"
       onClick={handleMediaClick}
     >
       <div className="p-4">
@@ -268,10 +268,10 @@ export const FriendActivityFeed: React.FC<FriendActivityFeedProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="screen-stack">
       {/* Header */}
-      <div className="border-b border-neutral-900 pb-2">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
+      <div className="section-label-row">
+        <h2>
           FRIEND ACTIVITY
         </h2>
       </div>
@@ -287,11 +287,11 @@ export const FriendActivityFeed: React.FC<FriendActivityFeedProps> = ({
 
       {/* Error State */}
       {error && !loading && (
-        <div className="py-12 text-center border border-red-900/50 bg-red-950/20">
+        <div className="empty-state text-red-400">
           <p className="text-red-400 text-sm uppercase mb-3">{error}</p>
           <button
             onClick={() => fetchFeed()}
-            className="text-xs px-4 py-2 border border-neutral-700 text-neutral-400 uppercase tracking-wider hover:border-white hover:text-white transition-colors"
+            className="action-btn-ghost px-4"
           >
             RETRY
           </button>
@@ -300,7 +300,7 @@ export const FriendActivityFeed: React.FC<FriendActivityFeedProps> = ({
 
       {/* Empty State */}
       {!loading && !error && comments.length === 0 && (
-        <div className="py-12 text-center text-neutral-600 border border-neutral-800 border-dashed">
+        <div className="empty-state">
           <p className="text-sm uppercase">NO RECENT ACTIVITY FROM FRIENDS</p>
           <p className="text-xs mt-2 text-neutral-700">
             Comments from people you follow will appear here
@@ -328,7 +328,7 @@ export const FriendActivityFeed: React.FC<FriendActivityFeedProps> = ({
           <button
             onClick={handleLoadMore}
             disabled={loadingMore}
-            className="px-6 py-3 border border-neutral-700 text-neutral-400 uppercase tracking-wider text-sm hover:border-white hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="action-btn-ghost px-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loadingMore ? (
               <span className="animate-pulse">LOADING...</span>

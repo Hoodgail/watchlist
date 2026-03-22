@@ -12,7 +12,7 @@ export interface ModalFrameProps {
 export const ModalFrame: React.FC<ModalFrameProps> = ({
   children,
   onClose,
-  className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4',
+  className = 'modal-backdrop',
   backdropClassName = '',
   closeOnEscape = true,
   closeOnBackdrop = true,

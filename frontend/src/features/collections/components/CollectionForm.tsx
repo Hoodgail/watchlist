@@ -98,10 +98,10 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
   };
 
   return (
-    <ModalFrame className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClose={onClose}>
-      <div className="bg-black border border-neutral-800 w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <ModalFrame onClose={onClose}>
+      <div className="modal-shell max-w-md overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+        <div className="modal-header">
           <h2 className="text-lg font-bold uppercase tracking-wider">
             {isEditing ? 'EDIT LIST' : 'CREATE LIST'}
           </h2>
@@ -117,7 +117,7 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="modal-content space-y-4">
           {/* Title */}
           <div>
             <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-1">
@@ -135,7 +135,7 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
               placeholder="My Awesome List"
               className={`bg-black border ${
                 errors.title ? 'border-red-500' : 'border-neutral-800'
-              } focus:border-white outline-none p-3 w-full transition-colors`}
+              } inline-field w-full`}
             />
             {errors.title && (
               <p className="text-red-500 text-xs mt-1 uppercase">{errors.title}</p>
@@ -152,7 +152,7 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What's this list about?"
               rows={3}
-              className="bg-black border border-neutral-800 focus:border-white outline-none p-3 w-full resize-none transition-colors"
+              className="search-field w-full resize-none"
             />
           </div>
 
@@ -166,11 +166,11 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
               value={coverUrl}
               onChange={(e) => setCoverUrl(e.target.value)}
               placeholder="https://example.com/image.jpg"
-              className="bg-black border border-neutral-800 focus:border-white outline-none p-3 w-full transition-colors"
+              className="inline-field w-full"
             />
             {/* Cover Preview */}
             {isValidImageUrl(coverUrl) && (
-              <div className="mt-2 border border-neutral-800 p-2">
+              <div className="mt-2 screen-panel pad soft">
                 <p className="text-xs text-neutral-500 uppercase tracking-wider mb-2">Preview</p>
                 <img
                   src={coverUrl}
@@ -188,7 +188,7 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
           </div>
 
           {/* Is Public Toggle */}
-          <div className="p-3 border border-neutral-800 bg-neutral-900/50">
+            <div className="screen-panel pad soft">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <p className="font-bold uppercase text-sm">Public List</p>
@@ -218,19 +218,19 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
 
           {/* Footer */}
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 border border-neutral-800 text-neutral-400 px-4 py-3 uppercase tracking-wider text-sm font-bold hover:border-neutral-600 hover:text-white transition-colors disabled:opacity-50"
-            >
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="action-btn-ghost flex-1 disabled:opacity-50"
+              >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-white text-black px-4 py-3 uppercase tracking-wider text-sm font-bold hover:bg-neutral-200 transition-colors disabled:opacity-50"
-            >
+              <button
+                type="submit"
+                disabled={loading}
+                className="action-btn flex-1 disabled:opacity-50"
+              >
               {loading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create List'}
             </button>
           </div>

@@ -92,24 +92,30 @@ export const FriendList: React.FC<FriendListProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="screen-stack">
+      <div className="screen-head-block">
+        <span className="screen-kicker">Social circle</span>
+        <h2 className="screen-title">Friends</h2>
+        <p className="screen-note">Follow people with good taste, scan their recent activity, and borrow the next obsession.</p>
+      </div>
+
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-4">
+      <div className="chip-tabs">
         <button
-          className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+          className={`chip-tab ${
             activeTab === 'following'
-              ? 'bg-yellow-500 text-black'
-              : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'
+              ? 'active'
+              : ''
           }`}
           onClick={() => setActiveTab('following')}
         >
           Following
         </button>
         <button
-          className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+          className={`chip-tab ${
             activeTab === 'activity'
-              ? 'bg-yellow-500 text-black'
-              : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'
+              ? 'active'
+              : ''
           }`}
           onClick={() => setActiveTab('activity')}
         >
@@ -119,17 +125,17 @@ export const FriendList: React.FC<FriendListProps> = ({
 
       {activeTab === 'following' ? (
         <>
-          <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
-            FOLLOWING
-          </h2>
+          <div className="section-label-row">
+            <h2>Following</h2>
+          </div>
 
           {friends.length === 0 ? (
-            <div className="py-8 text-center text-neutral-600 border border-neutral-800 border-dashed">
+            <div className="empty-state">
               <p className="text-sm uppercase">No friends yet</p>
               <p className="text-xs mt-2">Search for users below</p>
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="editorial-grid">
               {friends.map((friend) => {
                 const totalItems = friend.list.length;
                 const watching = friend.list.filter(
@@ -139,34 +145,37 @@ export const FriendList: React.FC<FriendListProps> = ({
                 return (
                   <div
                     key={friend.id}
-                    className="w-full p-6 border border-neutral-800 bg-black hover:bg-neutral-900 hover:border-neutral-600 transition-all group"
+                    className="list-card pad w-full group"
                   >
                     <div className="flex justify-between items-start mb-4">
                       <button
                         onClick={() => onViewFriend(friend)}
-                        className="text-left flex-grow flex items-center gap-3"
-                      >
-                        <FriendAvatar user={friend} size="md" />
-                        <h3 className="text-2xl font-bold text-white uppercase tracking-tighter group-hover:underline decoration-1 underline-offset-4">
+                          className="text-left flex-grow flex items-center gap-3"
+                        >
+                          <FriendAvatar user={friend} size="md" />
+                          <div>
+                            <div className="screen-kicker">Friend profile</div>
+                            <h3 className="text-2xl font-bold text-white uppercase tracking-tighter group-hover:underline decoration-1 underline-offset-4">
                           {friend.username}
-                        </h3>
-                      </button>
+                            </h3>
+                          </div>
+                        </button>
                       <button
                         onClick={() => onUnfollowUser(friend.id)}
-                        className="text-xs border border-neutral-800 px-2 py-1 text-neutral-500 hover:border-red-900 hover:text-red-500 transition-colors"
+                        className="action-btn-danger !min-h-0 px-3 py-2"
                       >
                         UNFOLLOW
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-xs font-mono uppercase text-neutral-500">
-                      <div className="border-l border-neutral-800 pl-3">
-                        <div className="text-neutral-700 mb-1">List Size</div>
-                        <div className="text-white text-lg">{totalItems}</div>
+                    <div className="stats-grid text-xs font-mono uppercase text-neutral-500">
+                      <div className="stats-card">
+                        <strong>{totalItems}</strong>
+                        <span>List Size</span>
                       </div>
-                      <div className="border-l border-neutral-800 pl-3">
-                        <div className="text-neutral-700 mb-1">Active</div>
-                        <div className="text-white text-lg">{watching}</div>
+                      <div className="stats-card">
+                        <strong>{watching}</strong>
+                        <span>Active</span>
                       </div>
                     </div>
                   </div>
@@ -176,8 +185,8 @@ export const FriendList: React.FC<FriendListProps> = ({
           )}
 
           {/* Search Users */}
-          <div className="mt-8 p-4 border border-dashed border-neutral-800">
-            <p className="text-neutral-600 text-xs uppercase mb-4 text-center">
+          <div className="screen-panel pad soft">
+            <p className="text-neutral-600 text-xs uppercase mb-4 text-center tracking-[0.2em]">
               Find users to follow
             </p>
             <form onSubmit={handleSearch} className="flex gap-2">
@@ -186,12 +195,12 @@ export const FriendList: React.FC<FriendListProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="USERNAME"
-                className="w-full bg-neutral-900 border border-neutral-800 p-2 text-xs uppercase text-white placeholder-neutral-700 focus:border-white outline-none"
+                className="inline-field w-full text-xs uppercase"
               />
               <button
                 type="submit"
                 disabled={searching}
-                className="bg-neutral-800 text-neutral-300 px-4 text-xs font-bold uppercase hover:bg-white hover:text-black transition-colors disabled:opacity-50"
+                className="action-btn-ghost px-4 text-xs disabled:opacity-50"
               >
                 {searching ? '...' : 'FIND'}
               </button>
@@ -203,7 +212,7 @@ export const FriendList: React.FC<FriendListProps> = ({
                 {searchResults.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-3 bg-neutral-900 border border-neutral-800"
+                    className="list-card pad flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
                       <FriendAvatar user={user} size="sm" />
@@ -211,13 +220,13 @@ export const FriendList: React.FC<FriendListProps> = ({
                         {user.username}
                       </span>
                     </div>
-                    <button
-                      onClick={() => handleFollow(user.id)}
-                      disabled={followingId === user.id}
-                      className="text-xs border border-neutral-700 text-neutral-400 px-3 py-1 hover:bg-white hover:text-black hover:border-white transition-colors disabled:opacity-50"
-                    >
-                      {followingId === user.id ? '...' : '+ FOLLOW'}
-                    </button>
+                      <button
+                        onClick={() => handleFollow(user.id)}
+                        disabled={followingId === user.id}
+                        className="action-btn-ghost px-3 py-2 disabled:opacity-50"
+                      >
+                        {followingId === user.id ? '...' : '+ FOLLOW'}
+                      </button>
                   </div>
                 ))}
               </div>

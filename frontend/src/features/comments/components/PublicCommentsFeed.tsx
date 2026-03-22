@@ -25,7 +25,7 @@ const truncateText = (text: string, maxLength: number = 80): string => {
 // ==================== Skeleton Component ====================
 
 const CommentCardSkeleton: React.FC = () => (
-  <div className="flex-shrink-0 w-[200px] sm:w-[240px] h-[140px] sm:h-[160px] animate-pulse bg-neutral-800 rounded-lg border border-neutral-700" />
+  <div className="flex-shrink-0 w-[220px] sm:w-[240px] h-[160px] animate-pulse comment-card-shell" />
 );
 
 // ==================== Comment Card Component ====================
@@ -52,7 +52,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className="flex-shrink-0 w-[200px] sm:w-[240px] h-[140px] sm:h-[160px] relative overflow-hidden rounded-lg border border-neutral-800 group focus:outline-none focus-visible:ring-2 focus-visible:ring-white snap-start transition-all hover:border-neutral-600 hover:scale-[1.02]"
+      className="comment-card-shell flex-shrink-0 w-[220px] sm:w-[240px] h-[160px] relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-white snap-start transition-all hover:border-neutral-600 hover:scale-[1.02]"
     >
       {/* Background Image */}
       {imageUrl ? (
@@ -221,10 +221,10 @@ export const PublicCommentsFeed: React.FC<PublicCommentsFeedProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="screen-stack">
       {/* Header */}
-      <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest">
+      <div className="section-label-row px-1">
+        <h3>
           {title}
         </h3>
         {/* Optional "See All" link - can be enabled later */}
@@ -234,12 +234,12 @@ export const PublicCommentsFeed: React.FC<PublicCommentsFeedProps> = ({
       </div>
 
       {/* Scrollable Container */}
-      <div className="relative group">
+      <div className="relative group screen-panel pad soft">
         {/* Left Arrow */}
         {showLeftArrow && (
           <button
             onClick={() => scroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-black/80 border border-neutral-700 p-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-neutral-900"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 app-icon-button opacity-0 group-hover:opacity-100"
             aria-label="Scroll left"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -252,7 +252,7 @@ export const PublicCommentsFeed: React.FC<PublicCommentsFeedProps> = ({
         {showRightArrow && (
           <button
             onClick={() => scroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-black/80 border border-neutral-700 p-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-neutral-900"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 app-icon-button opacity-0 group-hover:opacity-100"
             aria-label="Scroll right"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -265,7 +265,7 @@ export const PublicCommentsFeed: React.FC<PublicCommentsFeedProps> = ({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 snap-x snap-mandatory"
+          className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {loading ? (

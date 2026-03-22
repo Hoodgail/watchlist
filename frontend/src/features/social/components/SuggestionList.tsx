@@ -115,32 +115,31 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
   const suggestions = activeTab === 'received' ? receivedSuggestions : sentSuggestions;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="border-b border-neutral-900 pb-2">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
-          SUGGESTIONS
-        </h2>
+    <div className="screen-stack">
+      <div className="screen-head-block">
+        <span className="screen-kicker">Recommendation inbox</span>
+        <h2 className="screen-title">Suggestions</h2>
+        <p className="screen-note">Accept what looks promising, dismiss the misses, and keep your social queue tidy.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border border-neutral-800">
+      <div className="chip-tabs">
         <button
           onClick={() => setActiveTab('received')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+          className={`chip-tab ${
             activeTab === 'received'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
+              ? 'active'
+              : ''
           }`}
         >
           RECEIVED
         </button>
         <button
           onClick={() => setActiveTab('sent')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${
+          className={`chip-tab ${
             activeTab === 'sent'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
+              ? 'active'
+              : ''
           }`}
         >
           SENT
@@ -149,12 +148,12 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
 
       {/* Status Filter (only for received) */}
       {activeTab === 'received' && (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-neutral-600 uppercase">STATUS:</span>
+        <div className="screen-panel pad flex items-center gap-2 text-xs">
+          <span className="screen-kicker">Status</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as SuggestionStatus)}
-            className="bg-black border border-neutral-800 text-neutral-400 px-2 py-1 uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
+            className="inline-select uppercase"
           >
             {STATUS_FILTER_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value} className="bg-black">
@@ -174,7 +173,7 @@ export const SuggestionList: React.FC<SuggestionListProps> = ({ onSuggestionCoun
 
       {/* Empty State */}
       {!loading && suggestions.length === 0 && (
-        <div className="py-12 text-center text-neutral-600 border border-neutral-800 border-dashed">
+        <div className="empty-state">
           <p className="text-sm uppercase">
             {activeTab === 'received'
               ? `NO ${statusFilter} SUGGESTIONS`
@@ -231,7 +230,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
 
   return (
     <div className="border border-neutral-800 bg-black hover:border-neutral-600 transition-all">
-      <div className="p-4">
+      <div className="p-4 list-card">
         <div className="flex gap-4">
           {/* Poster Image */}
           {imageUrl && !imageError && (
@@ -252,10 +251,10 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
                 {suggestion.title}
               </h3>
               
-              <div className="flex flex-wrap gap-2 text-xs uppercase mt-1">
-                <span className="bg-neutral-900 text-neutral-400 px-1.5 py-0.5 border border-neutral-800">
-                  {suggestion.type}
-                </span>
+                <div className="flex flex-wrap gap-2 text-xs uppercase mt-2 items-center">
+                  <span className="meta-pill">
+                    {suggestion.type}
+                  </span>
                 <span className="text-neutral-600">
                   {formatRelativeTime(suggestion.createdAt)}
                 </span>
@@ -278,16 +277,16 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
 
               {/* Message */}
               {suggestion.message && (
-                <div className="mt-2 p-2 bg-neutral-950 border border-neutral-800 text-sm text-neutral-400">
-                  "{suggestion.message}"
-                </div>
-              )}
+                  <div className="mt-2 screen-panel pad soft text-sm text-neutral-400">
+                    "{suggestion.message}"
+                  </div>
+                )}
 
               {/* Status Badge (for non-pending) */}
               {suggestion.status !== 'PENDING' && (
-                <div className={`mt-2 inline-block text-xs px-2 py-1 uppercase ${
-                  suggestion.status === 'ACCEPTED'
-                    ? 'bg-green-950 border border-green-900 text-green-400'
+                  <div className={`mt-2 inline-block text-xs px-2 py-1 uppercase rounded-xl ${
+                    suggestion.status === 'ACCEPTED'
+                      ? 'bg-green-950 border border-green-900 text-green-400'
                     : 'bg-neutral-900 border border-neutral-800 text-neutral-500'
                 }`}>
                   {suggestion.status}
@@ -302,14 +301,14 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
                   <button
                     onClick={() => onAccept(suggestion.id)}
                     disabled={isLoading}
-                    className="w-full sm:w-auto text-xs px-4 py-2 bg-white text-black font-bold uppercase tracking-wider hover:bg-neutral-200 transition-colors disabled:opacity-50"
+                    className="w-full sm:w-auto action-btn disabled:opacity-50"
                   >
                     {isLoading ? '...' : 'ACCEPT'}
                   </button>
                   <button
                     onClick={() => onDismiss(suggestion.id)}
                     disabled={isLoading}
-                    className="w-full sm:w-auto text-xs px-4 py-2 border border-neutral-700 text-neutral-400 uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50"
+                    className="w-full sm:w-auto action-btn-ghost disabled:opacity-50"
                   >
                     {isLoading ? '...' : 'DISMISS'}
                   </button>
@@ -319,7 +318,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
                 <button
                   onClick={() => onDelete(suggestion.id)}
                   disabled={isLoading}
-                  className="w-full sm:w-auto text-xs px-4 py-2 border border-neutral-800 text-neutral-500 uppercase tracking-wider hover:border-red-900 hover:text-red-500 transition-colors disabled:opacity-50"
+                  className="w-full sm:w-auto action-btn-danger disabled:opacity-50"
                 >
                   {isLoading ? '...' : 'DELETE'}
                 </button>

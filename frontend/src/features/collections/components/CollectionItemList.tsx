@@ -92,7 +92,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="border border-neutral-800 hover:border-neutral-600 bg-black transition-colors"
+      className="list-card hover:border-neutral-600 transition-colors"
     >
       <div className="flex items-center gap-3 p-3">
         {/* Drag Handle */}
@@ -121,7 +121,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
         )}
 
         {/* Image/Poster */}
-        <div className="flex-shrink-0 w-12 h-16 bg-neutral-900 border border-neutral-800 overflow-hidden">
+        <div className="flex-shrink-0 w-12 h-16 rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden">
           {imageUrl && !imageError ? (
             <img
               src={imageUrl}
@@ -142,9 +142,9 @@ const SortableItem: React.FC<SortableItemProps> = ({
             <h4 className="font-bold text-sm uppercase tracking-tight text-white truncate">
               {title}
             </h4>
-            <span className="bg-neutral-900 text-neutral-400 text-xs uppercase px-1.5 py-0.5 flex-shrink-0">
-              {item.type}
-            </span>
+              <span className="meta-pill flex-shrink-0">
+                {item.type}
+              </span>
             {item.year && (
               <span className="text-neutral-500 text-xs">
                 {item.year}
@@ -168,7 +168,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
                 onKeyDown={handleNoteKeyDown}
                 autoFocus
                 placeholder="Add a note..."
-                className="mt-1 w-full bg-neutral-900 border border-neutral-700 text-sm text-neutral-300 px-2 py-1 outline-none focus:border-white"
+                className="mt-1 w-full inline-field text-sm px-2 py-1"
               />
             ) : (
               <button
@@ -294,14 +294,14 @@ export const CollectionItemList: React.FC<CollectionItemListProps> = ({
   // Empty state
   if (items.length === 0) {
     return (
-      <div className="py-12 text-center border border-neutral-800 border-dashed">
+      <div className="empty-state">
         <p className="text-sm text-neutral-600 uppercase">
           No items in this collection
         </p>
         {canEdit && (
           <button
             onClick={onAddItem}
-            className="mt-4 text-xs px-4 py-2 bg-white text-black font-bold uppercase tracking-wider hover:bg-neutral-200 transition-colors"
+            className="mt-4 action-btn"
           >
             + ADD ITEMS
           </button>
@@ -338,7 +338,7 @@ export const CollectionItemList: React.FC<CollectionItemListProps> = ({
       {canEdit && (
         <button
           onClick={onAddItem}
-          className="w-full py-3 border border-dashed border-neutral-700 text-neutral-500 text-xs font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
+          className="w-full py-3 border border-dashed border-neutral-700 rounded-2xl text-neutral-500 text-xs font-bold uppercase tracking-wider hover:border-neutral-500 hover:text-white transition-colors"
         >
           + ADD ITEM
         </button>

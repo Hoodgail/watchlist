@@ -116,51 +116,39 @@ export const Collections: React.FC<CollectionsProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-900 pb-2">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
-          LISTS
-        </h2>
+    <div className="screen-stack">
+      <div className="screen-head">
+        <div className="screen-head-block">
+          <span className="screen-kicker">Curated shelves</span>
+          <h2 className="screen-title">Collections</h2>
+          <p className="screen-note">Build private stacks, browse public lists, and star the ones worth revisiting.</p>
+        </div>
         {activeTab === 'my' && (
           <button
             onClick={onCreateCollection}
-            className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 bg-white text-black hover:bg-neutral-200 transition-colors"
+            className="action-btn"
           >
             + CREATE
           </button>
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex border border-neutral-800">
+      <div className="chip-tabs">
         <button
           onClick={() => handleTabChange('my')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
-            activeTab === 'my'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
-          }`}
+          className={`chip-tab ${activeTab === 'my' ? 'active' : ''}`}
         >
           MY
         </button>
         <button
           onClick={() => handleTabChange('public')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${
-            activeTab === 'public'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
-          }`}
+          className={`chip-tab ${activeTab === 'public' ? 'active' : ''}`}
         >
           PUBLIC
         </button>
         <button
           onClick={() => handleTabChange('starred')}
-          className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-l border-neutral-800 ${
-            activeTab === 'starred'
-              ? 'bg-white text-black'
-              : 'text-neutral-500 hover:bg-neutral-900'
-          }`}
+          className={`chip-tab ${activeTab === 'starred' ? 'active' : ''}`}
         >
           STARRED
         </button>
@@ -168,13 +156,13 @@ export const Collections: React.FC<CollectionsProps> = ({
 
       {/* Search Input (only for public tab) */}
       {activeTab === 'public' && (
-        <div className="relative">
+        <div className="screen-panel pad soft relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search public collections..."
-            className="w-full bg-black border border-neutral-800 text-neutral-300 px-4 py-3 text-sm uppercase tracking-wider placeholder:text-neutral-600 outline-none focus:border-white transition-colors"
+            className="search-field text-sm uppercase tracking-wider"
           />
           {searchQuery && (
             <button
@@ -198,7 +186,7 @@ export const Collections: React.FC<CollectionsProps> = ({
 
       {/* Empty State */}
       {!loading && collections.length === 0 && (
-        <div className="py-12 text-center text-neutral-600 border border-neutral-800 border-dashed">
+        <div className="empty-state">
           <p className="text-sm uppercase">{getEmptyMessage().title}</p>
           <p className="text-xs mt-2 text-neutral-700">{getEmptyMessage().subtitle}</p>
         </div>
@@ -207,7 +195,7 @@ export const Collections: React.FC<CollectionsProps> = ({
       {/* Collections Grid */}
       {collections.length > 0 && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="collection-grid lg:grid-cols-3 gap-4">
             {collections.map((collection) => (
               <CollectionCard
                 key={collection.id}
@@ -224,7 +212,7 @@ export const Collections: React.FC<CollectionsProps> = ({
               <button
                 onClick={handleLoadMore}
                 disabled={loading}
-                className="text-xs font-bold uppercase tracking-wider px-6 py-2 border border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-white transition-colors disabled:opacity-50"
+                className="action-btn-ghost px-6 disabled:opacity-50"
               >
                 {loading ? 'Loading...' : 'Load More'}
               </button>
@@ -272,10 +260,10 @@ const CollectionCard: React.FC<CollectionCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className="border border-neutral-800 bg-black hover:border-neutral-600 transition-all cursor-pointer group overflow-hidden"
+      className="list-card hover:border-neutral-600 transition-all cursor-pointer group overflow-hidden"
     >
       {/* Cover Image */}
-      <div className="aspect-video relative overflow-hidden">
+      <div className="aspect-video card-cover">
         {collection.coverUrl ? (
           <img
             src={collection.coverUrl}
@@ -289,11 +277,11 @@ const CollectionCard: React.FC<CollectionCardProps> = ({
         {/* Overlay badges */}
         <div className="absolute top-2 left-2 flex gap-1.5">
           {showVisibilityBadge && (
-            <span
-              className={`text-[10px] px-1.5 py-0.5 uppercase font-bold ${
-                collection.isPublic
-                  ? 'bg-green-950 border border-green-900 text-green-400'
-                  : 'bg-neutral-900 border border-neutral-800 text-neutral-400'
+              <span
+                className={`text-[10px] px-1.5 py-0.5 uppercase font-bold rounded-xl ${
+                  collection.isPublic
+                    ? 'bg-green-950 border border-green-900 text-green-400'
+                    : 'bg-neutral-900 border border-neutral-800 text-neutral-400'
               }`}
             >
               {collection.isPublic ? 'PUBLIC' : 'PRIVATE'}
@@ -301,7 +289,7 @@ const CollectionCard: React.FC<CollectionCardProps> = ({
           )}
           {showRoleBadge && collection.myRole && (
             <span
-              className={`text-[10px] px-1.5 py-0.5 uppercase font-bold ${getRoleBadgeStyle(collection.myRole)}`}
+              className={`text-[10px] px-1.5 py-0.5 uppercase font-bold rounded-xl ${getRoleBadgeStyle(collection.myRole)}`}
             >
               {collection.myRole}
             </span>
@@ -310,7 +298,7 @@ const CollectionCard: React.FC<CollectionCardProps> = ({
 
         {/* Item count badge */}
         <div className="absolute bottom-2 right-2">
-          <span className="text-[10px] px-1.5 py-0.5 bg-black/80 border border-neutral-700 text-neutral-300 uppercase font-bold">
+          <span className="meta-pill bg-black/80">
             {collection.itemCount} {collection.itemCount === 1 ? 'ITEM' : 'ITEMS'}
           </span>
         </div>

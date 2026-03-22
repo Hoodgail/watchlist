@@ -259,16 +259,16 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
 
   if (loading) {
     return (
-      <div className="py-12 text-center text-neutral-500 uppercase tracking-wider animate-pulse">
+      <div className="screen-panel pad py-12 text-center text-neutral-500 uppercase tracking-wider animate-pulse">
         Loading settings...
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="screen-stack">
       {/* Header */}
-      <div className="border-b border-neutral-800 pb-4">
+      <div className="screen-head-block">
         <button
           onClick={onBack}
           className="text-neutral-500 hover:text-white mb-4 text-sm uppercase tracking-wider flex items-center gap-2 transition-colors"
@@ -278,12 +278,14 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
           </svg>
           Back
         </button>
-        <h2 className="text-2xl font-bold uppercase tracking-tighter">Settings</h2>
+        <span className="screen-kicker">Account controls</span>
+        <h2 className="screen-title">Settings</h2>
+        <p className="screen-note">Privacy, recovery, and connected accounts tuned into the new editorial shell.</p>
       </div>
 
       {/* Account Security Warning Banner */}
       {accountAtRisk && (
-        <div className="bg-yellow-900/30 border border-yellow-700/50 p-4">
+        <div className="screen-panel pad bg-yellow-900/30 border border-yellow-700/50">
           <div className="flex items-start gap-3">
             <WarningIcon className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -301,11 +303,9 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
 
       {/* Profile Section */}
       {user && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
-            Profile
-          </h3>
-          <div className="flex items-center gap-4 p-4 border border-neutral-800 bg-neutral-900/50">
+        <div className="screen-stack">
+          <div className="section-label-row"><h3>Profile</h3></div>
+          <div className="screen-panel pad soft flex items-center gap-4">
             <UserAvatar username={user.username} displayName={user.displayName} avatarUrl={user.avatarUrl} size="lg" fallbackClassName="bg-neutral-800 text-white border border-neutral-700" />
             <div className="flex-1 min-w-0">
               <p className="font-bold uppercase truncate">{user.displayName || user.username}</p>
@@ -315,7 +315,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
           </div>
           
           {/* Profile Link */}
-          <div className="p-4 border border-neutral-800 bg-neutral-900/50">
+          <div className="screen-panel pad soft">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-bold uppercase text-sm">Public Profile</p>
@@ -338,10 +338,8 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
       )}
 
       {/* Privacy Section */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
-          Privacy
-        </h3>
+      <div className="screen-stack">
+        <div className="section-label-row"><h3>Privacy</h3></div>
         
         <div className="p-4 border border-neutral-800 bg-neutral-900/50">
           <div className="flex items-center justify-between">

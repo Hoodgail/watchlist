@@ -107,12 +107,12 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="modal-shell max-w-lg">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex-shrink-0">
+        <div className="modal-header">
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-yellow-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -131,7 +131,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {/* Original search info */}
-          <div className="p-4 border-b border-neutral-800 bg-neutral-950">
+          <div className="modal-section bg-neutral-950">
             <p className="text-xs text-neutral-600 uppercase tracking-wider mb-1">
               Searching for
             </p>
@@ -144,7 +144,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
           </div>
 
           {/* Best match (current selection) */}
-          <div className="p-4 border-b border-neutral-800">
+          <div className="modal-section">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-neutral-600 uppercase tracking-wider">
                 Best Match
@@ -159,10 +159,10 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
                 setSelectedId(matchedProviderId);
                 setSelectedTitle(matchedTitle);
               }}
-              className={`w-full p-3 flex gap-3 text-left border transition-colors ${
+              className={`option-card flex gap-3 text-left ${
                 isCurrentMatch 
-                  ? 'border-white bg-neutral-900' 
-                  : 'border-neutral-800 hover:border-neutral-600'
+                  ? 'selected' 
+                  : ''
               }`}
             >
               <div className="flex-1 min-w-0">
@@ -182,7 +182,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
 
           {/* Alternative matches */}
           {alternatives.length > 0 && (
-            <div className="p-4">
+              <div className="modal-content pt-0">
               <p className="text-xs text-neutral-600 uppercase tracking-wider mb-3">
                 Alternative Matches ({alternatives.length})
               </p>
@@ -196,10 +196,10 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
                     <button
                       key={alt.id || idx}
                       onClick={() => handleSelectAlternative(alt)}
-                      className={`w-full p-3 flex gap-3 text-left border transition-colors ${
+                      className={`option-card flex gap-3 text-left ${
                         isSelected 
-                          ? 'border-white bg-neutral-900' 
-                          : 'border-neutral-800 hover:border-neutral-600'
+                          ? 'selected' 
+                          : ''
                       }`}
                     >
                       {/* Thumbnail */}

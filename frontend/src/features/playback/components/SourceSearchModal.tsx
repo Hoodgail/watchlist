@@ -127,12 +127,12 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="modal-shell max-w-lg max-h-[90vh]">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               {mode === 'link' ? 'LINK ANOTHER SOURCE' : 'CHANGE SOURCE'}
@@ -152,7 +152,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
         </div>
 
         {/* Search controls */}
-        <div className="p-4 border-b border-neutral-800 space-y-3 flex-shrink-0">
+        <div className="modal-section space-y-3">
           {/* Provider selector */}
           <div className="flex gap-2">
             <label className="text-xs text-neutral-600 uppercase tracking-wider self-center w-20">
@@ -161,7 +161,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
             <select
               value={selectedProvider || ''}
               onChange={(e) => setSelectedProvider(e.target.value as ProviderName)}
-              className="flex-1 bg-neutral-950 border border-neutral-800 text-white px-3 py-2 text-sm uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
+              className="inline-select flex-1 text-sm uppercase"
             >
                 {availableProviders.map(provider => (
                   <option key={provider.name} value={provider.name} className="bg-black">
@@ -179,13 +179,13 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search title..."
-              className="flex-1 bg-neutral-950 border border-neutral-800 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-white outline-none"
+              className="search-field flex-1 text-sm"
               autoFocus
             />
             <button
               onClick={handleSearch}
               disabled={isSearching || !searchQuery.trim() || !selectedProvider}
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="action-btn px-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSearching ? '...' : 'SEARCH'}
             </button>
@@ -193,7 +193,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
         </div>
 
         {/* Current Source Info */}
-        <div className="px-4 py-2 bg-neutral-950 border-b border-neutral-800 flex-shrink-0">
+        <div className="modal-section bg-neutral-950 py-2">
           <p className="text-xs text-neutral-600">
             <span className="uppercase tracking-wider">Current source:</span>{' '}
             <span className="text-neutral-400 font-mono">{refId}</span>
@@ -226,7 +226,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
                 <button
                   key={result.id || idx}
                   onClick={() => handleSelectResult(result)}
-                  className="w-full p-4 flex gap-4 text-left hover:bg-neutral-900 transition-colors"
+                  className="option-card rounded-none border-x-0 border-t-0 first:rounded-t-none last:border-b-0 flex gap-4 text-left"
                 >
                   {/* Thumbnail */}
                   <div className="flex-shrink-0 w-16">
@@ -253,7 +253,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
                     </h4>
                     <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 flex-wrap">
                       {result.type && (
-                        <span className="uppercase bg-neutral-900 px-1">{result.type}</span>
+                        <span className="meta-pill">{result.type}</span>
                       )}
                       {result.year && (
                         <span>{result.year}</span>
@@ -287,10 +287,10 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex-shrink-0">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="w-full py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost w-full"
           >
             CANCEL
           </button>

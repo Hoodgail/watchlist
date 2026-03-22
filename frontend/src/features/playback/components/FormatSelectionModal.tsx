@@ -42,12 +42,12 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-md">
+      <div className="modal-shell max-w-md">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               SELECT FORMAT
@@ -65,7 +65,7 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
         </div>
 
         {/* Title Preview */}
-        <div className="p-4 border-b border-neutral-800 bg-neutral-950">
+        <div className="modal-section bg-neutral-950">
           <div className="flex gap-4">
             {imageUrl && (
               <div className="flex-shrink-0 w-16">
@@ -91,7 +91,7 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
         </div>
 
         {/* Format Options */}
-        <div className="p-4 space-y-3">
+        <div className="modal-content space-y-3">
           <p className="text-xs text-neutral-600 uppercase tracking-wider mb-4">
             Which would you like to add?
           </p>
@@ -100,7 +100,7 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
           {animeResult && (
             <button
               onClick={() => onSelect(animeResult)}
-              className="w-full p-4 border border-neutral-700 hover:border-blue-500 hover:bg-blue-950/20 transition-all flex items-center gap-4 group"
+              className="option-card flex items-center gap-4 group"
             >
               <div className="flex-shrink-0 w-12 h-12 bg-blue-900/30 border border-blue-700 flex items-center justify-center">
                 <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
@@ -126,7 +126,7 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
           {mangaResult && (
             <button
               onClick={() => onSelect(mangaResult)}
-              className="w-full p-4 border border-neutral-700 hover:border-purple-500 hover:bg-purple-950/20 transition-all flex items-center gap-4 group"
+              className="option-card flex items-center gap-4 group"
             >
               <div className="flex-shrink-0 w-12 h-12 bg-purple-900/30 border border-purple-700 flex items-center justify-center">
                 <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -150,10 +150,10 @@ export const FormatSelectionModal: React.FC<FormatSelectionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="w-full py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost w-full"
           >
             CANCEL
           </button>

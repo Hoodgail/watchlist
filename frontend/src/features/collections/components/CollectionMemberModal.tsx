@@ -110,10 +110,10 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
   };
 
   return (
-    <ModalFrame className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClose={onClose}>
-      <div className="bg-black border border-neutral-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+    <ModalFrame onClose={onClose}>
+      <div className="modal-shell max-w-lg">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               MANAGE MEMBERS
@@ -131,17 +131,17 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="modal-content space-y-4">
           {/* Add Member Button/Form */}
           {!showAddForm ? (
             <button
               onClick={() => setShowAddForm(true)}
-              className="w-full py-3 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors"
+              className="action-btn w-full"
             >
               ADD MEMBER BY USERNAME
             </button>
           ) : (
-            <form onSubmit={handleAddMember} className="border border-neutral-800 p-4 space-y-4">
+            <form onSubmit={handleAddMember} className="screen-panel pad space-y-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                 ADD NEW MEMBER
               </h4>
@@ -156,7 +156,7 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter username..."
-                  className="w-full bg-neutral-950 border border-neutral-800 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none uppercase"
+                  className="search-field w-full text-sm uppercase"
                   autoFocus
                 />
               </div>
@@ -170,11 +170,7 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setNewRole('VIEWER')}
-                    className={`flex-1 p-3 text-left border transition-colors ${
-                      newRole === 'VIEWER'
-                        ? 'border-white bg-neutral-900'
-                        : 'border-neutral-800 hover:border-neutral-600'
-                    }`}
+                    className={`option-card flex-1 text-left ${newRole === 'VIEWER' ? 'selected' : ''}`}
                   >
                     <div className="text-xs font-bold text-white uppercase">VIEWER</div>
                     <div className="text-xs text-neutral-500 mt-0.5">Can view items and comments</div>
@@ -182,11 +178,7 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setNewRole('EDITOR')}
-                    className={`flex-1 p-3 text-left border transition-colors ${
-                      newRole === 'EDITOR'
-                        ? 'border-white bg-neutral-900'
-                        : 'border-neutral-800 hover:border-neutral-600'
-                    }`}
+                    className={`option-card flex-1 text-left ${newRole === 'EDITOR' ? 'selected' : ''}`}
                   >
                     <div className="text-xs font-bold text-white uppercase">EDITOR</div>
                     <div className="text-xs text-neutral-500 mt-0.5">Can add, edit, and remove items</div>
@@ -210,14 +202,14 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
                     setAddError(null);
                     setUsername('');
                   }}
-                  className="flex-1 py-2 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+                  className="action-btn-ghost flex-1"
                 >
                   CANCEL
                 </button>
                 <button
                   type="submit"
                   disabled={addingMember || !username.trim()}
-                  className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-white text-black hover:bg-neutral-200 transition-colors disabled:opacity-50"
+                  className="action-btn flex-1 disabled:opacity-50"
                 >
                   {addingMember ? 'ADDING...' : 'ADD'}
                 </button>
@@ -230,7 +222,7 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
             <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
               OWNER
             </h4>
-            <div className="border border-neutral-800 p-3">
+            <div className="screen-panel pad soft">
               <div className="flex items-center gap-3">
                 <UserAvatar username={owner.username} displayName={owner.displayName} avatarUrl={owner.avatarUrl} sizeClassName="w-10 h-10 text-xs" fallbackClassName="bg-neutral-800 text-neutral-400 border border-neutral-700" />
                 <div className="flex-1 min-w-0">
@@ -250,7 +242,7 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
               MEMBERS ({members.length})
             </h4>
             {members.length === 0 ? (
-              <div className="py-6 text-center text-neutral-600 border border-neutral-800 border-dashed">
+               <div className="empty-state py-6">
                 <p className="text-sm uppercase">NO MEMBERS YET</p>
                 <p className="text-xs mt-2 text-neutral-700">
                   Add members by username or create an invite link

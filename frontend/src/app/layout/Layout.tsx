@@ -26,24 +26,152 @@ export const Layout: React.FC<LayoutProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const topNavItems: { id: View; label: string; requiresNetwork?: boolean }[] = [
+    { id: 'WATCHLIST', label: 'Watch' },
+    { id: 'READLIST', label: 'Read' },
+    { id: 'PLAYLIST', label: 'Play' },
+    { id: 'TRENDING', label: 'Trending', requiresNetwork: true },
+    { id: 'DOWNLOADS', label: 'Offline' },
+  ];
+
+  const bottomNavItems: Array<{
+    id: View;
+    label: string;
+    requiresNetwork?: boolean;
+    icon: React.ReactNode;
+  }> = [
+    {
+      id: 'WATCHLIST',
+      label: 'Watch',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="m10 9 5 3-5 3V9Z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'FRIENDS',
+      label: 'Friends',
+      requiresNetwork: true,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
+    {
+      id: 'COLLECTIONS',
+      label: 'Lists',
+      requiresNetwork: true,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h13" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 18h13" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h.01" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h.01" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 18h.01" />
+        </svg>
+      ),
+    },
+    {
+      id: 'SETTINGS',
+      label: 'Profile',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 1 0-16 0" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      ),
+    },
+  ];
+
   // Views that require network access
   const networkRequiredViews: View[] = ['TRENDING', 'SEARCH', 'FRIENDS', 'SUGGESTIONS', 'COLLECTIONS'];
 
-  const navItems: { id: View; label: string; requiresNetwork?: boolean }[] = [
-    { id: 'WATCHLIST', label: 'WATCH' },
-    { id: 'READLIST', label: 'READ' },
-    { id: 'PLAYLIST', label: 'PLAY' },
-    { id: 'TRENDING', label: 'HOT', requiresNetwork: true },
-    { id: 'SEARCH', label: 'ADD', requiresNetwork: true },
-    { id: 'FRIENDS', label: 'SOCIAL', requiresNetwork: true },
-    { id: 'COLLECTIONS', label: 'LISTS', requiresNetwork: true },
-  ];
-
   const isAuthView = currentView === 'LOGIN' || currentView === 'REGISTER';
+
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
+
+  const viewMeta: Partial<Record<View, { eyebrow: string; title: React.ReactNode; subtitle: string }>> = {
+    WATCHLIST: {
+      eyebrow: greeting,
+      title: <>Your <span className="app-title-accent">Reelz</span></>,
+      subtitle: 'Track the next episode, revisit favorites, and keep the queue moving.',
+    },
+    READLIST: {
+      eyebrow: 'Reading room',
+      title: <>Your <span className="app-title-accent">Chapters</span></>,
+      subtitle: 'Follow manga progress, bookmark arcs, and keep your reading streak intact.',
+    },
+    PLAYLIST: {
+      eyebrow: 'Controller ready',
+      title: <>Your <span className="app-title-accent">Backlog</span></>,
+      subtitle: 'Keep games, sessions, and finish rates in one place.',
+    },
+    SEARCH: {
+      eyebrow: 'Add something new',
+      title: <>Find your <span className="app-title-accent">next pick</span></>,
+      subtitle: 'Search across movies, shows, anime, manga, and games without leaving the app shell.',
+    },
+    TRENDING: {
+      eyebrow: 'Fresh picks',
+      title: <>What&apos;s <span className="app-title-accent">trending</span></>,
+      subtitle: 'Browse the loudest releases and quick-add what deserves a slot.',
+    },
+    FRIENDS: {
+      eyebrow: 'Social reel',
+      title: <>Friend <span className="app-title-accent">activity</span></>,
+      subtitle: 'See what your circle is watching, reading, rating, and recommending.',
+    },
+    FRIEND_VIEW: {
+      eyebrow: 'Shared taste',
+      title: <>Friend <span className="app-title-accent">lists</span></>,
+      subtitle: 'Browse another shelf and pull standout picks into your own watchlist.',
+    },
+    SUGGESTIONS: {
+      eyebrow: 'Inbox',
+      title: <>Incoming <span className="app-title-accent">suggestions</span></>,
+      subtitle: 'Review what friends think deserves your time next.',
+    },
+    SETTINGS: {
+      eyebrow: 'Profile controls',
+      title: <>Account <span className="app-title-accent">details</span></>,
+      subtitle: 'Tighten recovery options, privacy, and connection settings.',
+    },
+    DOWNLOADS: {
+      eyebrow: 'Offline vault',
+      title: <>Saved for <span className="app-title-accent">later</span></>,
+      subtitle: 'Keep downloaded chapters and episodes ready when the connection disappears.',
+    },
+    COLLECTIONS: {
+      eyebrow: 'Curated shelves',
+      title: <>Custom <span className="app-title-accent">lists</span></>,
+      subtitle: 'Build themed collections, share picks, and keep favorites grouped together.',
+    },
+    COLLECTION_VIEW: {
+      eyebrow: 'Curated shelf',
+      title: <>Collection <span className="app-title-accent">view</span></>,
+      subtitle: 'Edit, browse, and expand a focused set of recommendations.',
+    },
+  };
+
+  const activeMeta = viewMeta[currentView] ?? viewMeta.WATCHLIST!;
   
   // Check if navigation should be disabled for a view
   const isNavDisabled = (item: { id: View; requiresNetwork?: boolean }) => {
     return isOfflineAuthenticated && item.requiresNetwork;
+  };
+
+  const isNavActive = (itemId: View) => {
+    if (itemId === 'FRIENDS' && (currentView === 'FRIEND_VIEW' || currentView === 'SUGGESTIONS')) return true;
+    if (itemId === 'COLLECTIONS' && currentView === 'COLLECTION_VIEW') return true;
+    return currentView === itemId;
   };
 
   // Close dropdown when clicking outside
@@ -68,164 +196,185 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono flex flex-col max-w-2xl mx-auto border-x border-neutral-900 shadow-2xl shadow-neutral-900">
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-sm border-b border-neutral-800">
-        <div className="p-4 border-b border-neutral-800 flex justify-between items-center">
-          <h1 className="text-xl font-bold tracking-widest uppercase">Watchlist</h1>
-          <div className="flex items-center gap-3">
-            {user && (
-              <>
-            {/* Downloads Icon */}
-                <button
-                  onClick={() => onViewChange('DOWNLOADS')}
-                  className={`relative p-1 transition-colors ${
-                    currentView === 'DOWNLOADS'
-                      ? 'text-white'
-                      : 'text-neutral-500 hover:text-white'
-                  }`}
-                  title="Downloads"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
-                </button>
-                {/* Suggestions Bell Icon */}
-                <button
-                  onClick={() => !isOfflineAuthenticated && onViewChange('SUGGESTIONS')}
-                  disabled={isOfflineAuthenticated}
-                  className={`relative p-1 transition-colors ${
-                    isOfflineAuthenticated
-                      ? 'text-neutral-700 cursor-not-allowed'
-                      : currentView === 'SUGGESTIONS'
-                        ? 'text-white'
-                        : 'text-neutral-500 hover:text-white'
-                  }`}
-                  title={isOfflineAuthenticated ? 'Requires internet connection' : 'Suggestions'}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                    />
-                  </svg>
-                  {pendingSuggestionsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-white text-black text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
-                      {pendingSuggestionsCount > 99 ? '99+' : pendingSuggestionsCount}
-                    </span>
-                  )}
-                </button>
-                <div className="relative" ref={dropdownRef}>
-                <UserAvatar 
-                  username={user.username}
-                  displayName={user.displayName}
-                  avatarUrl={user.avatarUrl}
-                  size="md" 
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="cursor-pointer hover:ring-2 hover:ring-neutral-600 transition-all"
-                  fallbackClassName="bg-neutral-800 text-white border border-neutral-700"
-                />
-                
-                {/* Dropdown Menu */}
-                {showDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-black border border-neutral-800 shadow-xl z-50">
-                    <div className="p-3 border-b border-neutral-800">
-                      <p className="text-sm font-bold uppercase truncate">{user.username}</p>
-                      <p className="text-xs text-neutral-500 truncate">{user.email}</p>
-                    </div>
-                    <div className="py-1">
-                      <button
-                        onClick={() => handleDropdownAction('settings')}
-                        className="w-full px-4 py-3 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-neutral-900 hover:text-white transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Settings
-                      </button>
-                      <button
-                        onClick={() => handleDropdownAction('logout')}
-                        className="w-full px-4 py-3 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-neutral-900 hover:text-red-500 transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-              </>
-            )}
-            <div
-              className={`w-2 h-2 ${user ? (isOnline ? 'bg-green-500' : 'bg-red-500') : 'bg-yellow-500'} animate-pulse`}
-              title={user ? (isOnline ? 'Online' : 'Offline') : 'Not logged in'}
-            ></div>
-            {!isOnline && user && (
-              <span className="text-xs text-red-500 uppercase tracking-wider hidden sm:inline">
-                Offline
-              </span>
-            )}
+    <div className="app-theme">
+      <div className="app-device">
+        <div className="app-statusbar">
+          <span className="app-statusbar-time">9:41</span>
+          <div className="app-dynamic-island" />
+          <div className="app-statusbar-right">
+            <span
+              className={`app-status-dot ${user ? (isOnline ? 'online' : 'offline') : 'online'}`}
+              title={user ? (isOnline ? 'Online' : 'Offline') : 'Ready'}
+            />
           </div>
         </div>
 
-        {/* Only show nav when logged in */}
+        <header className="app-header">
+          <div className="app-header-top">
+            <div>
+              <div className="app-eyebrow">{activeMeta.eyebrow}</div>
+              <h1 className="app-title">{activeMeta.title}</h1>
+              <p className="app-subtitle">{activeMeta.subtitle}</p>
+            </div>
+
+            {user && (
+              <div className="app-header-actions">
+                <button
+                  onClick={() => onViewChange('DOWNLOADS')}
+                  className={`app-icon-button ${currentView === 'DOWNLOADS' ? 'active' : ''}`}
+                  title="Downloads"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m7 10 5 5 5-5" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 21h14" />
+                  </svg>
+                </button>
+
+                <button
+                  onClick={() => !isOfflineAuthenticated && onViewChange('SUGGESTIONS')}
+                  disabled={isOfflineAuthenticated}
+                  className={`app-icon-button ${currentView === 'SUGGESTIONS' ? 'active' : ''}`}
+                  title={isOfflineAuthenticated ? 'Requires internet connection' : 'Suggestions'}
+                >
+                  <div className="app-action-wrap">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 17a2 2 0 0 0 4 0" />
+                    </svg>
+                    {pendingSuggestionsCount > 0 && (
+                      <span className="app-icon-badge">{pendingSuggestionsCount > 99 ? '99+' : pendingSuggestionsCount}</span>
+                    )}
+                  </div>
+                </button>
+
+                <div className="relative" ref={dropdownRef}>
+                  <UserAvatar
+                    username={user.username}
+                    displayName={user.displayName}
+                    avatarUrl={user.avatarUrl}
+                    size="md"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="app-avatar-button"
+                    fallbackClassName="bg-neutral-800 text-white border border-neutral-700"
+                  />
+
+                  {showDropdown && (
+                    <div className="app-dropdown">
+                      <div className="app-dropdown-head">
+                        <div className="app-dropdown-name">{user.displayName || user.username}</div>
+                        <div className="app-dropdown-email">{user.email}</div>
+                      </div>
+                      <button onClick={() => handleDropdownAction('settings')} className="app-dropdown-action">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="3" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.2a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.2a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c0 .7.4 1.3 1 1.5h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z" />
+                        </svg>
+                        Settings
+                      </button>
+                      <button onClick={() => handleDropdownAction('logout')} className="app-dropdown-action danger">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16 17 5-5-5-5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 12H9" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7" />
+                        </svg>
+                        Log out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {user && !isAuthView && (
+            <div className="app-toolbar">
+              <button
+                type="button"
+                onClick={() => !isOfflineAuthenticated && onViewChange('SEARCH')}
+                disabled={isOfflineAuthenticated}
+                className="app-search-cta"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m20 20-3.5-3.5" />
+                </svg>
+                <span>{isOfflineAuthenticated ? 'Search requires connection' : 'Search shows, movies, manga, games...'}</span>
+              </button>
+
+              <div className="app-pill-row">
+                {topNavItems.map((item) => {
+                  const disabled = isNavDisabled(item);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => !disabled && onViewChange(item.id)}
+                      disabled={disabled}
+                      className={`app-pill ${isNavActive(item.id) ? 'active' : ''} ${disabled ? 'dimmed' : ''}`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </header>
+
+        <main className="app-main">
+          <div className="app-main-inner">{children}</div>
+        </main>
+
         {user && !isAuthView && (
-          <nav className="grid grid-cols-7 divide-x divide-neutral-800">
-            {navItems.map((item) => {
+          <nav className="app-bottom-nav">
+            {bottomNavItems.slice(0, 2).map((item) => {
               const disabled = isNavDisabled(item);
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => !disabled && onViewChange(item.id)}
                   disabled={disabled}
-                  className={`py-4 text-xs sm:text-sm font-bold tracking-wider transition-colors uppercase
-                  ${disabled 
-                    ? 'text-neutral-700 cursor-not-allowed' 
-                    : 'hover:bg-neutral-900'
-                  }
-                  ${!disabled && (currentView === item.id ||
-                      (currentView === 'FRIEND_VIEW' && item.id === 'FRIENDS') ||
-                      (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS') ||
-                      (currentView === 'COLLECTION_VIEW' && item.id === 'COLLECTIONS'))
-                      ? 'bg-white text-black'
-                      : disabled ? '' : 'text-neutral-500'
-                    }`}
-                  title={disabled ? 'Requires internet connection' : undefined}
+                  className={`app-nav-btn ${isNavActive(item.id) ? 'active' : ''}`}
                 >
-                  {item.label}
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => !isOfflineAuthenticated && onViewChange('SEARCH')}
+              disabled={isOfflineAuthenticated}
+              className="app-nav-fab"
+              title={isOfflineAuthenticated ? 'Requires internet connection' : 'Add media'}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+              </svg>
+            </button>
+
+            {bottomNavItems.slice(2).map((item) => {
+              const disabled = isNavDisabled(item);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => !disabled && onViewChange(item.id)}
+                  disabled={disabled}
+                  className={`app-nav-btn ${isNavActive(item.id) ? 'active' : ''}`}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
                 </button>
               );
             })}
           </nav>
         )}
-      </header>
-
-      <main className="flex-grow p-4 sm:p-6">{children}</main>
-
-      <footer className="p-6 border-t border-neutral-800 text-center text-xs text-neutral-600 uppercase tracking-widest">
-        <p>idk what to put here</p>
-      </footer>
+      </div>
     </div>
   );
 };

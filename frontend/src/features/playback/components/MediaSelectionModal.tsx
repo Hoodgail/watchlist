@@ -80,12 +80,12 @@ export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       onClick={handleBackdropClick}
     >
-      <div className="bg-black border border-neutral-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div className="modal-shell max-w-lg">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div className="modal-header">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest">
               SELECT SOURCE
@@ -103,7 +103,7 @@ export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
         </div>
 
         {/* Provider selector */}
-        <div className="p-4 border-b border-neutral-800 flex-shrink-0">
+        <div className="modal-section">
           <div className="flex gap-2">
             <label className="text-xs text-neutral-600 uppercase tracking-wider self-center w-20">
               PROVIDER
@@ -111,7 +111,7 @@ export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
             <select
               value={selectedProvider}
               onChange={(e) => setSelectedProvider(e.target.value as VideoProviderName)}
-              className="flex-1 bg-neutral-950 border border-neutral-800 text-white px-3 py-2 text-sm uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
+              className="inline-select flex-1 text-sm uppercase"
             >
               {workingProviders.map(provider => (
                 <option key={provider} value={provider} className="bg-black">
@@ -142,7 +142,7 @@ export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
                 <button
                   key={result.id || idx}
                   onClick={() => handleSelectResult(result)}
-                  className="w-full p-4 flex gap-4 text-left hover:bg-neutral-900 transition-colors"
+                  className="option-card rounded-none border-x-0 border-t-0 first:rounded-t-none last:border-b-0 flex gap-4 text-left"
                 >
                   {/* Thumbnail */}
                   <div className="flex-shrink-0 w-16">
@@ -198,10 +198,10 @@ export const MediaSelectionModal: React.FC<MediaSelectionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-neutral-800 flex-shrink-0">
+        <div className="modal-footer">
           <button
             onClick={onClose}
-            className="w-full py-3 text-xs font-bold uppercase tracking-wider border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white transition-colors"
+            className="action-btn-ghost w-full"
           >
             CANCEL
           </button>

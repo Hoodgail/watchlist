@@ -631,16 +631,17 @@ const StatisticsSummary: React.FC<{
   }, [items]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2  ">
+    <div className="stats-grid">
       {/* Total count */}
       <button
         onClick={() => onStatusClick('')}
-        className={`text-xs px-2.5 py-1.5 border transition-colors ${activeStatus === ''
+        className={`stats-card ${activeStatus === ''
           ? 'border-white text-white bg-neutral-800'
           : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
           }`}
       >
-        {stats.total}
+        <strong>{stats.total}</strong>
+        <span>All</span>
       </button>
 
       {/* Status chips */}
@@ -652,22 +653,24 @@ const StatisticsSummary: React.FC<{
           <button
             key={config.status}
             onClick={() => onStatusClick(isActive ? '' : config.status)}
-            className={`text-xs px-2.5 py-1.5 border transition-colors flex items-center gap-1.5 ${isActive
+            className={`stats-card transition-colors flex flex-col items-center justify-center gap-1.5 ${isActive
               ? `${config.color} border-current bg-neutral-800`
               : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
               }`}
           >
-            {config.icon}
-            <span className="uppercase"> {count}</span>
+            <span>{config.icon}</span>
+            <strong className="!font-body !text-base">{count}</strong>
+            <span>{config.label}</span>
           </button>
         );
       })}
 
       {/* Average rating */}
       {stats.avgRating && (
-        <div className="ml-auto flex items-center gap-1 text-xs text-neutral-500">
+        <div className="stats-card flex flex-col items-center justify-center gap-1 text-xs text-neutral-500">
           <StarIcon filled />
-          <span>AVG: {stats.avgRating}</span>
+          <strong className="!font-body !text-base">{stats.avgRating}</strong>
+          <span>Avg</span>
         </div>
       )}
     </div>
@@ -745,10 +748,10 @@ const StatusGroupHeader: React.FC<{
   onToggle: () => void;
 }> = ({ config, count, isExpanded, onToggle }) => {
   return (
-    <button
-      onClick={onToggle}
-      className={`sticky top-0 z-10 w-full flex items-center gap-3 px-4 py-3 bg-neutral-950 border border-neutral-800 ${config.borderColor} border-l-2 hover:bg-neutral-900 transition-colors`}
-    >
+      <button
+        onClick={onToggle}
+        className={`sticky top-0 z-10 w-full flex items-center gap-3 px-4 py-3 bg-neutral-950 border border-neutral-800 rounded-2xl ${config.borderColor} border-l-2 hover:bg-neutral-900 transition-colors`}
+      >
       <ChevronIcon expanded={isExpanded} />
       <span className={config.color}>{config.icon}</span>
       <span className={`font-bold uppercase tracking-wider ${config.color}`}>
@@ -1473,7 +1476,7 @@ const StatusGroup: React.FC<{
 
         {isExpanded && (
           <>
-            <div className={`space-y-2 pl-0 sm:pl-2 animate-fadeIn ${viewMode === 'compact' ? 'grid grid-cols-1 gap-1' : ''}`}>
+        <div className={`space-y-2 pl-0 sm:pl-2 animate-fadeIn ${viewMode === 'compact' ? 'grid grid-cols-1 gap-1' : ''}`}>
               {items.map((item) => (
                 viewMode === 'compact' ? (
                   <CompactItemCard
@@ -1789,7 +1792,7 @@ export const MediaList: React.FC<MediaListProps> = ({
 
   if (items.length === 0) {
     return (
-      <div className="py-12 text-center text-neutral-600 border border-neutral-800 border-dashed">
+      <div className="empty-state">
         <h2 className="text-lg font-bold mb-2 uppercase">{title}</h2>
         <p className="text-sm">NO ITEMS FOUND</p>
       </div>
@@ -1797,10 +1800,14 @@ export const MediaList: React.FC<MediaListProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="screen-stack">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-900 pb-2">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">{title}</h2>
+      <div className="screen-head">
+        <div className="screen-head-block">
+          <span className="screen-kicker">Library view</span>
+          <h2 className="screen-title">{title.replace(/^MY /, '')}</h2>
+          <p className="screen-note">Grouped by status with quick controls, progress tracking, and notes built into each entry.</p>
+        </div>
 
         {/* Controls */}
         <div className="flex flex-wrap items-center gap-3">
@@ -1808,7 +1815,7 @@ export const MediaList: React.FC<MediaListProps> = ({
           <ViewToggle viewMode={viewMode} onChange={setViewMode} />
 
           {/* Expand/Collapse All */}
-          <div className="flex border border-neutral-800">
+          <div className="screen-panel flex border border-neutral-800 overflow-hidden rounded-2xl">
             <button
               onClick={() => toggleAll(true)}
               className="px-2 py-1.5 text-xs text-neutral-500 hover:text-white hover:bg-neutral-900 transition-colors"
@@ -1880,7 +1887,7 @@ export const MediaList: React.FC<MediaListProps> = ({
 
       {/* Items count when filtered */}
       {(filterStatus || friendActivityFilter || searchQuery) && (
-        <div className="text-xs text-neutral-600 uppercase flex items-center gap-2">
+        <div className="screen-panel pad text-xs text-neutral-600 uppercase flex items-center gap-2">
           <span>Showing {filteredItems.length} of {groupedData?.grandTotal ?? items.length} items</span>
           {(filterStatus || searchQuery) && (
             <button
@@ -1898,7 +1905,7 @@ export const MediaList: React.FC<MediaListProps> = ({
 
       {/* Grouped List */}
       {filteredItems.length === 0 ? (
-        <div className="py-8 text-center text-neutral-600 border border-neutral-800 border-dashed">
+        <div className="empty-state">
           <p className="text-sm">NO ITEMS MATCH FILTER</p>
           <button
             onClick={() => {
