@@ -32,6 +32,7 @@ import {
 import {
   createCollectionSchema,
   updateCollectionSchema,
+  publicCollectionsQuerySchema,
   addCollectionItemSchema,
   reorderCollectionItemsSchema,
   updateCollectionItemSchema,
@@ -39,8 +40,9 @@ import {
   updateMemberRoleSchema,
   createCollectionInviteSchema,
   addCollectionCommentSchema,
+  collectionCommentsQuerySchema,
   updateCollectionCommentSchema,
-} from '../validators/collectionValidators.js';
+} from '../modules/collections/interface/http/collectionSchemas.js';
 
 const router = Router();
 
@@ -50,7 +52,7 @@ router.post('/join/:token', authenticate, joinCollectionByInvite);
 // Collection CRUD
 router.post('/', authenticate, validate(createCollectionSchema), createCollection);
 router.get('/', authenticate, getMyCollections);
-router.get('/public', optionalAuth, getPublicCollections);
+router.get('/public', optionalAuth, validate(publicCollectionsQuerySchema, 'query'), getPublicCollections);
 router.get('/starred', authenticate, getStarredCollections);
 router.get('/:id', optionalAuth, getCollection);
 router.patch('/:id', authenticate, validate(updateCollectionSchema), updateCollection);
@@ -79,7 +81,7 @@ router.post('/:id/star', authenticate, starCollection);
 router.delete('/:id/star', authenticate, unstarCollection);
 
 // Comments
-router.get('/:id/comments', optionalAuth, getCollectionComments);
+router.get('/:id/comments', optionalAuth, validate(collectionCommentsQuerySchema, 'query'), getCollectionComments);
 router.post('/:id/comments', authenticate, validate(addCollectionCommentSchema), addCollectionComment);
 router.patch('/:id/comments/:commentId', authenticate, validate(updateCollectionCommentSchema), updateCollectionComment);
 router.delete('/:id/comments/:commentId', authenticate, deleteCollectionComment);

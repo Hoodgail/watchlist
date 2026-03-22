@@ -3,22 +3,12 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { UnauthorizedError } from '../utils/errors.js';
 import { prisma } from '../config/database.js';
-
-export interface JwtPayload {
-  userId: string;
-  email: string;
-}
+import type { AuthenticatedUser, AuthTokenPayload } from '../shared/auth/authTypes.js';
 
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        id: string;
-        email: string;
-        username: string;
-        displayName: string | null;
-        avatarUrl: string | null;
-      };
+      user?: AuthenticatedUser;
     }
   }
 }
@@ -37,7 +27,7 @@ export async function authenticate(
 
     const token = authHeader.substring(7);
     
-    const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    const payload = jwt.verify(token, env.JWT_SECRET) as AuthTokenPayload;
     
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },

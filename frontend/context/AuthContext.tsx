@@ -1,9 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  getCurrentUser,
+  getOAuthUrl,
+  login as loginUser,
+  logout as logoutUser,
+  register as registerUser,
+} from '@/features/auth/api';
 import { AuthUser, LoginCredentials, RegisterCredentials } from '../types';
-import * as api from '../services/api';
+import { localStorageContract } from '@/shared/contracts/storage';
 
 // Key for caching user in localStorage for offline access
-const CACHED_USER_KEY = 'watchlist_cached_user';
+const CACHED_USER_KEY = localStorageContract.auth.cachedUser;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -77,7 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const currentUser = await api.getCurrentUser();
+        const currentUser = await getCurrentUser();
         setUser(currentUser);
         setIsOfflineAuthenticated(false);
         // Cache the user for offline access
@@ -111,21 +118,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
-    const response = await api.login(credentials);
+    const response = await loginUser(credentials);
     setUser(response.user);
     setIsOfflineAuthenticated(false);
     cacheUser(response.user);
   }, []);
 
   const register = useCallback(async (credentials: RegisterCredentials) => {
-    const response = await api.register(credentials);
+    const response = await registerUser(credentials);
     setUser(response.user);
     setIsOfflineAuthenticated(false);
     cacheUser(response.user);
   }, []);
 
   const logout = useCallback(async () => {
-    await api.logout();
+    await logoutUser();
     setUser(null);
     setIsOfflineAuthenticated(false);
     cacheUser(null);
@@ -133,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshUser = useCallback(async () => {
     try {
-      const currentUser = await api.getCurrentUser();
+      const currentUser = await getCurrentUser();
       setUser(currentUser);
       setIsOfflineAuthenticated(false);
       cacheUser(currentUser);
@@ -144,7 +151,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initiateOAuthLogin = useCallback(async (provider: string) => {
     try {
-      const authUrl = await api.getOAuthUrl(provider);
+      const authUrl = await getOAuthUrl(provider);
       // Redirect to OAuth provider
       window.location.href = authUrl;
     } catch (error) {

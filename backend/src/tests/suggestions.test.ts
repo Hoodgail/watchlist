@@ -1,6 +1,54 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { prisma } from '../config/database.js';
 import { request, app, createTestUser, authHeader, createFollow } from './helpers.js';
 import { availableTables } from './setup.js';
+import { describeDb } from './testSuites.js';
+
+let sourceCounter = 0;
+
+async function seedMediaSource(input: {
+  refId: string;
+  title: string;
+  type: 'TV' | 'MOVIE' | 'ANIME' | 'MANGA';
+  imageUrl?: string | null;
+  total?: number | null;
+}) {
+  sourceCounter += 1;
+  return prisma.mediaSource.create({
+    data: {
+      refId: `${input.refId}-${sourceCounter}`,
+      title: input.title,
+      type: input.type,
+      imageUrl: input.imageUrl ?? null,
+      total: input.total ?? null,
+    },
+  });
+}
+
+async function createSuggestionPayload(
+  refId: string,
+  title = 'Test Show',
+  type: 'TV' | 'MOVIE' | 'ANIME' | 'MANGA' = 'TV',
+  options?: { imageUrl?: string | null; total?: number | null },
+) {
+  const source = await seedMediaSource({ refId, title, type, imageUrl: options?.imageUrl, total: options?.total });
+  return { title, type, refId: source.refId, imageUrl: options?.imageUrl ?? undefined };
+}
+
+async function seedCommonSuggestionSources() {
+  await prisma.mediaSource.createMany({
+    data: [
+      { refId: 'tmdb:12345', title: 'Test Show', type: 'TV' },
+      { refId: 'tmdb:111', title: 'Show 1', type: 'TV' },
+      { refId: 'tmdb:222', title: 'Show 2', type: 'TV' },
+      { refId: 'tmdb:1396', title: 'Breaking Bad', type: 'TV', imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg', total: 62 },
+      { refId: 'tmdb:27205', title: 'Inception', type: 'MOVIE' },
+      { refId: 'anilist:1429', title: 'Attack on Titan', type: 'ANIME' },
+      { refId: 'mangadex:a1c7c817-4e59-43b7-9365-09675a149a6f', title: 'One Piece', type: 'MANGA' },
+    ],
+    skipDuplicates: true,
+  });
+}
 
 /**
  * Suggestions API Tests
@@ -11,12 +59,17 @@ import { availableTables } from './setup.js';
  * To enable these tests, run database migrations:
  * npx prisma db push
  */
-describe('Suggestions Endpoints', () => {
+describeDb('Suggestions Endpoints', () => {
   beforeAll(() => {
     if (!availableTables.suggestions) {
       console.log('\n⚠️  Skipping suggestions tests: suggestions table does not exist in database');
       console.log('   Run "npx prisma db push" to sync the database schema\n');
     }
+  });
+
+  beforeEach(async () => {
+    if (!availableTables.suggestions) return;
+    await seedCommonSuggestionSources();
   });
 
   describe('POST /api/suggestions/:userId', () => {
@@ -28,11 +81,18 @@ describe('Suggestions Endpoints', () => {
 
       // Sender follows recipient
       await createFollow(sender.accessToken, recipient.id);
+      const source = await seedMediaSource({
+        refId: 'tmdb:1396',
+        title: 'Breaking Bad',
+        type: 'TV',
+        imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
+        total: 62,
+      });
 
       const suggestionData = {
         title: 'Breaking Bad',
         type: 'TV',
-        refId: 'tmdb:1396',
+        refId: source.refId,
         imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
         message: 'You should watch this!',
       };
@@ -61,6 +121,7 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const source = await seedMediaSource({ refId: 'mangadex:one-piece', title: 'One Piece', type: 'MANGA' });
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -68,7 +129,7 @@ describe('Suggestions Endpoints', () => {
         .send({
           title: 'One Piece',
           type: 'MANGA',
-          refId: 'mangadex:a1c7c817-4e59-43b7-9365-09675a149a6f',
+          refId: source.refId,
         })
         .expect(201);
 
@@ -122,11 +183,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const source = await seedMediaSource({ refId: 'tmdb:breaking-bad', title: 'Breaking Bad', type: 'TV' });
 
       const suggestionData = {
         title: 'Breaking Bad',
         type: 'TV',
-        refId: 'tmdb:1396',
+        refId: source.refId,
       };
 
       // First suggestion succeeds
@@ -161,7 +223,7 @@ describe('Suggestions Endpoints', () => {
         .expect(401);
     });
 
-    it('should validate required fields (400)', async () => {
+    it('should validate required non-derived fields (400)', async () => {
       if (!availableTables.suggestions) return;
       
       const sender = await createTestUser();
@@ -169,20 +231,8 @@ describe('Suggestions Endpoints', () => {
 
       await createFollow(sender.accessToken, recipient.id);
 
-      // Missing title
-      let response = await request(app)
-        .post(`/api/suggestions/${recipient.id}`)
-        .set(authHeader(sender.accessToken))
-        .send({
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
-        .expect(400);
-
-      expect(response.body.error).toBeDefined();
-
       // Missing type
-      response = await request(app)
+      let response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
         .send({
@@ -252,6 +302,7 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const source = await seedMediaSource({ refId: 'tmdb:received-breaking-bad', title: 'Breaking Bad', type: 'TV' });
 
       // Create a suggestion
       await request(app)
@@ -260,7 +311,7 @@ describe('Suggestions Endpoints', () => {
         .send({
           title: 'Breaking Bad',
           type: 'TV',
-          refId: 'tmdb:1396',
+          refId: source.refId,
         })
         .expect(201);
 
@@ -282,6 +333,8 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const sourceOne = await seedMediaSource({ refId: 'tmdb:111', title: 'Show 1', type: 'TV' });
+      const sourceTwo = await seedMediaSource({ refId: 'tmdb:222', title: 'Show 2', type: 'TV' });
 
       // Create first suggestion
       const suggestion1 = await request(app)
@@ -290,7 +343,7 @@ describe('Suggestions Endpoints', () => {
         .send({
           title: 'Show 1',
           type: 'TV',
-          refId: 'tmdb:111',
+          refId: sourceOne.refId,
         })
         .expect(201);
 
@@ -307,7 +360,7 @@ describe('Suggestions Endpoints', () => {
         .send({
           title: 'Show 2',
           type: 'TV',
-          refId: 'tmdb:222',
+          refId: sourceTwo.refId,
         })
         .expect(201);
 
@@ -338,15 +391,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const response = await request(app)
@@ -391,26 +441,20 @@ describe('Suggestions Endpoints', () => {
 
       await createFollow(sender.accessToken, recipient1.id);
       await createFollow(sender.accessToken, recipient2.id);
+      const firstPayload = await createSuggestionPayload('tmdb:111', 'Show 1');
+      const secondPayload = await createSuggestionPayload('tmdb:222', 'Show 2');
 
       // Create suggestions to different users
       await request(app)
         .post(`/api/suggestions/${recipient1.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Show 1',
-          type: 'TV',
-          refId: 'tmdb:111',
-        })
+        .send(firstPayload)
         .expect(201);
 
       await request(app)
         .post(`/api/suggestions/${recipient2.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Show 2',
-          type: 'TV',
-          refId: 'tmdb:222',
-        })
+        .send(secondPayload)
         .expect(201);
 
       const response = await request(app)
@@ -428,15 +472,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const response = await request(app)
@@ -479,6 +520,13 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const source = await seedMediaSource({
+        refId: 'tmdb:accept-breaking-bad',
+        title: 'Breaking Bad',
+        type: 'TV',
+        imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
+        total: 62,
+      });
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -486,7 +534,7 @@ describe('Suggestions Endpoints', () => {
         .send({
           title: 'Breaking Bad',
           type: 'TV',
-          refId: 'tmdb:1396',
+          refId: source.refId,
           imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
         })
         .expect(201);
@@ -507,10 +555,10 @@ describe('Suggestions Endpoints', () => {
         .set(authHeader(recipient.accessToken))
         .expect(200);
 
-      expect(listResponse.body).toHaveLength(1);
-      expect(listResponse.body[0].title).toBe('Breaking Bad');
-      expect(listResponse.body[0].refId).toBe('tmdb:1396');
-      expect(listResponse.body[0].status).toBe('PLAN_TO_WATCH');
+      expect(listResponse.body.items).toHaveLength(1);
+      expect(listResponse.body.items[0].title).toBe('Breaking Bad');
+      expect(listResponse.body.items[0].refId).toBe(source.refId);
+      expect(listResponse.body.items[0].status).toBe('PLAN_TO_WATCH');
     });
 
     it('should fail if not the recipient (403)', async () => {
@@ -521,15 +569,12 @@ describe('Suggestions Endpoints', () => {
       const other = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -550,15 +595,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -590,15 +632,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -625,15 +664,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -670,15 +706,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -699,15 +732,12 @@ describe('Suggestions Endpoints', () => {
       const other = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -728,15 +758,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -768,15 +795,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -813,15 +837,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestionId = createResponse.body.id;
@@ -928,15 +949,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const tvPayload = await createSuggestionPayload('tmdb:1396', 'Breaking Bad');
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Breaking Bad',
-          type: 'TV',
-          refId: 'tmdb:1396',
-        })
+        .send(tvPayload)
         .expect(201);
 
       expect(response.body.type).toBe('TV');
@@ -949,15 +967,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const moviePayload = await createSuggestionPayload('tmdb:27205', 'Inception', 'MOVIE');
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Inception',
-          type: 'MOVIE',
-          refId: 'tmdb:27205',
-        })
+        .send(moviePayload)
         .expect(201);
 
       expect(response.body.type).toBe('MOVIE');
@@ -970,15 +985,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const animePayload = await createSuggestionPayload('anilist:1429', 'Attack on Titan', 'ANIME');
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Attack on Titan',
-          type: 'ANIME',
-          refId: 'tmdb:1429',
-        })
+        .send(animePayload)
         .expect(201);
 
       expect(response.body.type).toBe('ANIME');
@@ -991,15 +1003,12 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const mangaPayload = await createSuggestionPayload('mangadex:a1c7c817-4e59-43b7-9365-09675a149a6f', 'One Piece', 'MANGA');
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'One Piece',
-          type: 'MANGA',
-          refId: 'mangadex:a1c7c817-4e59-43b7-9365-09675a149a6f',
-        })
+        .send(mangaPayload)
         .expect(201);
 
       expect(response.body.type).toBe('MANGA');
@@ -1014,16 +1023,13 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       // Create first suggestion
       const firstSuggestion = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       // Accept it
@@ -1036,11 +1042,7 @@ describe('Suggestions Endpoints', () => {
       const secondSuggestion = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       expect(secondSuggestion.body.id).not.toBe(firstSuggestion.body.id);
@@ -1053,16 +1055,13 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:12345');
 
       // Create first suggestion
       const firstSuggestion = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       // Dismiss it
@@ -1075,11 +1074,7 @@ describe('Suggestions Endpoints', () => {
       const secondSuggestion = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender.accessToken))
-        .send({
-          title: 'Test Show',
-          type: 'TV',
-          refId: 'tmdb:12345',
-        })
+        .send(payload)
         .expect(201);
 
       expect(secondSuggestion.body.id).not.toBe(firstSuggestion.body.id);
@@ -1094,26 +1089,19 @@ describe('Suggestions Endpoints', () => {
 
       await createFollow(sender1.accessToken, recipient.id);
       await createFollow(sender2.accessToken, recipient.id);
+      const payload = await createSuggestionPayload('tmdb:1396', 'Breaking Bad');
 
       // Both senders suggest the same media
       const suggestion1 = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender1.accessToken))
-        .send({
-          title: 'Breaking Bad',
-          type: 'TV',
-          refId: 'tmdb:1396',
-        })
+        .send(payload)
         .expect(201);
 
       const suggestion2 = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
         .set(authHeader(sender2.accessToken))
-        .send({
-          title: 'Breaking Bad',
-          type: 'TV',
-          refId: 'tmdb:1396',
-        })
+        .send(payload)
         .expect(201);
 
       // Both should exist
@@ -1133,18 +1121,17 @@ describe('Suggestions Endpoints', () => {
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
+      const source = await seedMediaSource({ refId: 'tmdb:existing-breaking-bad', title: 'Breaking Bad', type: 'TV', total: 62 });
 
       // Recipient already has the item in their list
       await request(app)
         .post('/api/list')
         .set(authHeader(recipient.accessToken))
         .send({
-          title: 'Breaking Bad',
           type: 'TV',
           status: 'WATCHING',
           current: 10,
-          total: 62,
-          refId: 'tmdb:1396',
+          refId: source.refId,
         })
         .expect(201);
 
@@ -1155,7 +1142,7 @@ describe('Suggestions Endpoints', () => {
         .send({
           title: 'Breaking Bad',
           type: 'TV',
-          refId: 'tmdb:1396',
+          refId: source.refId,
         })
         .expect(201);
 
@@ -1170,10 +1157,10 @@ describe('Suggestions Endpoints', () => {
         .set(authHeader(recipient.accessToken))
         .expect(200);
 
-      expect(listResponse.body).toHaveLength(1);
+      expect(listResponse.body.items).toHaveLength(1);
       // Status should remain unchanged (not overwritten to PLAN_TO_WATCH)
-      expect(listResponse.body[0].status).toBe('WATCHING');
-      expect(listResponse.body[0].current).toBe(10);
+      expect(listResponse.body.items[0].status).toBe('WATCHING');
+      expect(listResponse.body.items[0].current).toBe(10);
     });
   });
 });

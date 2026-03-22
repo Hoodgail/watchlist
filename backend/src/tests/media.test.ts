@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { request, app } from './helpers.js';
+import { describeDb } from './testSuites.js';
 
 /**
  * Integration tests for Media Search Endpoints
@@ -11,7 +12,7 @@ import { request, app } from './helpers.js';
  * - Consumet service may not be available in test environment
  */
 
-describe('Media Search Endpoints', () => {
+describeDb('Media Search Endpoints', () => {
   describe('GET /api/media/search', () => {
     it('should return 400 if query is missing', async () => {
       const response = await request(app)

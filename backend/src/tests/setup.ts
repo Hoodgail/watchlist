@@ -3,10 +3,29 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-key-minimum-32-characters-long';
 process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-key-minimum-32-characters-long';
 
+if (typeof globalThis.File === 'undefined') {
+  class TestFile extends Blob {
+    name: string;
+    lastModified: number;
+
+    constructor(bits: any[] = [], name = 'test-file', options: { lastModified?: number; type?: string } = {}) {
+      super(bits, options);
+      this.name = name;
+      this.lastModified = options.lastModified ?? Date.now();
+    }
+  }
+
+  globalThis.File = TestFile as typeof File;
+}
+
+export const shouldRunDatabaseTests = process.env.SKIP_DB_TESTS !== '1';
+export const usingEmbeddedDatabase = shouldRunDatabaseTests && process.env.WATCHLIST_TEST_DB_MODE === 'embedded';
+
 import "dotenv/config";
 
 import { beforeAll, afterAll, beforeEach } from 'vitest';
 import { prisma } from '../config/database.js';
+import { pushPrismaSchema, startEmbeddedDatabase, stopEmbeddedDatabase } from './embeddedDatabase.js';
 
 // Track which tables exist in the database for conditional test execution
 export const availableTables = {
@@ -15,6 +34,8 @@ export const availableTables = {
   avatarUrl: false,
   watchProgress: false,
 };
+
+export let databaseAvailable = false;
 
 /**
  * Check if a table exists by trying a simple query
@@ -62,13 +83,40 @@ async function cleanDatabase() {
   
   await prisma.friendRequest.deleteMany();
   await prisma.friendship.deleteMany();
+  await prisma.collectionComment.deleteMany();
+  await prisma.collectionInvite.deleteMany();
+  await prisma.collectionStar.deleteMany();
+  await prisma.collectionMember.deleteMany();
+  await prisma.collectionItem.deleteMany();
+  await prisma.collection.deleteMany();
+  await prisma.commentReaction.deleteMany();
+  await prisma.comment.deleteMany();
+  await prisma.mediaSourceAlias.deleteMany();
+  await prisma.providerMapping.deleteMany();
   await prisma.mediaItem.deleteMany();
+  await prisma.mediaSource.deleteMany();
   await prisma.user.deleteMany();
 }
 
 beforeAll(async () => {
-  // Ensure database connection
-  await prisma.$connect();
+  if (!shouldRunDatabaseTests) {
+    console.warn('SKIP_DB_TESTS=1; skipping database-backed backend tests.');
+    return;
+  }
+
+  try {
+    if (usingEmbeddedDatabase) {
+      const databaseUrl = await startEmbeddedDatabase();
+      process.env.DATABASE_URL = databaseUrl;
+      await pushPrismaSchema(databaseUrl);
+    }
+
+    await prisma.$connect();
+    databaseAvailable = true;
+  } catch (error) {
+    console.error('Failed to start backend test database:', error);
+    throw error;
+  }
   
   // Check which tables/columns are available
   availableTables.suggestions = await checkTableExists('suggestions');
@@ -88,12 +136,24 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  if (!databaseAvailable) {
+    return;
+  }
+
   // Clean up database before each test
   await cleanDatabase();
 });
 
 afterAll(async () => {
+  if (!databaseAvailable) {
+    return;
+  }
+
   // Clean up and disconnect
   await cleanDatabase();
   await prisma.$disconnect();
+
+  if (usingEmbeddedDatabase) {
+    await stopEmbeddedDatabase();
+  }
 });

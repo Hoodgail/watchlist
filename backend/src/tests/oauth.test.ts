@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { request, app, createTestUser, authHeader } from './helpers.js';
 import { prisma } from '../config/database.js';
 import { availableTables } from './setup.js';
+import { describeDb } from './testSuites.js';
 
 /**
  * OAuth API Tests
@@ -12,7 +13,7 @@ import { availableTables } from './setup.js';
  * To enable all tests, run database migrations:
  * npx prisma db push
  */
-describe('OAuth Endpoints', () => {
+describeDb('OAuth Endpoints', () => {
   beforeAll(() => {
     if (!availableTables.oauthAccounts) {
       console.log('\n⚠️  Some OAuth tests will be skipped: oauth_accounts table does not exist in database');
