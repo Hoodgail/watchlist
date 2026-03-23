@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress } from '@/types';
+import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress, Collection } from '@/types';
 import { STATUS_OPTIONS } from '@/constants';
 import { SuggestToFriendModal } from '@/features/social/components/SuggestToFriendModal';
 import { FriendAvatar } from '@/features/social/components/FriendList';
 import { SpoilerBlur, SpoilerIndicator } from '@/shared/ui/SpoilerBlur';
 import { useSpoilerProtection } from '@/context/SpoilerContext';
 import { AddToCollectionModal, CollectionItemData } from '@/features/collections/components/AddToCollectionModal';
+import { getMyCollections, addCollectionItem } from '@/features/collections/api';
 import type { GroupedListResponse, StatusGroupPagination } from '@/features/library/api';
 import { ProxiedImage, ProxiedImageCompact } from '@/shared/ui/ProxiedImage';
 import { getRefIdImageUrl } from '@/shared/media';
+import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
 
 // ==================== Swipe Gesture Hook ====================
 
@@ -946,7 +949,7 @@ const CompactItemCard: React.FC<{
   );
 };
 
-// ==================== Full Item Card ====================
+// ==================== Full Item Card (Compact) ====================
 
 const RATING_OPTIONS = [
   { value: null, label: '-' },
@@ -962,7 +965,7 @@ function uniqueFriends(friends: FriendStatus[]): FriendStatus[] {
   });
 }
 
-const MediaItemCard: React.FC<MediaItemCardProps> = ({
+const MediaItemCard: React.FC<MediaItemCardProps & { onOpenSheet?: (item: MediaItem) => void }> = ({
   item,
   onUpdate,
   onDelete,
@@ -974,28 +977,23 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
   onSuggest,
   onAddToCollection,
   userProgress,
+  onOpenSheet,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [notesValue, setNotesValue] = useState(item.notes || '');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const { spoilerProtectionEnabled } = useSpoilerProtection();
 
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
   const imageUrl = getRefIdImageUrl(item.imageUrl, item.refId);
   const config = getStatusConfig(item.status);
 
-  const friends = item.friendsStatuses ? uniqueFriends(Object.values(item.friendsStatuses).flat()) : []
+  const friends = item.friendsStatuses ? uniqueFriends(Object.values(item.friendsStatuses).flat()) : [];
 
-  // Determine if this item is a spoiler (friend is ahead of user)
-  // This is only relevant when viewing a friend's list (readonly=true) and user has progress on this item
   const isSpoiler = readonly && spoilerProtectionEnabled && userProgress !== undefined && item.current > userProgress;
 
-  // Calculate playback progress percent for the ProxiedImage overlay
   const playbackProgressPercent = item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0
     ? item.activeProgress.percentComplete
     : undefined;
 
-  // Swipe gesture handling using the custom hook
+  // Swipe gesture handling
   const handleSwipeLeft = useCallback(() => {
     if (onUpdate && !readonly) {
       onUpdate(item.id, { current: item.current + 1 });
@@ -1016,38 +1014,6 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
     enableHaptics: true,
   });
 
-  const getStatusStyle = (status: MediaStatus) => {
-    switch (status) {
-      case 'WATCHING':
-      case 'READING':
-        return 'border-white text-white';
-      case 'COMPLETED':
-        return 'border-neutral-600 text-neutral-600 line-through decoration-1';
-      default:
-        return 'border-neutral-700 text-neutral-500';
-    }
-  };
-
-  const handleNotesBlur = () => {
-    setIsEditingNotes(false);
-    if (notesValue !== (item.notes || '')) {
-      onUpdate && onUpdate(item.id, { notes: notesValue || undefined });
-    }
-  };
-
-  const handleRatingChange = (value: number | null) => {
-    onUpdate && onUpdate(item.id, { rating: value });
-  };
-
-  const hasDetails = item.notes || item.rating != null || (item.friendsStatuses && item.friendsStatuses.length > 0);
-
-  const friendsByStatus = (item.friendsStatuses || []).reduce((acc, friend) => {
-    const key = friend.status;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(friend);
-    return acc;
-  }, {} as Record<MediaStatus, FriendStatus[]>);
-
   const highlightText = (text: string, query: string) => {
     if (!query) return text;
     const parts = text.split(new RegExp(`(${query})`, 'gi'));
@@ -1058,454 +1024,603 @@ const MediaItemCard: React.FC<MediaItemCardProps> = ({
     );
   };
 
-  // Calculate action indicator visibility based on swipe offset
   const showActionIndicator = Math.abs(swipeOffset) > 20;
   const actionWidth = Math.min(Math.abs(swipeOffset), 120);
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't open sheet if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('input') || target.closest('a')) return;
+    if (onOpenSheet) {
+      onOpenSheet(item);
+    } else if (onItemClick) {
+      onItemClick(item);
+    }
+  };
+
   return (
     <div className="relative overflow-hidden swipe-container">
-      {/* Swipe action background - revealed behind the card */}
+      {/* Swipe action background */}
       {!readonly && (
         <div
           className={`swipe-action-bg ${showActionIndicator ? 'visible' : ''} ${isTriggered ? 'triggered' : ''}`}
-          style={{
-            width: `${actionWidth}px`,
-            backgroundColor: isTriggered ? 'rgb(22, 163, 74)' : 'rgb(34, 197, 94)',
-          }}
+          style={{ width: `${actionWidth}px`, backgroundColor: isTriggered ? 'rgb(22, 163, 74)' : 'rgb(34, 197, 94)' }}
         >
           <div className="flex flex-col items-center justify-center text-white">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            <span className="text-xs font-bold mt-1">+1</span>
+            <span className="text-[10px] font-bold mt-0.5">+1</span>
           </div>
         </div>
       )}
 
       <div
         ref={cardRef}
-        className={`swipe-card group relative border border-neutral-800 bg-black transition-colors hover:border-neutral-600 ${config.borderColor} border-l-2`}
+        className={`swipe-card group relative bg-black/60 border border-neutral-800/60 hover:border-neutral-600 hover:bg-neutral-950 transition-all cursor-pointer ${config.borderColor} border-l-2`}
         {...(!readonly ? swipeHandlers : {})}
-        style={{
-          transform: `translateX(${swipeOffset}px)`,
-        }}
+        style={{ transform: `translateX(${swipeOffset}px)` }}
+        onClick={handleCardClick}
       >
-        {/* Progress Bar Background */}
+        {/* Progress bar at bottom */}
         {item.total && (
-          <div className="absolute bottom-0 left-0 h-1 bg-neutral-900 w-full">
+          <div className="absolute bottom-0 left-0 h-[2px] bg-neutral-900 w-full">
             <div
-              className={`h-full transition-all duration-500 ${progressPercentage === 100 ? 'bg-green-500' : 'bg-white'
-                }`}
+              className={`h-full transition-all duration-500 ${progressPercentage === 100 ? 'bg-green-500/80' : 'bg-white/40'}`}
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
         )}
 
-        {/* Main Content */}
-        <div className="p-4 pb-5">
-          <div className="flex gap-4">
+        {/* Compact Row: Image | Content | Rating/Friends */}
+        <div className="flex items-stretch gap-3 p-2.5 pr-3">
 
-            <div className="flex flex-col gap-2">
-
-              {/* Poster Image - uses ProxiedImage for CLS-safe consistent sizing */}
-              <SpoilerBlur
-                itemId={`poster-${item.id}`}
-                isSpoiler={isSpoiler}
-                type="image"
-                showIcon={true}
-              >
-                <ProxiedImage
-                  src={imageUrl}
-                  alt={item.title}
-                  widthClass="w-20"
-                  width={80}
-                  height={120}
-                  progressPercent={playbackProgressPercent}
-                />
-              </SpoilerBlur>
-              <div className="flex flex-col   text-xs uppercase mt-1">
-                {/* Spoiler indicator */}
-                {isSpoiler && <SpoilerIndicator className="mb-1" />}
-                {/* Resume indicator for video content with active progress */}
-                {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
-                  <span
-                    className="text-red-400 py-0.5 flex items-center gap-1 text-[12px] "
-                    title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}
-                  >
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                    </svg>
-                    {item.activeProgress.seasonNumber
-                      ? `RES S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
-                      : `RES E${item.activeProgress.episodeNumber || '?'}`
-                    }
-                  </span>
-                )}
-
-
-              </div>
-
-            </div>
-
-
-            <div className="flex-grow flex flex-col sm:flex-row justify-between gap-4 overflow-hidden">
-              {/* Main Info */}
-              <div className="flex-grow  h-fit flex flex-col w-full gap-[5px]">
-                <div className="flex items-start justify-between h-fit w-full">
-                  <div className="flex items-center h-fit gap-2 flex-wrap">
-                    {onItemClick ? (
-                      <button
-                        onClick={() => onItemClick(item)}
-                        className={`font-bold text-lg leading-tight uppercase tracking-tight text-left hover:underline ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}
-                      >
-                        {highlightText(item.title, searchQuery || '')}
-                      </button>
-                    ) : (
-                      <h3 className={`font-bold text-lg leading-tight uppercase tracking-tight ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
-                        {highlightText(item.title, searchQuery || '')}
-                      </h3>
-                    )}
-                    {/* Rating Badge */}
-                    {item.rating != null && (
-                      <span className="text-xs bg-neutral-900 border border-neutral-700 px-1.5 py-0.5 text-neutral-300 font-mono flex items-center gap-1">
-                        <StarIcon filled />
-                        {item.rating}
-                      </span>
-                    )}
-                  </div>
-                  {/* Mobile Delete Button */}
-                  {!readonly && onDelete && (
-                    <button
-                      onClick={() => onDelete(item.id)}
-                      className="sm:hidden text-neutral-700 hover:text-red-500 px-2 text-xl"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex gap-2   ">
-
-
-                  <div className="flex gap-1 flex-wrap">
-
-
-                    <span className="bg-neutral-900 text-neutral-400 px-1.5 h-fit text-[10px] m-auto border border-neutral-800">
-                      {item.type}
-                    </span>
-                    {/* Year badge - show for all types */}
-                    {item.year && (
-                      <span className="text-neutral-600 text-[10px] py-0.5 m-auto">
-                        {item.year}
-                      </span>
-                    )}
-                    {/* For games, show platforms, metacritic, and genres instead of ONGOING */}
-                    {item.type === 'GAME' ? (
-                      <>
-                        {item.platforms && item.platforms.length > 0 && (
-                          <span className="flex items-center gap-1 text-neutral-400 m-auto">
-                            <GamePlatformIcons platforms={item.platforms} />
-                          </span>
-                        )}
-                        {item.metacritic && (
-                          <span className={`text-[10px] px-1 m-auto ${item.metacritic >= 75 ? 'text-green-500' : item.metacritic >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
-                            {item.metacritic}
-                          </span>
-                        )}
-                        {item.genres && item.genres.length > 0 && (
-                          <span className="text-neutral-600 text-[10px] py-0.5 m-auto">
-                            {item.genres.slice(0, 2).join(' · ')}
-                          </span>
-                        )}
-                        {item.playtimeHours && item.playtimeHours > 0 && (
-                          <span className="text-neutral-500 text-[10px] py-0.5 m-auto">
-                            ~{item.playtimeHours}H
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {item.total ? (
-                          <span className="text-neutral-500 py-0.5 m-auto">
-                            {item.total} {item.type === 'MANGA' ? 'CH' : 'EP'}
-                          </span>
-                        ) : (
-                          <span className="text-neutral-500 py-0.5 m-auto">ONGOING</span>
-                        )}
-                        {/* Genres for non-game media */}
-                        {item.genres && item.genres.length > 0 && (
-                          <span className="text-neutral-600 text-[10px] py-0.5 m-auto">
-                            {item.genres.slice(0, 2).join(' · ')}
-                          </span>
-                        )}
-                      </>
-                    )}
-                    {item.notes && (
-                      <span className="text-neutral-600 py-0.5" title="Has notes">
-                        [NOTE]
-                      </span>
-                    )}
-
-                  </div>
-                  {/* Friends status summary */}
-                  {friends && friends.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-
-                      <div
-
-                        className="flex items-center gap-1.5 px-1.5 py-1 pl-[4px]   border border-neutral-700 rounded-[50px] "
-                        title={friends.map(f => f.displayName || f.username).join(', ')}
-                      >
-                        <FriendAvatarStack friends={friends} maxVisible={5} />
-
-                      </div>
-
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-1  ">
-
-
-                  {/* Add to Collection Button */}
-                  {item.refId && onAddToCollection && (
-                    <button
-                      onClick={() => onAddToCollection(item)}
-                      className="text-xs   border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors w-full h-[34px] mt-auto"
-                    >
-                      + COLLECTION
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="flex flex-col sm:items-end gap-3">
-                {/* Add to My List button */}
-                {readonly && onAddToMyList && (
-                  <button
-                    onClick={() => onAddToMyList(item)}
-                    className="text-xs px-3 py-1.5 border border-neutral-600 text-neutral-300 hover:border-white hover:text-white uppercase tracking-wider transition-colors"
-                  >
-                    + MY LIST
-                  </button>
-                )}
-
-                <div className="flex gap-2 w-full justify-between">
-
-                  {/* Status Select */}
-                  {readonly ? (
-                    <div className={`text-xs px-2 py-1 border ${getStatusStyle(item.status)} inline-block text-center w-full sm:w-auto`}>
-                      {item.status}
-                    </div>
-                  ) : (
-                    <select
-                      value={item.status}
-                      onChange={(e) => onUpdate && onUpdate(item.id, { status: e.target.value as MediaStatus })}
-                      className={`bg-black text-xs uppercase px-2 py-1 border outline-none cursor-pointer focus:bg-neutral-900 w-full sm:w-auto ${getStatusStyle(item.status)}`}
-                    >
-                      {STATUS_OPTIONS
-                        .filter(opt => {
-                          // For games, hide WATCHING and READING
-                          if (item.type === 'GAME') {
-                            return opt.value !== 'WATCHING' && opt.value !== 'READING';
-                          }
-                          // For manga, hide WATCHING and PLAYING
-                          if (item.type === 'MANGA') {
-                            return opt.value !== 'WATCHING' && opt.value !== 'PLAYING';
-                          }
-                          // For video types (TV, MOVIE, ANIME), hide READING and PLAYING
-                          return opt.value !== 'READING' && opt.value !== 'PLAYING';
-                        })
-                        .map(opt => (
-                          <option key={opt.value} value={opt.value} className="bg-black text-white">
-                            {opt.label}
-                          </option>
-                        ))}
-                    </select>
-                  )}
-
-                  {/* Progress Input */}
-                  <div className="flex items-center gap-2 justify-between sm:justify-end w-fit ">
-
-                    {readonly ? (
-                      <SpoilerBlur
-                        itemId={`progress-${item.id}`}
-                        isSpoiler={isSpoiler}
-                        type="text"
-                        showIcon={false}
-                      >
-                        <span className="font-mono text-white text-lg">
-                          {isSpoiler ? `${userProgress ?? 0}+` : item.current}
-                          {item.total && <span className="text-neutral-600">/{item.total}</span>}
-                        </span>
-                      </SpoilerBlur>
-                    ) : (
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => onUpdate && onUpdate(item.id, { current: Math.max(0, item.current - 1) })}
-                          className="w-8 h-8 border border-r-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
-                        >-</button>
-                        <input
-                          type="number"
-                          value={item.current}
-                          onChange={(e) => onUpdate && onUpdate(item.id, { current: parseInt(e.target.value) || 0 })}
-                          className="w-14 h-8 bg-black text-center border border-neutral-800 font-mono text-white focus:border-white outline-none"
-                        />
-                        <button
-                          onClick={() => onUpdate && onUpdate(item.id, { current: item.current + 1 })}
-                          className="w-8 h-8 border border-l-0 border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors"
-                        >+</button>
-                      </div>
-                    )}
-                  </div>
-
-                </div>
-
-                <div className="flex gap-1 w-full justify-between">
-
-                  {/* Quick Rating (inline) */}
-                  {!readonly && !isExpanded && (
-                    <div className="flex items-center gap-1">
-                      {[2, 4, 6, 8, 10].map(rating => (
-                        <button
-                          key={rating}
-                          onClick={() => handleRatingChange(item.rating === rating ? null : rating)}
-                          className={`w-6 h-6 text-xs border transition-colors ${item.rating != null && item.rating >= rating
-                            ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10'
-                            : 'border-neutral-700 text-neutral-600 hover:border-neutral-500'
-                            }`}
-                        >
-                          {rating}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Suggest to Friend Button */}
-                  {showSuggestButton && item.refId && onSuggest && (
-                    <button
-                      onClick={() => onSuggest(item)}
-                      className="text-xs px-3   border border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-white uppercase tracking-wider transition-colors w-full"
-                    >
-                      SUGGEST
-                    </button>
-                  )}
-
-
-                </div>
-
-              </div>
-            </div>
+          {/* Poster thumbnail */}
+          <div className="flex-shrink-0 relative">
+            <SpoilerBlur itemId={`poster-${item.id}`} isSpoiler={isSpoiler} type="image" showIcon={true}>
+              <ProxiedImage
+                src={imageUrl}
+                alt={item.title}
+                widthClass="w-12"
+                width={48}
+                height={72}
+                progressPercent={playbackProgressPercent}
+              />
+            </SpoilerBlur>
           </div>
 
-          {/* Expand Button */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="mt-3 text-xs text-neutral-600 hover:text-neutral-400 uppercase tracking-wider flex items-center gap-1"
-          >
-            <ChevronIcon expanded={isExpanded} />
-            <span>{isExpanded ? 'HIDE DETAILS' : (hasDetails ? 'SHOW DETAILS' : 'ADD DETAILS')}</span>
-          </button>
-        </div>
+          {/* Middle: Title / metadata / description */}
+          <div className="flex-grow min-w-0 flex flex-col justify-center gap-0.5">
+            {/* Title row */}
+            <h3 className={`font-semibold text-[13px] leading-tight truncate ${item.status === 'COMPLETED' ? 'text-neutral-500' : 'text-white'}`}>
+              {highlightText(item.title, searchQuery || '')}
+            </h3>
 
-        {/* Expanded Details Section */}
-        {isExpanded && (
-          <div className="border-t border-neutral-800 p-4 bg-neutral-950 space-y-4 animate-fadeIn">
-            {/* Rating */}
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-neutral-600 uppercase tracking-wider w-16">RATING:</span>
-              {readonly ? (
-                <span className="font-mono text-white">
-                  {item.rating != null ? `${item.rating}/10` : '-'}
+            {/* Metadata row: genres | release date | playtime | platforms */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {item.genres && item.genres.length > 0 && (
+                <span className="text-neutral-500 text-[10px] leading-tight">
+                  {item.genres.slice(0, 2).join(' / ')}
                 </span>
-              ) : (
-                <div className="flex items-center gap-1">
-                  {RATING_OPTIONS.map(opt => (
-                    <button
-                      key={opt.label}
-                      onClick={() => handleRatingChange(opt.value)}
-                      className={`w-7 h-7 text-xs border transition-colors ${item.rating === opt.value
-                        ? 'border-white text-white bg-white/10'
-                        : 'border-neutral-700 text-neutral-500 hover:border-neutral-500'
-                        }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+              )}
+              {item.genres && item.genres.length > 0 && (item.year || (item.type === 'GAME' && item.playtimeHours) || (item.type === 'GAME' && item.platforms && item.platforms.length > 0)) && (
+                <span className="text-neutral-700 text-[10px]">&middot;</span>
+              )}
+              {item.year && (
+                <span className="text-neutral-600 text-[10px] leading-tight">{item.year}</span>
+              )}
+              {item.type === 'GAME' && item.playtimeHours && item.playtimeHours > 0 && (
+                <>
+                  <span className="text-neutral-700 text-[10px]">&middot;</span>
+                  <span className="text-neutral-500 text-[10px] leading-tight">~{item.playtimeHours}h</span>
+                </>
+              )}
+              {item.type === 'GAME' && item.platforms && item.platforms.length > 0 && (
+                <>
+                  <span className="text-neutral-700 text-[10px]">&middot;</span>
+                  <span className="text-neutral-500">
+                    <GamePlatformIcons platforms={item.platforms} />
+                  </span>
+                </>
+              )}
+              {item.type !== 'GAME' && (
+                <>
+                  {item.year && <span className="text-neutral-700 text-[10px]">&middot;</span>}
+                  <span className="text-neutral-600 text-[10px] leading-tight">
+                    {item.total ? `${item.total} ${item.type === 'MANGA' ? 'ch' : 'ep'}` : 'Ongoing'}
+                  </span>
+                </>
               )}
             </div>
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <span className="text-xs text-neutral-600 uppercase tracking-wider">NOTES:</span>
-              {readonly ? (
-                <p className="text-sm text-neutral-400 whitespace-pre-wrap">
-                  {item.notes || <span className="text-neutral-700 italic">No notes</span>}
-                </p>
-              ) : isEditingNotes ? (
-                <textarea
-                  value={notesValue}
-                  onChange={(e) => setNotesValue(e.target.value)}
-                  onBlur={handleNotesBlur}
-                  placeholder="Add your notes here..."
-                  autoFocus
-                  className="w-full bg-black border border-neutral-700 p-3 text-sm text-white placeholder-neutral-700 focus:border-white outline-none resize-none min-h-[80px]"
-                />
-              ) : (
-                <div
-                  onClick={() => setIsEditingNotes(true)}
-                  className="w-full min-h-[40px] border border-dashed border-neutral-800 p-3 text-sm cursor-text hover:border-neutral-600 transition-colors"
-                >
-                  {notesValue ? (
-                    <span className="text-neutral-400 whitespace-pre-wrap">{notesValue}</span>
-                  ) : (
-                    <span className="text-neutral-700 italic">Click to add notes...</span>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Description snippet */}
+            {item.description && (
+              <p className="text-neutral-600 text-[10px] leading-snug line-clamp-1 mt-0.5">
+                {item.description}
+              </p>
+            )}
 
-            {/* Friends who have this item */}
-            {item.friendsStatuses && item.friendsStatuses.length > 0 && (
-              <div className="space-y-2">
-                <span className="text-xs text-neutral-600 uppercase tracking-wider">FRIENDS:</span>
-                <div className="flex flex-wrap gap-2">
-                  {item.friendsStatuses.map((friend) => (
-                    <div
-                      key={friend.id}
-                      className="text-xs px-2 py-1 bg-neutral-900 border border-neutral-800 flex items-center gap-2"
-                    >
-                      <span className="text-neutral-300">{friend.displayName || friend.username}</span>
-                      <span className={`uppercase ${friend.status === 'WATCHING' || friend.status === 'READING'
-                        ? 'text-white'
-                        : friend.status === 'COMPLETED'
-                          ? 'text-neutral-500'
-                          : 'text-neutral-600'
-                        }`}>
-                        {friend.status}
-                      </span>
-                      {friend.rating != null && (
-                        <span className="text-neutral-500 font-mono">{friend.rating}/10</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Resume indicator */}
+            {item.activeProgress && !item.activeProgress.completed && item.activeProgress.percentComplete > 0 && (
+              <span className="text-red-400/80 flex items-center gap-1 text-[10px] mt-0.5" title={`Resume at ${formatTime(item.activeProgress.currentTime)}`}>
+                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                </svg>
+                {item.activeProgress.seasonNumber
+                  ? `S${item.activeProgress.seasonNumber}E${item.activeProgress.episodeNumber || '?'}`
+                  : `E${item.activeProgress.episodeNumber || '?'}`
+                }
+              </span>
             )}
           </div>
-        )}
+
+          {/* Right side: Rating + Friends */}
+          <div className="flex-shrink-0 flex flex-col items-end justify-center gap-1.5 min-w-[40px]">
+            {/* Rating */}
+            {item.rating != null && (
+              <div className="flex items-center gap-0.5">
+                <StarIcon filled />
+                <span className="text-[11px] font-mono text-neutral-300">{item.rating}</span>
+              </div>
+            )}
+
+            {/* Spoiler indicator */}
+            {isSpoiler && <SpoilerIndicator className="" />}
+
+            {/* Friends avatar stack */}
+            {friends.length > 0 && (
+              <div className="flex -space-x-1.5">
+                {friends.slice(0, 3).map((friend, index) => (
+                  <div
+                    key={friend.id}
+                    className="relative"
+                    style={{ zIndex: 3 - index }}
+                    title={friend.displayName || friend.username}
+                  >
+                    <FriendAvatar
+                      user={{ username: friend.username, avatarUrl: friend.avatarUrl }}
+                      size="sm"
+                    />
+                  </div>
+                ))}
+                {friends.length > 3 && (
+                  <div className="relative w-5 h-5 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-[8px] text-neutral-400 font-bold" style={{ zIndex: 0 }}>
+                    +{friends.length - 3}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notes indicator */}
+            {item.notes && (
+              <span className="text-neutral-700 text-[9px]" title="Has notes">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                </svg>
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Desktop Delete (Hover) */}
         {!readonly && onDelete && (
           <button
-            onClick={() => onDelete(item.id)}
-            className="hidden sm:flex absolute -top-2 -right-2 w-6 h-6 bg-black border border-neutral-800 text-neutral-500 hover:text-red-500 hover:border-red-900 opacity-0 group-hover:opacity-100 transition-opacity items-center justify-center text-lg leading-none z-10"
+            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+            className="hidden sm:flex absolute -top-1.5 -right-1.5 w-5 h-5 bg-black border border-neutral-800 text-neutral-500 hover:text-red-500 hover:border-red-900 opacity-0 group-hover:opacity-100 transition-opacity items-center justify-center text-sm leading-none z-10"
           >
             ×
           </button>
         )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== Media Detail Sheet ====================
+
+interface MediaDetailSheetProps {
+  item: MediaItem;
+  onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
+  onDelete?: (id: string) => void;
+  onAddToMyList?: (item: MediaItem) => void;
+  onItemClick?: (item: MediaItem) => void;
+  readonly?: boolean;
+  showSuggestButton?: boolean;
+  onSuggest?: (item: MediaItem) => void;
+  onClose: () => void;
+  userProgress?: number;
+}
+
+const STATUS_BUTTON_CONFIG: { value: MediaStatus; label: string; activeClass: string }[] = [
+  { value: 'WATCHING', label: 'Watching', activeClass: 'bg-green-500/20 border-green-500 text-green-400' },
+  { value: 'READING', label: 'Reading', activeClass: 'bg-green-500/20 border-green-500 text-green-400' },
+  { value: 'PLAYING', label: 'Playing', activeClass: 'bg-green-500/20 border-green-500 text-green-400' },
+  { value: 'COMPLETED', label: 'Completed', activeClass: 'bg-neutral-500/20 border-neutral-400 text-neutral-300' },
+  { value: 'DROPPED', label: 'Dropped', activeClass: 'bg-red-500/15 border-red-500 text-red-400' },
+  { value: 'PLAN_TO_WATCH', label: 'Planned', activeClass: 'bg-blue-500/15 border-blue-500 text-blue-400' },
+  { value: 'PAUSED', label: 'Paused', activeClass: 'bg-yellow-500/15 border-yellow-500 text-yellow-400' },
+];
+
+const MediaDetailSheet: React.FC<MediaDetailSheetProps> = ({
+  item,
+  onUpdate,
+  onDelete,
+  onAddToMyList,
+  onItemClick,
+  readonly,
+  showSuggestButton,
+  onSuggest,
+  onClose,
+  userProgress,
+}) => {
+  const { showToast } = useToast();
+  const { user } = useAuth();
+  const [sheetStatus, setSheetStatus] = useState<MediaStatus>(item.status);
+  const [sheetRating, setSheetRating] = useState<number | null>(item.rating ?? null);
+  const [sheetNotes, setSheetNotes] = useState(item.notes || '');
+  const [sheetCurrent, setSheetCurrent] = useState(item.current);
+  const [isClosing, setIsClosing] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  const imageUrl = getRefIdImageUrl(item.imageUrl, item.refId);
+  const friends = item.friendsStatuses ? uniqueFriends(Object.values(item.friendsStatuses).flat()) : [];
+
+  // Load collections for the quick-add section
+  useEffect(() => {
+    if (readonly || !item.refId) return;
+    setCollectionsLoading(true);
+    getMyCollections()
+      .then(data => {
+        const editable = data.filter(c => c.myRole === 'OWNER' || c.myRole === 'EDITOR' || c.owner.id === user?.id);
+        setCollections(editable);
+      })
+      .catch(() => setCollections([]))
+      .finally(() => setCollectionsLoading(false));
+  }, [readonly, item.refId, user?.id]);
+
+  // Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    // Prevent body scroll while sheet is open
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => onClose(), 280);
+  }, [onClose]);
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) handleClose();
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!onUpdate || readonly) {
+      handleClose();
+      return;
+    }
+
+    setSaving(true);
+
+    const updates: Partial<MediaItem> = {};
+    if (sheetStatus !== item.status) updates.status = sheetStatus;
+    if (sheetRating !== (item.rating ?? null)) updates.rating = sheetRating;
+    if (sheetNotes !== (item.notes || '')) updates.notes = sheetNotes || undefined;
+    if (sheetCurrent !== item.current) updates.current = sheetCurrent;
+
+    if (Object.keys(updates).length > 0) {
+      onUpdate(item.id, updates);
+    }
+
+    // Add to selected collection
+    if (selectedCollectionId && item.refId) {
+      try {
+        await addCollectionItem(selectedCollectionId, {
+          refId: item.refId,
+          title: item.title,
+          imageUrl: item.imageUrl,
+          type: item.type,
+        });
+        showToast(`Added to collection`, 'success');
+      } catch (err: any) {
+        if (err.message?.toLowerCase().includes('already in the collection')) {
+          showToast('Already in collection', 'error');
+        } else {
+          showToast('Failed to add to collection', 'error');
+        }
+      }
+    }
+
+    setSaving(false);
+    handleClose();
+  }, [onUpdate, readonly, sheetStatus, sheetRating, sheetNotes, sheetCurrent, item, selectedCollectionId, handleClose, showToast]);
+
+  const getFilteredStatusButtons = () => {
+    return STATUS_BUTTON_CONFIG.filter(btn => {
+      if (item.type === 'GAME') return btn.value !== 'WATCHING' && btn.value !== 'READING';
+      if (item.type === 'MANGA') return btn.value !== 'WATCHING' && btn.value !== 'PLAYING';
+      return btn.value !== 'READING' && btn.value !== 'PLAYING';
+    });
+  };
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-end justify-center media-sheet-backdrop ${isClosing ? 'closing' : ''}`}
+      onClick={handleBackdropClick}
+    >
+      <div
+        ref={sheetRef}
+        className={`media-sheet w-full max-w-lg max-h-[92vh] bg-neutral-950 border-t border-neutral-700/50 overflow-y-auto ${isClosing ? 'closing' : ''}`}
+      >
+        {/* Banner / Image header */}
+        <div className="relative h-44 overflow-hidden bg-neutral-900">
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm scale-110"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent" />
+          {/* Close handle */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-neutral-600/50" />
+          <button
+            onClick={handleClose}
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          {/* Title overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <h2 className="text-lg font-bold text-white leading-tight">{item.title}</h2>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {item.year && <span className="text-neutral-400 text-xs">{item.year}</span>}
+              {item.genres && item.genres.length > 0 && (
+                <>
+                  {item.year && <span className="text-neutral-600 text-xs">&middot;</span>}
+                  <span className="text-neutral-400 text-xs">{item.genres.slice(0, 3).join(', ')}</span>
+                </>
+              )}
+              {item.type === 'GAME' && item.platforms && item.platforms.length > 0 && (
+                <>
+                  <span className="text-neutral-600 text-xs">&middot;</span>
+                  <span className="text-neutral-400"><GamePlatformIcons platforms={item.platforms} /></span>
+                </>
+              )}
+              <span className="text-neutral-600 text-xs">&middot;</span>
+              <span className="text-neutral-500 text-xs uppercase">{item.type}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-5">
+
+          {/* Status buttons */}
+          {!readonly && (
+            <div className="space-y-2">
+              <label className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Status</label>
+              <div className="flex flex-wrap gap-1.5">
+                {getFilteredStatusButtons().map(btn => {
+                  const isActive = sheetStatus === btn.value;
+                  return (
+                    <button
+                      key={btn.value}
+                      onClick={() => setSheetStatus(btn.value)}
+                      className={`px-3 py-1.5 text-xs border rounded-sm transition-all ${isActive ? btn.activeClass : 'border-neutral-800 text-neutral-500 hover:border-neutral-600 hover:text-neutral-300'}`}
+                    >
+                      {btn.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {readonly && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Status:</span>
+              <span className="text-xs text-white uppercase">{item.status.replace('_', ' ')}</span>
+            </div>
+          )}
+
+          {/* Progress */}
+          <div className="space-y-2">
+            <label className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Progress</label>
+            {!readonly ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSheetCurrent(Math.max(0, sheetCurrent - 1))}
+                  className="w-9 h-9 border border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors rounded-sm flex items-center justify-center"
+                >-</button>
+                <input
+                  type="number"
+                  value={sheetCurrent}
+                  onChange={(e) => setSheetCurrent(parseInt(e.target.value) || 0)}
+                  className="w-16 h-9 bg-black text-center border border-neutral-800 font-mono text-white focus:border-neutral-500 outline-none rounded-sm"
+                />
+                <button
+                  onClick={() => setSheetCurrent(sheetCurrent + 1)}
+                  className="w-9 h-9 border border-neutral-800 hover:bg-neutral-900 text-neutral-400 transition-colors rounded-sm flex items-center justify-center"
+                >+</button>
+                {item.total && (
+                  <span className="text-neutral-600 text-xs font-mono">/ {item.total}</span>
+                )}
+              </div>
+            ) : (
+              <span className="font-mono text-white text-sm">
+                {item.current}{item.total && <span className="text-neutral-600">/{item.total}</span>}
+              </span>
+            )}
+          </div>
+
+          {/* Star Rating - 10 stars */}
+          <div className="space-y-2">
+            <label className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Rating</label>
+            {!readonly ? (
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: 10 }, (_, i) => i + 1).map(star => {
+                  const isFilled = sheetRating !== null && sheetRating >= star;
+                  return (
+                    <button
+                      key={star}
+                      onClick={() => setSheetRating(sheetRating === star ? null : star)}
+                      className="p-0.5 transition-transform hover:scale-125"
+                      title={`${star}/10`}
+                    >
+                      <svg className={`w-5 h-5 transition-colors ${isFilled ? 'text-amber-400' : 'text-neutral-800 hover:text-neutral-600'}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                  );
+                })}
+                {sheetRating !== null && (
+                  <span className="ml-2 text-xs font-mono text-neutral-400">{sheetRating}/10</span>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                {item.rating != null ? (
+                  <>
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 10 }, (_, i) => (
+                        <svg key={i} className={`w-4 h-4 ${i < (item.rating ?? 0) ? 'text-amber-400' : 'text-neutral-800'}`} fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                    </div>
+                    <span className="ml-1 text-xs font-mono text-neutral-400">{item.rating}/10</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-neutral-600">No rating</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Private Note */}
+          <div className="space-y-2">
+            <label className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Private Note</label>
+            {!readonly ? (
+              <textarea
+                value={sheetNotes}
+                onChange={(e) => setSheetNotes(e.target.value)}
+                placeholder="Your thoughts..."
+                className="w-full bg-black/50 border border-neutral-800 p-3 text-sm text-white placeholder-neutral-700 focus:border-neutral-600 outline-none resize-none min-h-[72px] rounded-sm"
+              />
+            ) : (
+              <p className="text-sm text-neutral-400 whitespace-pre-wrap">
+                {item.notes || <span className="text-neutral-700 italic">No notes</span>}
+              </p>
+            )}
+          </div>
+
+          {/* Quick add to collection */}
+          {!readonly && item.refId && (
+            <div className="space-y-2">
+              <label className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Add to Collection</label>
+              {collectionsLoading ? (
+                <div className="text-[10px] text-neutral-600 uppercase animate-pulse py-2">Loading...</div>
+              ) : collections.length === 0 ? (
+                <div className="text-[10px] text-neutral-700 py-2">No collections available</div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {collections.slice(0, 8).map(col => {
+                    const isSelected = selectedCollectionId === col.id;
+                    return (
+                      <button
+                        key={col.id}
+                        onClick={() => setSelectedCollectionId(isSelected ? null : col.id)}
+                        className={`px-2.5 py-1.5 text-[10px] border rounded-sm transition-all uppercase tracking-wider ${isSelected
+                          ? 'border-white bg-white/10 text-white'
+                          : 'border-neutral-800 text-neutral-500 hover:border-neutral-600'
+                          }`}
+                      >
+                        {col.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Friends watching */}
+          {friends.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-[10px] text-neutral-500 uppercase tracking-[0.2em]">Friends</label>
+              <div className="space-y-1.5">
+                {friends.map(friend => (
+                  <div key={friend.id} className="flex items-center gap-2.5 py-1.5 px-2 bg-black/30 border border-neutral-800/50 rounded-sm">
+                    <FriendAvatar user={{ username: friend.username, avatarUrl: friend.avatarUrl }} size="sm" />
+                    <div className="flex-grow min-w-0">
+                      <span className="text-xs text-neutral-300 truncate block">{friend.displayName || friend.username}</span>
+                      <span className="text-[10px] text-neutral-600 uppercase">{friend.status.replace('_', ' ')}</span>
+                    </div>
+                    {friend.rating != null && (
+                      <div className="flex items-center gap-0.5 text-[10px] text-neutral-500">
+                        <StarIcon filled />
+                        <span className="font-mono">{friend.rating}</span>
+                      </div>
+                    )}
+                    <span className="text-[10px] text-neutral-600 font-mono">{friend.current}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Readonly actions */}
+          {readonly && onAddToMyList && (
+            <button
+              onClick={() => { onAddToMyList(item); handleClose(); }}
+              className="w-full py-2.5 text-xs font-bold uppercase tracking-wider border border-neutral-600 text-neutral-300 hover:border-white hover:text-white transition-colors rounded-sm"
+            >
+              + Add to My List
+            </button>
+          )}
+
+          {/* Suggest to friend */}
+          {showSuggestButton && item.refId && onSuggest && (
+            <button
+              onClick={() => { onSuggest(item); handleClose(); }}
+              className="w-full py-2.5 text-xs uppercase tracking-wider border border-neutral-800 text-neutral-500 hover:border-neutral-600 hover:text-neutral-300 transition-colors rounded-sm"
+            >
+              Suggest to Friend
+            </button>
+          )}
+
+          {/* Save button */}
+          {!readonly && onUpdate && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full py-3 text-xs font-bold uppercase tracking-[0.15em] bg-white text-black hover:bg-neutral-200 transition-colors rounded-sm disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          )}
+
+          {/* Delete */}
+          {!readonly && onDelete && (
+            <button
+              onClick={() => { onDelete(item.id); handleClose(); }}
+              className="w-full py-2 text-[10px] uppercase tracking-wider text-neutral-700 hover:text-red-500 transition-colors"
+            >
+              Remove from List
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1529,6 +1644,7 @@ const StatusGroup: React.FC<{
   searchQuery?: string;
   onSuggest?: (item: MediaItem) => void;
   onAddToCollection?: (item: MediaItem) => void;
+  onOpenSheet?: (item: MediaItem) => void;
   // Pagination
   pagination?: StatusGroupPagination;
   isLoading?: boolean;
@@ -1551,6 +1667,7 @@ const StatusGroup: React.FC<{
   searchQuery,
   onSuggest,
   onAddToCollection,
+  onOpenSheet,
   pagination,
   isLoading = false,
   onPageChange,
@@ -1573,7 +1690,7 @@ const StatusGroup: React.FC<{
 
         {isExpanded && (
           <>
-            <div className={`space-y-2 pl-0 sm:pl-2 animate-fadeIn ${viewMode === 'compact' ? 'grid grid-cols-1 gap-1' : ''}`}>
+            <div className={`space-y-1 pl-0 sm:pl-2 animate-fadeIn ${viewMode === 'compact' ? 'grid grid-cols-1 gap-1' : ''}`}>
               {items.map((item) => (
                 viewMode === 'compact' ? (
                   <CompactItemCard
@@ -1597,6 +1714,7 @@ const StatusGroup: React.FC<{
                     searchQuery={searchQuery}
                     onSuggest={onSuggest}
                     onAddToCollection={onAddToCollection}
+                    onOpenSheet={onOpenSheet}
                     userProgress={item.refId ? userProgressMap?.get(item.refId) : undefined}
                   />
                 )
@@ -1782,6 +1900,13 @@ export const MediaList: React.FC<MediaListProps> = ({
 
   // Add to Collection modal state
   const [addToCollectionItem, setAddToCollectionItem] = useState<MediaItem | null>(null);
+
+  // Detail sheet state
+  const [sheetItem, setSheetItem] = useState<MediaItem | null>(null);
+
+  const handleOpenSheet = useCallback((item: MediaItem) => {
+    setSheetItem(item);
+  }, []);
 
   // Save view mode to localStorage
   useEffect(() => {
@@ -2034,7 +2159,7 @@ export const MediaList: React.FC<MediaListProps> = ({
           </button>
         </div>
       ) : (
-        <div className={`gap-3 ${viewMode === 'compact' ? 'grid grid-cols-1' : 'space-y-3'}`}>
+        <div className={`gap-1.5 ${viewMode === 'compact' ? 'grid grid-cols-1' : 'space-y-1.5'}`}>
           {sortedItems.map((item) => (
             viewMode === 'compact' ? (
               <CompactItemCard
@@ -2058,6 +2183,7 @@ export const MediaList: React.FC<MediaListProps> = ({
                 searchQuery={searchQuery}
                 onSuggest={setSuggestItem}
                 onAddToCollection={setAddToCollectionItem}
+                onOpenSheet={handleOpenSheet}
                 userProgress={item.refId ? userProgressMap?.get(item.refId) : undefined}
               />
             )
@@ -2092,6 +2218,22 @@ export const MediaList: React.FC<MediaListProps> = ({
             total: addToCollectionItem.total,
           }}
           onClose={() => setAddToCollectionItem(null)}
+        />
+      )}
+
+      {/* Media Detail Sheet */}
+      {sheetItem && (
+        <MediaDetailSheet
+          item={sheetItem}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          onAddToMyList={onAddToMyList}
+          onItemClick={onItemClick}
+          readonly={readonly}
+          showSuggestButton={showSuggestButton}
+          onSuggest={setSuggestItem}
+          onClose={() => setSheetItem(null)}
+          userProgress={sheetItem.refId ? userProgressMap?.get(sheetItem.refId) : undefined}
         />
       )}
     </div>

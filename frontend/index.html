@@ -184,6 +184,49 @@
       .hidden-scrollbar {
         scrollbar-width: none; /* Firefox */
       }
+
+      /* Media Detail Sheet */
+      .media-sheet-backdrop {
+        background: rgba(0, 0, 0, 0);
+        animation: sheet-backdrop-in 0.3s ease-out forwards;
+      }
+      .media-sheet-backdrop.closing {
+        animation: sheet-backdrop-out 0.28s ease-in forwards;
+      }
+      @keyframes sheet-backdrop-in {
+        from { background: rgba(0, 0, 0, 0); }
+        to { background: rgba(0, 0, 0, 0.7); }
+      }
+      @keyframes sheet-backdrop-out {
+        from { background: rgba(0, 0, 0, 0.7); }
+        to { background: rgba(0, 0, 0, 0); }
+      }
+
+      .media-sheet {
+        border-radius: 16px 16px 0 0;
+        transform: translateY(100%);
+        animation: sheet-slide-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+        -webkit-overflow-scrolling: touch;
+      }
+      .media-sheet.closing {
+        animation: sheet-slide-down 0.28s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+      }
+      @keyframes sheet-slide-up {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+      }
+      @keyframes sheet-slide-down {
+        from { transform: translateY(0); }
+        to { transform: translateY(100%); }
+      }
+
+      /* Line clamp utility */
+      .line-clamp-1 {
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+      }
     </style>
   </head>
   <body>
