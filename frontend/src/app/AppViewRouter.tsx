@@ -171,6 +171,55 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
   setEditingCollection,
 }) => {
   const renderContent = () => {
+    const isMergedLibraryView = currentView === 'WATCHLIST' || currentView === 'READLIST' || currentView === 'PLAYLIST';
+    const libraryItems = [...watchlistItems, ...readlistItems, ...playlistItems];
+    const libraryFilter = currentView === 'READLIST'
+      ? readlistFilter
+      : currentView === 'PLAYLIST'
+        ? playlistFilter
+        : watchlistFilter;
+    const libraryFriendFilter = currentView === 'READLIST'
+      ? readlistFriendFilter
+      : currentView === 'PLAYLIST'
+        ? playlistFriendFilter
+        : watchlistFriendFilter;
+    const librarySort = currentView === 'READLIST'
+      ? readlistSort
+      : currentView === 'PLAYLIST'
+        ? playlistSort
+        : watchlistSort;
+    const setLibraryFilter = currentView === 'READLIST'
+      ? setReadlistFilter
+      : currentView === 'PLAYLIST'
+        ? setPlaylistFilter
+        : setWatchlistFilter;
+    const setLibraryFriendFilter = currentView === 'READLIST'
+      ? setReadlistFriendFilter
+      : currentView === 'PLAYLIST'
+        ? setPlaylistFriendFilter
+        : setWatchlistFriendFilter;
+    const setLibrarySort = currentView === 'READLIST'
+      ? setReadlistSort
+      : currentView === 'PLAYLIST'
+        ? setPlaylistSort
+        : setWatchlistSort;
+    const defaultLibraryTypeFilter = currentView === 'READLIST'
+      ? 'manga'
+      : currentView === 'PLAYLIST'
+        ? 'game'
+        : 'all';
+
+    const handleLibraryItemClick = (item: MediaItem) => {
+      if (item.type === 'MANGA') {
+        handleMangaItemClick(item);
+        return;
+      }
+
+      if (item.type !== 'GAME') {
+        handleVideoItemClick(item);
+      }
+    };
+
     if (listLoading && watchlistItems.length === 0 && readlistItems.length === 0 && playlistItems.length === 0) {
       return (
         <div className="flex items-center justify-center min-h-[40vh]">
@@ -183,74 +232,24 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
 
     switch (currentView) {
       case 'WATCHLIST':
-        return (
-          <MediaList
-            title="MY WATCHLIST"
-            items={watchlistItems}
-            groupedData={watchlistGrouped}
-            mediaTypeFilter="video"
-            onUpdate={handleUpdateMedia}
-            onDelete={handleDeleteMedia}
-            onItemClick={handleVideoItemClick}
-            readonly={false}
-            filterStatus={watchlistFilter}
-            friendActivityFilter={watchlistFriendFilter}
-            sortBy={watchlistSort}
-            onFilterChange={setWatchlistFilter}
-            onFriendActivityFilterChange={setWatchlistFriendFilter}
-            onSortChange={(sort) => {
-              setWatchlistSort(sort);
-            }}
-            showSuggestButton={true}
-            onPageChange={loadWatchlistPageForStatus}
-            loadingStatuses={watchlistLoadingStatuses}
-          />
-        );
       case 'READLIST':
-        return (
-          <MediaList
-            title="MY READLIST"
-            items={readlistItems}
-            groupedData={readlistGrouped}
-            mediaTypeFilter="manga"
-            onUpdate={handleUpdateMedia}
-            onDelete={handleDeleteMedia}
-            onItemClick={handleMangaItemClick}
-            readonly={false}
-            filterStatus={readlistFilter}
-            friendActivityFilter={readlistFriendFilter}
-            sortBy={readlistSort}
-            onFilterChange={setReadlistFilter}
-            onFriendActivityFilterChange={setReadlistFriendFilter}
-            onSortChange={(sort) => {
-              setReadlistSort(sort);
-            }}
-            showSuggestButton={true}
-            onPageChange={loadReadlistPageForStatus}
-            loadingStatuses={readlistLoadingStatuses}
-          />
-        );
       case 'PLAYLIST':
         return (
           <MediaList
-            title="MY PLAYLIST"
-            items={playlistItems}
-            groupedData={playlistGrouped}
-            mediaTypeFilter="game"
+            title="MY LIBRARY"
+            items={isMergedLibraryView ? libraryItems : watchlistItems}
             onUpdate={handleUpdateMedia}
             onDelete={handleDeleteMedia}
+            onItemClick={handleLibraryItemClick}
             readonly={false}
-            filterStatus={playlistFilter}
-            friendActivityFilter={playlistFriendFilter}
-            sortBy={playlistSort}
-            onFilterChange={setPlaylistFilter}
-            onFriendActivityFilterChange={setPlaylistFriendFilter}
-            onSortChange={(sort) => {
-              setPlaylistSort(sort);
-            }}
+            filterStatus={libraryFilter}
+            friendActivityFilter={libraryFriendFilter}
+            sortBy={librarySort}
+            onFilterChange={setLibraryFilter}
+            onFriendActivityFilterChange={setLibraryFriendFilter}
+            onSortChange={setLibrarySort}
             showSuggestButton={true}
-            onPageChange={loadPlaylistPageForStatus}
-            loadingStatuses={playlistLoadingStatuses}
+            defaultTypeFilter={defaultLibraryTypeFilter}
           />
         );
       case 'SEARCH':

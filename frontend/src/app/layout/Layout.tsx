@@ -26,13 +26,8 @@ export const Layout: React.FC<LayoutProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Views that require network access
-  const networkRequiredViews: View[] = ['TRENDING', 'SEARCH', 'FRIENDS', 'SUGGESTIONS', 'COLLECTIONS'];
-
   const navItems: { id: View; label: string; requiresNetwork?: boolean }[] = [
-    { id: 'WATCHLIST', label: 'WATCH' },
-    { id: 'READLIST', label: 'READ' },
-    { id: 'PLAYLIST', label: 'PLAY' },
+    { id: 'WATCHLIST', label: 'LIBRARY' },
     { id: 'TRENDING', label: 'HOT', requiresNetwork: true },
     { id: 'SEARCH', label: 'ADD', requiresNetwork: true },
     { id: 'FRIENDS', label: 'SOCIAL', requiresNetwork: true },
@@ -40,7 +35,7 @@ export const Layout: React.FC<LayoutProps> = ({
   ];
 
   const isAuthView = currentView === 'LOGIN' || currentView === 'REGISTER';
-  
+
   // Check if navigation should be disabled for a view
   const isNavDisabled = (item: { id: View; requiresNetwork?: boolean }) => {
     return isOfflineAuthenticated && item.requiresNetwork;
@@ -67,22 +62,23 @@ export const Layout: React.FC<LayoutProps> = ({
     }
   };
 
+  const isLibraryView = currentView === 'WATCHLIST' || currentView === 'READLIST' || currentView === 'PLAYLIST';
+
   return (
     <div className="min-h-screen bg-black text-white font-mono flex flex-col max-w-2xl mx-auto border-x border-neutral-900 shadow-2xl shadow-neutral-900">
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-sm border-b border-neutral-800">
-        <div className="p-4 border-b border-neutral-800 flex justify-between items-center">
+      <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-sm border-b border-neutral-800">
+        <div className="p-4 flex justify-between items-center">
           <h1 className="text-xl font-bold tracking-widest uppercase">Watchlist</h1>
           <div className="flex items-center gap-3">
             {user && (
               <>
-            {/* Downloads Icon */}
+                {/* Downloads Icon */}
                 <button
                   onClick={() => onViewChange('DOWNLOADS')}
-                  className={`relative p-1 transition-colors ${
-                    currentView === 'DOWNLOADS'
-                      ? 'text-white'
-                      : 'text-neutral-500 hover:text-white'
-                  }`}
+                  className={`relative p-1 transition-colors ${currentView === 'DOWNLOADS'
+                    ? 'text-white'
+                    : 'text-neutral-500 hover:text-white'
+                    }`}
                   title="Downloads"
                 >
                   <svg
@@ -104,13 +100,12 @@ export const Layout: React.FC<LayoutProps> = ({
                 <button
                   onClick={() => !isOfflineAuthenticated && onViewChange('SUGGESTIONS')}
                   disabled={isOfflineAuthenticated}
-                  className={`relative p-1 transition-colors ${
-                    isOfflineAuthenticated
-                      ? 'text-neutral-700 cursor-not-allowed'
-                      : currentView === 'SUGGESTIONS'
-                        ? 'text-white'
-                        : 'text-neutral-500 hover:text-white'
-                  }`}
+                  className={`relative p-1 transition-colors ${isOfflineAuthenticated
+                    ? 'text-neutral-700 cursor-not-allowed'
+                    : currentView === 'SUGGESTIONS'
+                      ? 'text-white'
+                      : 'text-neutral-500 hover:text-white'
+                    }`}
                   title={isOfflineAuthenticated ? 'Requires internet connection' : 'Suggestions'}
                 >
                   <svg
@@ -134,47 +129,47 @@ export const Layout: React.FC<LayoutProps> = ({
                   )}
                 </button>
                 <div className="relative" ref={dropdownRef}>
-                <UserAvatar 
-                  username={user.username}
-                  displayName={user.displayName}
-                  avatarUrl={user.avatarUrl}
-                  size="md" 
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="cursor-pointer hover:ring-2 hover:ring-neutral-600 transition-all"
-                  fallbackClassName="bg-neutral-800 text-white border border-neutral-700"
-                />
-                
-                {/* Dropdown Menu */}
-                {showDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-black border border-neutral-800 shadow-xl z-50">
-                    <div className="p-3 border-b border-neutral-800">
-                      <p className="text-sm font-bold uppercase truncate">{user.username}</p>
-                      <p className="text-xs text-neutral-500 truncate">{user.email}</p>
+                  <UserAvatar
+                    username={user.username}
+                    displayName={user.displayName}
+                    avatarUrl={user.avatarUrl}
+                    size="md"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="cursor-pointer hover:ring-2 hover:ring-neutral-600 transition-all"
+                    fallbackClassName="bg-neutral-800 text-white border border-neutral-700"
+                  />
+
+                  {/* Dropdown Menu */}
+                  {showDropdown && (
+                    <div className="absolute right-0 mt-2 w-48 bg-black border border-neutral-800 shadow-xl z-50">
+                      <div className="p-3 border-b border-neutral-800">
+                        <p className="text-sm font-bold uppercase truncate">{user.username}</p>
+                        <p className="text-xs text-neutral-500 truncate">{user.email}</p>
+                      </div>
+                      <div className="py-1">
+                        <button
+                          onClick={() => handleDropdownAction('settings')}
+                          className="w-full px-4 py-3 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-neutral-900 hover:text-white transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Settings
+                        </button>
+                        <button
+                          onClick={() => handleDropdownAction('logout')}
+                          className="w-full px-4 py-3 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-neutral-900 hover:text-red-500 transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          Logout
+                        </button>
+                      </div>
                     </div>
-                    <div className="py-1">
-                      <button
-                        onClick={() => handleDropdownAction('settings')}
-                        className="w-full px-4 py-3 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-neutral-900 hover:text-white transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Settings
-                      </button>
-                      <button
-                        onClick={() => handleDropdownAction('logout')}
-                        className="w-full px-4 py-3 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-neutral-900 hover:text-red-500 transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
               </>
             )}
             <div
@@ -189,43 +184,70 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
 
-        {/* Only show nav when logged in */}
-        {user && !isAuthView && (
-          <nav className="grid grid-cols-7 divide-x divide-neutral-800">
-            {navItems.map((item) => {
-              const disabled = isNavDisabled(item);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => !disabled && onViewChange(item.id)}
-                  disabled={disabled}
-                  className={`py-4 text-xs sm:text-sm font-bold tracking-wider transition-colors uppercase
-                  ${disabled 
-                    ? 'text-neutral-700 cursor-not-allowed' 
-                    : 'hover:bg-neutral-900'
-                  }
-                  ${!disabled && (currentView === item.id ||
-                      (currentView === 'FRIEND_VIEW' && item.id === 'FRIENDS') ||
-                      (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS') ||
-                      (currentView === 'COLLECTION_VIEW' && item.id === 'COLLECTIONS'))
-                      ? 'bg-white text-black'
-                      : disabled ? '' : 'text-neutral-500'
-                    }`}
-                  title={disabled ? 'Requires internet connection' : undefined}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-        )}
       </header>
 
-      <main className="flex-grow p-4 sm:p-6">{children}</main>
+      <main className="flex-grow p-4 pb-28 sm:p-6 sm:pb-32">{children}</main>
 
-      <footer className="p-6 border-t border-neutral-800 text-center text-xs text-neutral-600 uppercase tracking-widest">
-        <p>idk what to put here</p>
+      <footer className=" p-[10px] sticky bottom-0 z-40 bg-black/95 backdrop-blur-sm border-y border-neutral-800">
+
+        {user && !isAuthView && (
+          <div className="   ">
+            <nav className="mx-auto grid max-w-2xl grid-cols-5 items-end  ">
+              {navItems.map((item) => {
+                const disabled = isNavDisabled(item);
+                const isAddButton = item.id === 'SEARCH';
+                const isActive = !disabled && (
+                  (item.id === 'WATCHLIST' && isLibraryView) ||
+                  currentView === item.id ||
+                  (currentView === 'FRIEND_VIEW' && item.id === 'FRIENDS') ||
+                  (currentView === 'SUGGESTIONS' && item.id === 'FRIENDS') ||
+                  (currentView === 'COLLECTION_VIEW' && item.id === 'COLLECTIONS')
+                );
+
+                if (isAddButton) {
+                  return (
+                    <div key={item.id} className="flex justify-center">
+                      <button
+                        onClick={() => !disabled && onViewChange(item.id)}
+                        disabled={disabled}
+                        className={`flex h-14 w-14 -translate-y-5 items-center justify-center rounded-[12px] border transition-all ${disabled
+                          ? 'cursor-not-allowed border-neutral-800 bg-neutral-900 text-neutral-700'
+                          : isActive
+                            ? 'border-white bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.18)]'
+                            : 'border-neutral-700 bg-neutral-950 text-white hover:-translate-y-6 hover:border-neutral-500'
+                          }`}
+                        title={disabled ? 'Requires internet connection' : 'Add media'}
+                      >
+                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m-7-7h14" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => !disabled && onViewChange(item.id)}
+                    disabled={disabled}
+                    className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 text-[10px] font-bold uppercase tracking-[0.28em] transition-colors ${disabled
+                      ? 'cursor-not-allowed text-neutral-700'
+                      : isActive
+                        ? 'bg-neutral-100 text-black'
+                        : 'text-neutral-500 hover:bg-neutral-900 hover:text-white'
+                      }`}
+                    title={disabled ? 'Requires internet connection' : undefined}
+                  >
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        )}
       </footer>
+
     </div>
   );
 };

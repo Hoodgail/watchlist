@@ -567,6 +567,7 @@ interface MediaListProps {
   // Grouped data for per-status pagination
   groupedData?: GroupedListResponse | null;
   mediaTypeFilter?: 'video' | 'manga' | 'game';
+  defaultTypeFilter?: 'all' | 'video' | 'manga' | 'game';
   onUpdate?: (id: string, updates: Partial<MediaItem>) => void;
   onDelete?: (id: string) => void;
   onAddToMyList?: (item: MediaItem) => void;
@@ -602,6 +603,105 @@ interface MediaItemCardProps {
 }
 
 type ViewMode = 'grouped' | 'compact';
+type LibraryTypeFilter = 'all' | 'video' | 'manga' | 'game';
+type StatusTabValue = 'all' | 'active' | 'paused' | 'planned' | 'completed' | 'dropped';
+
+const STATUS_TAB_OPTIONS: { value: StatusTabValue; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Watching' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'dropped', label: 'Dropped' },
+  { value: 'planned', label: 'Planned' },
+  { value: 'paused', label: 'Paused' },
+];
+
+const TYPE_FILTER_OPTIONS: { value: LibraryTypeFilter; label: string }[] = [
+  { value: 'all', label: 'All Types' },
+  { value: 'video', label: 'Video' },
+  { value: 'manga', label: 'Manga' },
+  { value: 'game', label: 'Games' },
+];
+
+const ACTIVE_STATUSES = new Set<MediaStatus>(['WATCHING', 'READING', 'PLAYING']);
+
+const getTypeFilterForItem = (item: MediaItem): Exclude<LibraryTypeFilter, 'all'> => {
+  if (item.type === 'MANGA') return 'manga';
+  if (item.type === 'GAME') return 'game';
+  return 'video';
+};
+
+const matchesTypeFilter = (item: MediaItem, typeFilter: LibraryTypeFilter) => {
+  if (typeFilter === 'all') return true;
+  return getTypeFilterForItem(item) === typeFilter;
+};
+
+const matchesStatusTab = (item: MediaItem, statusTab: StatusTabValue) => {
+  switch (statusTab) {
+    case 'active':
+      return ACTIVE_STATUSES.has(item.status);
+    case 'completed':
+      return item.status === 'COMPLETED';
+    case 'dropped':
+      return item.status === 'DROPPED';
+    case 'planned':
+      return item.status === 'PLAN_TO_WATCH';
+    case 'paused':
+      return item.status === 'PAUSED';
+    default:
+      return true;
+  }
+};
+
+const getStatusTabFromFilter = (status: MediaStatus | ''): StatusTabValue => {
+  if (!status) return 'all';
+  if (ACTIVE_STATUSES.has(status)) return 'active';
+  if (status === 'COMPLETED') return 'completed';
+  if (status === 'DROPPED') return 'dropped';
+  if (status === 'PLAN_TO_WATCH') return 'planned';
+  if (status === 'PAUSED') return 'paused';
+  return 'all';
+};
+
+const getStatusForExternalFilter = (
+  statusTab: StatusTabValue,
+  typeFilter: LibraryTypeFilter,
+): MediaStatus | '' => {
+  switch (statusTab) {
+    case 'active':
+      if (typeFilter === 'manga') return 'READING';
+      if (typeFilter === 'game') return 'PLAYING';
+      return 'WATCHING';
+    case 'completed':
+      return 'COMPLETED';
+    case 'dropped':
+      return 'DROPPED';
+    case 'planned':
+      return 'PLAN_TO_WATCH';
+    case 'paused':
+      return 'PAUSED';
+    default:
+      return '';
+  }
+};
+
+const getStatusSortRank = (status: MediaStatus) => {
+  switch (status) {
+    case 'WATCHING':
+    case 'READING':
+    case 'PLAYING':
+      return 0;
+    case 'PAUSED':
+      return 1;
+    case 'PLAN_TO_WATCH':
+      return 2;
+    case 'COMPLETED':
+      return 3;
+    case 'DROPPED':
+      return 4;
+    default:
+      return 5;
+  }
+};
 
 // ==================== Statistics Summary Component ====================
 
@@ -1636,6 +1736,7 @@ export const MediaList: React.FC<MediaListProps> = ({
   items,
   groupedData,
   mediaTypeFilter,
+  defaultTypeFilter,
   onUpdate,
   onDelete,
   onAddToMyList,
@@ -1654,16 +1755,6 @@ export const MediaList: React.FC<MediaListProps> = ({
   // User's progress map for spoiler detection
   userProgressMap,
 }) => {
-  // State for collapse
-  const [collapseState, setCollapseState] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem(COLLAPSE_STATE_KEY);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
   // View mode state (persisted)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
@@ -1677,26 +1768,64 @@ export const MediaList: React.FC<MediaListProps> = ({
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
+  const initialTypeFilter = useMemo<LibraryTypeFilter>(() => {
+    if (defaultTypeFilter) return defaultTypeFilter;
+    if (mediaTypeFilter) return mediaTypeFilter;
+    return 'all';
+  }, [defaultTypeFilter, mediaTypeFilter]);
+
+  const [typeFilter, setTypeFilter] = useState<LibraryTypeFilter>(initialTypeFilter);
+  const [statusTab, setStatusTab] = useState<StatusTabValue>(() => getStatusTabFromFilter(filterStatus));
+
   // Suggest modal state (lifted from MediaItemCard)
   const [suggestItem, setSuggestItem] = useState<MediaItem | null>(null);
 
   // Add to Collection modal state
   const [addToCollectionItem, setAddToCollectionItem] = useState<MediaItem | null>(null);
 
-  // Save collapse state to localStorage
-  useEffect(() => {
-    localStorage.setItem(COLLAPSE_STATE_KEY, JSON.stringify(collapseState));
-  }, [collapseState]);
-
   // Save view mode to localStorage
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
 
-  // Filter items
-  let filteredItems = filterStatus
-    ? items.filter(item => item.status === filterStatus)
-    : items;
+  useEffect(() => {
+    setTypeFilter(initialTypeFilter);
+  }, [initialTypeFilter]);
+
+  useEffect(() => {
+    setStatusTab(getStatusTabFromFilter(filterStatus));
+  }, [filterStatus]);
+
+  const isOwnList = !readonly;
+
+  const statusTabCounts = useMemo(() => {
+    const counts: Record<StatusTabValue, number> = {
+      all: 0,
+      active: 0,
+      completed: 0,
+      dropped: 0,
+      planned: 0,
+      paused: 0,
+    };
+
+    items.forEach(item => {
+      if (!matchesTypeFilter(item, typeFilter)) return;
+      counts.all += 1;
+      if (matchesStatusTab(item, 'active')) counts.active += 1;
+      if (matchesStatusTab(item, 'completed')) counts.completed += 1;
+      if (matchesStatusTab(item, 'dropped')) counts.dropped += 1;
+      if (matchesStatusTab(item, 'planned')) counts.planned += 1;
+      if (matchesStatusTab(item, 'paused')) counts.paused += 1;
+    });
+
+    return counts;
+  }, [items, typeFilter]);
+
+  let filteredItems = items.filter(item => matchesTypeFilter(item, typeFilter));
+
+  if (statusTab !== 'all') {
+    filteredItems = filteredItems.filter(item => matchesStatusTab(item, statusTab));
+  }
 
   // Apply friend activity filter
   if (friendActivityFilter) {
@@ -1725,67 +1854,38 @@ export const MediaList: React.FC<MediaListProps> = ({
     );
   }
 
-  // Group items by status
-  const groupedItems = useMemo(() => {
-    const groups: Record<MediaStatus, MediaItem[]> = {
-      WATCHING: [],
-      READING: [],
-      PLAYING: [],
-      PAUSED: [],
-      PLAN_TO_WATCH: [],
-      COMPLETED: [],
-      DROPPED: [],
-    };
+  const sortedItems = useMemo(() => {
+    const sorted = [...filteredItems];
 
-    filteredItems.forEach(item => {
-      groups[item.status].push(item);
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case 'title':
+          return a.title.localeCompare(b.title);
+        case 'rating':
+          return (b.rating ?? -1) - (a.rating ?? -1) || a.title.localeCompare(b.title);
+        case 'status':
+          return getStatusSortRank(a.status) - getStatusSortRank(b.status) || a.title.localeCompare(b.title);
+        case 'updatedAt':
+        case 'createdAt':
+        default:
+          return a.title.localeCompare(b.title);
+      }
     });
 
-    return groups;
-  }, [filteredItems]);
+    return sorted;
+  }, [filteredItems, sortBy]);
 
-  // Toggle a single group
-  const toggleGroup = useCallback((status: MediaStatus) => {
-    setCollapseState(prev => ({
-      ...prev,
-      [status]: !prev[status],
-    }));
-  }, []);
+  const handleStatusTabChange = useCallback((nextTab: StatusTabValue) => {
+    setStatusTab(nextTab);
+    onFilterChange?.(getStatusForExternalFilter(nextTab, typeFilter));
+  }, [onFilterChange, typeFilter]);
 
-  // Expand/collapse all
-  const toggleAll = useCallback((expand: boolean) => {
-    const newState: Record<string, boolean> = {};
-    STATUS_GROUP_CONFIG.forEach(config => {
-      newState[config.status] = !expand;
-    });
-    setCollapseState(newState);
-  }, []);
-
-  // Check if group is expanded (default to expanded)
-  const isGroupExpanded = useCallback((status: MediaStatus) => {
-    return collapseState[status] !== true;
-  }, [collapseState]);
-
-  // Determine which groups to show based on items type
-  const relevantGroups = useMemo(() => {
-    const isMangaList = mediaTypeFilter === 'manga' || items.some(i => i.type === 'MANGA');
-    const isGameList = mediaTypeFilter === 'game' || items.some(i => i.type === 'GAME');
-    return STATUS_GROUP_CONFIG.filter(config => {
-      // For manga list, show READING instead of WATCHING/PLAYING
-      if (isMangaList) {
-        if (config.status === 'WATCHING' || config.status === 'PLAYING') return false;
-      }
-      // For game list, show PLAYING instead of WATCHING/READING
-      else if (isGameList) {
-        if (config.status === 'WATCHING' || config.status === 'READING') return false;
-      }
-      // For video list, show WATCHING instead of READING/PLAYING
-      else {
-        if (config.status === 'READING' || config.status === 'PLAYING') return false;
-      }
-      return true;
-    });
-  }, [items, mediaTypeFilter]);
+  const handleTypeFilterChange = useCallback((nextType: LibraryTypeFilter) => {
+    setTypeFilter(nextType);
+    if (statusTab !== 'all') {
+      onFilterChange?.(getStatusForExternalFilter(statusTab, nextType));
+    }
+  }, [onFilterChange, statusTab]);
 
   if (items.length === 0) {
     return (
@@ -1799,94 +1899,114 @@ export const MediaList: React.FC<MediaListProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-900 pb-2">
-        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">{title}</h2>
+      <div className="flex flex-col gap-4 border-b border-neutral-900 pb-4">
+        <div className="flex flex-col gap-3  ">
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-[0.35em]">{title}</h2>
+            <p className="text-xs uppercase tracking-[0.28em] text-neutral-700">
+              Unified queue for video, manga, and games
+            </p>
+          </div>
 
-        {/* Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View Toggle */}
-          <ViewToggle viewMode={viewMode} onChange={setViewMode} />
-
-          {/* Expand/Collapse All */}
-          <div className="flex border border-neutral-800">
-            <button
-              onClick={() => toggleAll(true)}
-              className="px-2 py-1.5 text-xs text-neutral-500 hover:text-white hover:bg-neutral-900 transition-colors"
-              title="Expand all"
-            >
-              EXPAND
-            </button>
-            <button
-              onClick={() => toggleAll(false)}
-              className="px-2 py-1.5 text-xs text-neutral-500 hover:text-white hover:bg-neutral-900 transition-colors border-l border-neutral-800"
-              title="Collapse all"
-            >
-              COLLAPSE
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <ViewToggle viewMode={viewMode} onChange={setViewMode} />
+            {onSortChange && (
+              <label className="flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-950 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-neutral-500">
+                <span>Sort</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => onSortChange(e.target.value as SortBy)}
+                  className="bg-transparent text-white outline-none"
+                >
+                  {SORT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value} className="bg-black text-white">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Statistics Summary */}
-      <StatisticsSummary
-        items={items}
-        onStatusClick={(status) => onFilterChange && onFilterChange(status)}
-        activeStatus={filterStatus}
-      />
+      <div  >
+        <div className="flex flex-col gap-4">
+          <div className="flex   gap-2 overflow-x-auto hidden-scrollbar">
+            {STATUS_TAB_OPTIONS.map((tab) => {
+              const isActive = statusTab === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => handleStatusTabChange(tab.value)}
+                  className={`flex relative h-fit rounded-[50px] p-[10px] px-[15px] rounded-full border text-[11px] uppercase tracking-[0.28em] transition-colors ${isActive
+                    ? 'border-white bg-white text-black'
+                    : 'border-neutral-800 bg-black/40 text-neutral-400 hover:border-neutral-600 hover:text-white'
+                    }`}
+                >
+                  {tab.label}
+                  <span className="ml-1 opacity-70">{statusTabCounts[tab.value]}</span>
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Search Input */}
-      <SearchInput value={searchQuery} onChange={setSearchQuery} />
-
-      {/* Filter and Sort Controls */}
-      {((!readonly && (onFilterChange || onFriendActivityFilterChange)) || onSortChange) && (
-        <div className="flex flex-wrap items-center gap-1 text-xs   mt-0">
-          {/* Filter by Friend Activity - only show for own list (not readonly) */}
-          {!readonly && onFriendActivityFilterChange && (
-            <div className="flex items-center gap-2">
-              <span className="text-neutral-600 uppercase">FRIENDS:</span>
-              <select
-                value={friendActivityFilter}
-                onChange={(e) => onFriendActivityFilterChange(e.target.value as FriendActivityFilter)}
-                className="bg-black border border-neutral-800 text-neutral-400 px-2 py-1 uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
-              >
-                {FRIEND_ACTIVITY_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value} className="bg-black">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              {TYPE_FILTER_OPTIONS.map((option) => {
+                const active = typeFilter === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleTypeFilterChange(option.value)}
+                    className={`rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.24em] transition-colors ${active
+                      ? 'bg-neutral-200 text-black'
+                      : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                      }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
-          )}
 
-          {/* Sort By - always show when handler is provided */}
-          {onSortChange && (
-            <div className="flex items-center gap-2">
-              <span className="text-neutral-600 uppercase">SORT:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => onSortChange(e.target.value as SortBy)}
-                className="bg-black border border-neutral-800 text-neutral-400 px-2 py-1 uppercase outline-none cursor-pointer hover:border-neutral-600 focus:border-white"
-              >
-                {SORT_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value} className="bg-black">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="min-w-[220px] sm:min-w-[260px]">
+                <SearchInput value={searchQuery} onChange={setSearchQuery} />
+              </div>
+              {isOwnList && onFriendActivityFilterChange && (
+                <label className="flex items-center gap-2 rounded-full border border-neutral-800 bg-black/40 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-neutral-500">
+                  <span>Friends</span>
+                  <select
+                    value={friendActivityFilter}
+                    onChange={(e) => onFriendActivityFilterChange(e.target.value as FriendActivityFilter)}
+                    className="bg-transparent text-white outline-none"
+                  >
+                    {FRIEND_ACTIVITY_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value} className="bg-black text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Items count when filtered */}
-      {(filterStatus || friendActivityFilter || searchQuery) && (
+      {(statusTab !== 'all' || typeFilter !== 'all' || friendActivityFilter || searchQuery) && (
         <div className="text-xs text-neutral-600 uppercase flex items-center gap-2">
           <span>Showing {filteredItems.length} of {groupedData?.grandTotal ?? items.length} items</span>
-          {(filterStatus || searchQuery) && (
+          {(statusTab !== 'all' || typeFilter !== 'all' || searchQuery || friendActivityFilter) && (
             <button
               onClick={() => {
                 if (onFilterChange) onFilterChange('');
+                setStatusTab('all');
+                setTypeFilter(initialTypeFilter);
                 setSearchQuery('');
+                onFriendActivityFilterChange?.('');
               }}
               className="text-neutral-500 hover:text-white underline"
             >
@@ -1903,7 +2023,10 @@ export const MediaList: React.FC<MediaListProps> = ({
           <button
             onClick={() => {
               if (onFilterChange) onFilterChange('');
+              setStatusTab('all');
+              setTypeFilter(initialTypeFilter);
               setSearchQuery('');
+              onFriendActivityFilterChange?.('');
             }}
             className="mt-2 text-xs text-neutral-500 hover:text-white underline"
           >
@@ -1911,39 +2034,34 @@ export const MediaList: React.FC<MediaListProps> = ({
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {relevantGroups.map(config => {
-            const statusItems = groupedItems[config.status];
-            const pagination = groupedData?.groups[config.status];
-            const isLoading = loadingStatuses?.has(config.status) ?? false;
-            // Use pagination total if available, otherwise use local items length
-            const totalCount = pagination?.total ?? statusItems.length;
-
-            return (
-              <StatusGroup
-                key={config.status}
-                config={config}
-                items={statusItems}
-                totalCount={totalCount}
-                isExpanded={isGroupExpanded(config.status)}
-                onToggle={() => toggleGroup(config.status)}
+        <div className={`gap-3 ${viewMode === 'compact' ? 'grid grid-cols-1' : 'space-y-3'}`}>
+          {sortedItems.map((item) => (
+            viewMode === 'compact' ? (
+              <CompactItemCard
+                key={item.id}
+                item={item}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                readonly={readonly}
+                searchQuery={searchQuery}
+              />
+            ) : (
+              <MediaItemCard
+                key={item.id}
+                item={item}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onAddToMyList={onAddToMyList}
                 onItemClick={onItemClick}
                 readonly={readonly}
                 showSuggestButton={showSuggestButton}
-                viewMode={viewMode}
                 searchQuery={searchQuery}
                 onSuggest={setSuggestItem}
                 onAddToCollection={setAddToCollectionItem}
-                pagination={pagination}
-                isLoading={isLoading}
-                onPageChange={onPageChange ? (page) => onPageChange(config.status, page) : undefined}
-                userProgressMap={userProgressMap}
+                userProgress={item.refId ? userProgressMap?.get(item.refId) : undefined}
               />
-            );
-          })}
+            )
+          ))}
         </div>
       )}
 
