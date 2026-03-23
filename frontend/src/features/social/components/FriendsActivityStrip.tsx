@@ -23,7 +23,7 @@ export const FriendsActivityStrip: React.FC<FriendsActivityStripProps> = ({ onFr
       .then((data) => {
         if (!cancelled) setEntries(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -47,7 +47,7 @@ export const FriendsActivityStrip: React.FC<FriendsActivityStripProps> = ({ onFr
   if (entries.length === 0) return null;
 
   return (
-    <div className="mb-4">
+    <div  >
       <div
         className="flex gap-3 overflow-x-auto hidden-scrollbar py-2 px-1"
         style={{ scrollSnapType: 'x mandatory' }}

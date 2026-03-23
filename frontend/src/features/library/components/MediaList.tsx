@@ -12,6 +12,7 @@ import { ProxiedImage, ProxiedImageCompact } from '@/shared/ui/ProxiedImage';
 import { getRefIdImageUrl } from '@/shared/media';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
+import { FriendsActivityStrip } from '@/features/social/components/FriendsActivityStrip';
 
 // ==================== Swipe Gesture Hook ====================
 
@@ -210,8 +211,8 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'status', label: 'STATUS' },
   { value: 'title', label: 'TITLE' },
   { value: 'rating', label: 'RATING' },
-  { value: 'updatedAt', label: 'RECENTLY UPDATED' },
-  { value: 'createdAt', label: 'DATE ADDED' },
+  { value: 'updatedAt', label: 'UPDATED' },
+  { value: 'createdAt', label: 'ADDED' },
 ];
 
 const FILTER_STATUS_OPTIONS = [
@@ -221,8 +222,8 @@ const FILTER_STATUS_OPTIONS = [
 
 const FRIEND_ACTIVITY_OPTIONS: { value: FriendActivityFilter; label: string }[] = [
   { value: '', label: 'ALL' },
-  { value: 'friends_watching', label: 'WATCHING/READING' },
-  { value: 'friends_done', label: 'COMPLETED' },
+  { value: 'friends_watching', label: 'PROGRESS' },
+  { value: 'friends_done', label: 'DONE' },
   { value: 'friends_dropped', label: 'DROPPED' },
 ];
 
@@ -588,6 +589,8 @@ interface MediaListProps {
   loadingStatuses?: Set<MediaStatus>;
   // User's progress map for spoiler detection: refId -> current episode/chapter
   userProgressMap?: Map<string, number>;
+  // Friends activity strip
+  onFriendClick?: (friendId: string) => void;
 }
 
 interface MediaItemCardProps {
@@ -1872,6 +1875,8 @@ export const MediaList: React.FC<MediaListProps> = ({
   loadingStatuses,
   // User's progress map for spoiler detection
   userProgressMap,
+  // Friends activity strip
+  onFriendClick,
 }) => {
   // View mode state (persisted)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -2023,35 +2028,16 @@ export const MediaList: React.FC<MediaListProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-neutral-900 pb-4">
-        <div className="flex flex-col gap-3  ">
-          <div className="space-y-1">
-            <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-[0.35em]">{title}</h2>
-            <p className="text-xs uppercase tracking-[0.28em] text-neutral-700">
-              Unified queue for video, manga, and games
-            </p>
+      {/* Header: Title + Friends filter + Sort on one line */}
+      <div className="flex flex-col gap-4  border-neutral-900  ">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center w-full">
+            <div className="min-w-[220px] sm:min-w-[260px] w-full">
+              <SearchInput value={searchQuery} onChange={setSearchQuery} />
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <ViewToggle viewMode={viewMode} onChange={setViewMode} />
-            {onSortChange && (
-              <label className="flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-950 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-neutral-500">
-                <span>Sort</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => onSortChange(e.target.value as SortBy)}
-                  className="bg-transparent text-white outline-none"
-                >
-                  {SORT_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value} className="bg-black text-white">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
         </div>
       </div>
 
@@ -2095,28 +2081,16 @@ export const MediaList: React.FC<MediaListProps> = ({
               })}
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="min-w-[220px] sm:min-w-[260px]">
-                <SearchInput value={searchQuery} onChange={setSearchQuery} />
-              </div>
-              {isOwnList && onFriendActivityFilterChange && (
-                <label className="flex items-center gap-2 rounded-full border border-neutral-800 bg-black/40 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-neutral-500">
-                  <span>Friends</span>
-                  <select
-                    value={friendActivityFilter}
-                    onChange={(e) => onFriendActivityFilterChange(e.target.value as FriendActivityFilter)}
-                    className="bg-transparent text-white outline-none"
-                  >
-                    {FRIEND_ACTIVITY_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value} className="bg-black text-white">
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-            </div>
+
           </div>
+
+          {/* Friends Activity Strip */}
+          {onFriendClick && (
+            <>
+              <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-[0.35em]">MY FRIENDS</h2>
+              <FriendsActivityStrip onFriendClick={onFriendClick} />
+            </>
+          )}
         </div>
       </div>
 
@@ -2140,6 +2114,45 @@ export const MediaList: React.FC<MediaListProps> = ({
           )}
         </div>
       )}
+
+      <div className="flex ">
+        <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-[0.35em] justify-center items-center flex ">{title}</h2>
+        <div className="flex items-center gap-2 ml-auto">
+          {isOwnList && onFriendActivityFilterChange && (
+            <div className="relative">
+              <select
+                value={friendActivityFilter}
+                onChange={(e) => onFriendActivityFilterChange(e.target.value as FriendActivityFilter)}
+                className="appearance-none cursor-pointer rounded-full border border-neutral-800 bg-black/40 pl-3 pr-7 py-2 text-[11px] uppercase tracking-[0.25em] text-neutral-400 hover:border-neutral-600 hover:text-white transition-colors outline-none"
+              >
+                {FRIEND_ACTIVITY_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value} className="bg-black text-white">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          )}
+          {onSortChange && (
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => onSortChange(e.target.value as SortBy)}
+                className="appearance-none cursor-pointer rounded-full border border-neutral-800 bg-neutral-950 pl-3 pr-7 py-2 text-[11px] uppercase tracking-[0.25em] text-neutral-400 hover:border-neutral-600 hover:text-white transition-colors outline-none"
+              >
+                {SORT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value} className="bg-black text-white">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          )}
+        </div>
+      </div>
+
 
       {/* Grouped List */}
       {filteredItems.length === 0 ? (

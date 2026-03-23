@@ -3,7 +3,6 @@ import { MediaList } from '@/features/library/components/MediaList';
 import { SearchMedia } from '@/features/library/components/SearchMedia';
 import { TrendingPage } from '@/features/discovery/components/TrendingPage';
 import { FriendList } from '@/features/social/components/FriendList';
-import { FriendsActivityStrip } from '@/features/social/components/FriendsActivityStrip';
 import { SuggestionList } from '@/features/social/components/SuggestionList';
 import { Settings } from '@/features/profile/components/Settings';
 import { UnifiedDownloadManager } from '@/features/offline/components/UnifiedDownloadManager';
@@ -237,14 +236,8 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
       case 'PLAYLIST':
         return (
           <>
-            <FriendsActivityStrip
-              onFriendClick={(friendId) => {
-                const friend = friends.find(f => f.id === friendId);
-                if (friend) handleViewFriend(friend);
-              }}
-            />
             <MediaList
-              title="MY LIBRARY"
+              title="MY LIST"
               items={isMergedLibraryView ? libraryItems : watchlistItems}
               onUpdate={handleUpdateMedia}
               onDelete={handleDeleteMedia}
@@ -258,6 +251,10 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
               onSortChange={setLibrarySort}
               showSuggestButton={true}
               defaultTypeFilter={defaultLibraryTypeFilter}
+              onFriendClick={(friendId) => {
+                const friend = friends.find(f => f.id === friendId);
+                if (friend) handleViewFriend(friend);
+              }}
             />
           </>
         );
@@ -272,7 +269,7 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
               const parsed = parseVideoRefId(refId);
               const lowerType = mediaType.toLowerCase() as 'movie' | 'tv' | 'anime';
               const isManga = mediaType === 'MANGA';
-              
+
               if (isManga) {
                 // Handle manga navigation
                 const mangaParsed = parseMangaRefId(refId);
@@ -308,7 +305,7 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
               const parsed = parseVideoRefId(refId);
               const lowerType = mediaType.toLowerCase() as 'movie' | 'tv' | 'anime';
               const isManga = mediaType === 'MANGA';
-              
+
               if (isManga) {
                 // Handle manga navigation
                 const mangaParsed = parseMangaRefId(refId);
@@ -332,9 +329,9 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
         );
       case 'FRIEND_VIEW':
         if (!selectedFriend) return null;
-        
+
         // Derive flat lists from grouped data for friend's lists
-        const friendWatchlistItems: MediaItem[] = friendWatchlistGrouped 
+        const friendWatchlistItems: MediaItem[] = friendWatchlistGrouped
           ? Object.values(friendWatchlistGrouped.groups).flatMap(g => g.items)
           : [];
         const friendReadlistItems: MediaItem[] = friendReadlistGrouped
@@ -343,7 +340,7 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
         const friendPlaylistItems: MediaItem[] = friendPlaylistGrouped
           ? Object.values(friendPlaylistGrouped.groups).flatMap(g => g.items)
           : [];
-        
+
         // Convert GroupedFriendListResponse to GroupedListResponse format for MediaList
         const friendWatchlistForMediaList = friendWatchlistGrouped ? {
           groups: friendWatchlistGrouped.groups,
@@ -357,7 +354,7 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
           groups: friendPlaylistGrouped.groups,
           grandTotal: friendPlaylistGrouped.grandTotal,
         } : null;
-        
+
         return (
           <div className="space-y-8">
             <div className="border-b border-white pb-4 mb-4">
@@ -440,7 +437,7 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
       case 'DOWNLOADS':
         return (
           <OfflineVideoProvider>
-            <UnifiedDownloadManager 
+            <UnifiedDownloadManager
               onMangaClick={handleOpenManga}
               onVideoClick={(mediaId, provider, title) => {
                 // Open video detail in offline mode
