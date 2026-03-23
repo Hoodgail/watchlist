@@ -26,12 +26,67 @@ export const Layout: React.FC<LayoutProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const navItems: { id: View; label: string; requiresNetwork?: boolean }[] = [
-    { id: 'WATCHLIST', label: 'LIBRARY' },
-    { id: 'TRENDING', label: 'HOT', requiresNetwork: true },
-    { id: 'SEARCH', label: 'ADD', requiresNetwork: true },
-    { id: 'FRIENDS', label: 'SOCIAL', requiresNetwork: true },
-    { id: 'COLLECTIONS', label: 'LISTS', requiresNetwork: true },
+  const navItems: { id: View; label: string; requiresNetwork?: boolean; icon: React.ReactNode }[] = [
+    {
+      id: 'WATCHLIST',
+      label: 'LIBRARY',
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 17A2.5 2.5 0 014 14.5v-8A2.5 2.5 0 016.5 4H20v13" />
+        </svg>
+      ),
+    },
+    {
+      id: 'TRENDING',
+      label: 'HOT',
+      requiresNetwork: true,
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 6.087c0-.992.807-1.798 1.8-1.798 1.66 0 3.013 1.353 3.013 3.013 0 7.089-6.063 12.41-11.868 12.41C4.878 19.712 3 17.834 3 15.518c0-3.336 2.657-6.166 5.508-7.334.277-.113.58.085.58.384v.636c0 1.09.884 1.974 1.974 1.974a1.974 1.974 0 001.974-1.974c0-.963.387-1.886 1.074-2.565l.14-.14z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'SEARCH',
+      label: 'ADD',
+      requiresNetwork: true,
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m-7-7h14" />
+        </svg>
+      ),
+    },
+    {
+      id: 'FRIENDS',
+      label: 'SOCIAL',
+      requiresNetwork: true,
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20a3 3 0 00-3-3H10a3 3 0 00-3 3" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 11a3 3 0 100-6 3 3 0 000 6z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 20a3 3 0 00-2-2.816" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 5.236a3 3 0 010 5.528" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 20a3 3 0 012-2.816" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 5.236a3 3 0 000 5.528" />
+        </svg>
+      ),
+    },
+    {
+      id: 'COLLECTIONS',
+      label: 'LISTS',
+      requiresNetwork: true,
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h13" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 18h13" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h.01" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h.01" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 18h.01" />
+        </svg>
+      ),
+    },
   ];
 
   const isAuthView = currentView === 'LOGIN' || currentView === 'REGISTER';
@@ -210,7 +265,7 @@ export const Layout: React.FC<LayoutProps> = ({
                       <button
                         onClick={() => !disabled && onViewChange(item.id)}
                         disabled={disabled}
-                        className={`flex h-14 w-14 -translate-y-5 items-center justify-center rounded-[12px] border transition-all ${disabled
+                        className={` scale-150 -translate-y-[15px] shadow-[0_-10px_13px_black] flex h-14 w-14 -translate-y-5 items-center justify-center rounded-full border transition-all ${disabled
                           ? 'cursor-not-allowed border-neutral-800 bg-neutral-900 text-neutral-700'
                           : isActive
                             ? 'border-white bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.18)]'
@@ -218,9 +273,9 @@ export const Layout: React.FC<LayoutProps> = ({
                           }`}
                         title={disabled ? 'Requires internet connection' : 'Add media'}
                       >
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m-7-7h14" />
-                        </svg>
+                        <span className="flex h-6 w-6 items-center justify-center">
+                          {item.icon}
+                        </span>
                       </button>
                     </div>
                   );
@@ -234,11 +289,14 @@ export const Layout: React.FC<LayoutProps> = ({
                     className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 text-[10px] font-bold uppercase tracking-[0.28em] transition-colors ${disabled
                       ? 'cursor-not-allowed text-neutral-700'
                       : isActive
-                        ? 'bg-neutral-100 text-black'
+                        ? 'text-white'
                         : 'text-neutral-500 hover:bg-neutral-900 hover:text-white'
                       }`}
                     title={disabled ? 'Requires internet connection' : undefined}
                   >
+                    <span className={`flex items-center justify-center ${isAddButton ? 'h-6 w-6' : 'h-5 w-5'}`}>
+                      {item.icon}
+                    </span>
                     <span>{item.label}</span>
                   </button>
                 );

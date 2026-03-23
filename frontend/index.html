@@ -1,68 +1,89 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" class="bg-black">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
+
     <!--SSR_META_START-->
     <title>Watchlist - Track Movies, TV Shows, Anime & Manga</title>
-    <meta name="title" content="Watchlist - Track Movies, TV Shows, Anime & Manga" />
-    <meta name="description" content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching. Free and easy to use." />
+    <meta
+      name="title"
+      content="Watchlist - Track Movies, TV Shows, Anime & Manga"
+    />
+    <meta
+      name="description"
+      content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching. Free and easy to use."
+    />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://watchlist.hoodgail.me/" />
-    <meta property="og:title" content="Watchlist - Track Movies, TV Shows, Anime & Manga" />
-    <meta property="og:description" content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching." />
+    <meta
+      property="og:title"
+      content="Watchlist - Track Movies, TV Shows, Anime & Manga"
+    />
+    <meta
+      property="og:description"
+      content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching."
+    />
     <meta property="og:image" content="/assets/banner.png" />
     <meta property="og:site_name" content="Watchlist" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://watchlist.hoodgail.me/" />
-    <meta name="twitter:title" content="Watchlist - Track Movies, TV Shows, Anime & Manga" />
-    <meta name="twitter:description" content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching." />
+    <meta
+      name="twitter:title"
+      content="Watchlist - Track Movies, TV Shows, Anime & Manga"
+    />
+    <meta
+      name="twitter:description"
+      content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching."
+    />
     <meta name="twitter:image" content="/assets/banner.png" />
     <!--SSR_META_END-->
-    
-    <meta name="keywords" content="watchlist, movie tracker, tv show tracker, anime tracker, manga tracker, watch list, media tracker" />
+
+    <meta
+      name="keywords"
+      content="watchlist, movie tracker, tv show tracker, anime tracker, manga tracker, watch list, media tracker"
+    />
     <meta name="author" content="Hoodgail Benjamin" />
     <meta name="robots" content="index, follow" />
-    
+
     <!-- Theme & Colors -->
     <meta name="theme-color" content="#000000" />
     <meta name="msapplication-TileColor" content="#000000" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/assets/logo.png" />
     <link rel="apple-touch-icon" href="/assets/icon.png" />
-    
+
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Watchlist" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="Watchlist" />
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             animation: {
-              fadeIn: 'fadeIn 0.2s ease-out',
-              slideDown: 'slideDown 0.2s ease-out',
+              fadeIn: "fadeIn 0.2s ease-out",
+              slideDown: "slideDown 0.2s ease-out",
             },
             keyframes: {
               fadeIn: {
-                '0%': { opacity: '0', transform: 'translateY(-4px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
+                "0%": { opacity: "0", transform: "translateY(-4px)" },
+                "100%": { opacity: "1", transform: "translateY(0)" },
               },
               slideDown: {
-                '0%': { opacity: '0', maxHeight: '0' },
-                '100%': { opacity: '1', maxHeight: '1000px' },
+                "0%": { opacity: "0", maxHeight: "0" },
+                "100%": { opacity: "1", maxHeight: "1000px" },
               },
             },
           },
         },
-      }
+      };
     </script>
     <style>
       /* Custom scrollbar for better UX */
@@ -80,12 +101,12 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #525252;
       }
-      
+
       /* Smooth scroll behavior */
       html {
         scroll-behavior: smooth;
       }
-      
+
       /* Hide number input arrows */
       input[type="number"]::-webkit-inner-spin-button,
       input[type="number"]::-webkit-outer-spin-button {
@@ -95,33 +116,33 @@
       input[type="number"] {
         -moz-appearance: textfield;
       }
-      
+
       /* Touch action for swipe gestures */
       .swipeable {
         touch-action: pan-y;
       }
-      
+
       /* Swipe gesture styles for media cards */
       .swipe-container {
         overscroll-behavior-x: none;
         touch-action: pan-y pinch-zoom;
         -webkit-overflow-scrolling: touch;
       }
-      
+
       .swipe-card {
         touch-action: pan-y pinch-zoom;
         will-change: transform;
         transition: transform 0.1s ease-out;
       }
-      
+
       .swipe-card.swiping {
         transition: none;
       }
-      
+
       .swipe-card.snap-back {
         transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       }
-      
+
       .swipe-action-bg {
         position: absolute;
         top: 0;
@@ -131,25 +152,37 @@
         align-items: center;
         justify-content: center;
         opacity: 0;
-        transition: opacity 0.15s ease-out, width 0.15s ease-out;
+        transition:
+          opacity 0.15s ease-out,
+          width 0.15s ease-out;
       }
-      
+
       .swipe-action-bg.visible {
         opacity: 1;
       }
-      
+
       .swipe-action-bg.triggered {
         background-color: rgb(22, 163, 74) !important;
       }
-      
+
       @keyframes swipe-success {
-        0% { transform: translateX(0); }
-        50% { transform: translateX(-20px); }
-        100% { transform: translateX(0); }
+        0% {
+          transform: translateX(0);
+        }
+        50% {
+          transform: translateX(-20px);
+        }
+        100% {
+          transform: translateX(0);
+        }
       }
-      
+
       .swipe-success {
         animation: swipe-success 0.3s ease-out;
+      }
+
+      .hidden-scrollbar {
+        scrollbar-width: none; /* Firefox */
       }
     </style>
   </head>
