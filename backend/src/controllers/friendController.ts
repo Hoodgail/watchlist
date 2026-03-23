@@ -3,6 +3,7 @@ export {
   getFollowers,
   getFollowing,
   getFriendList,
+  getFriendsActivity,
   getGroupedFriendList,
   searchUsers,
   unfollow,

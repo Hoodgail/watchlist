@@ -98,3 +98,9 @@ export function createDeleteSuggestionUseCase(dependencies: { socialGateway: Soc
     return dependencies.socialGateway.deleteSuggestion(command.userId, command.suggestionId);
   };
 }
+
+export function createGetFriendsActivityUseCase(dependencies: { socialGateway: SocialGateway }) {
+  return async function getFriendsActivity(query: { userId: string }) {
+    return dependencies.socialGateway.getFriendsActivity(query.userId);
+  };
+}

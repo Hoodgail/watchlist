@@ -1,5 +1,6 @@
 import type { CreateSuggestionInput } from '../../../../utils/schemas.js';
 import type {
+  FriendActivityEntry,
   FriendListResponse,
   FriendResponse,
   GroupedFriendListFilters,
@@ -28,4 +29,5 @@ export interface SocialGateway {
   acceptSuggestion(userId: string, suggestionId: string): Promise<SuggestionResponse>;
   dismissSuggestion(userId: string, suggestionId: string): Promise<SuggestionResponse>;
   deleteSuggestion(userId: string, suggestionId: string): Promise<void>;
+  getFriendsActivity(userId: string): Promise<FriendActivityEntry[]>;
 }

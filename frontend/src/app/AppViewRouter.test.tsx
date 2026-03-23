@@ -7,6 +7,7 @@ vi.mock('@/features/library/components/MediaList', () => ({ MediaList: ({ title 
 vi.mock('@/features/library/components/SearchMedia', () => ({ SearchMedia: () => <div>SEARCH</div> }));
 vi.mock('@/features/discovery/components/TrendingPage', () => ({ TrendingPage: () => <div>TRENDING</div>, default: () => <div>TRENDING</div> }));
 vi.mock('@/features/social/components/FriendList', () => ({ FriendList: () => <div>FRIENDS</div> }));
+vi.mock('@/features/social/components/FriendsActivityStrip', () => ({ FriendsActivityStrip: () => <div data-testid="friends-activity-strip" /> }));
 vi.mock('@/features/social/components/SuggestionList', () => ({ SuggestionList: () => <div>SUGGESTIONS</div> }));
 vi.mock('@/features/profile/components/Settings', () => ({ Settings: () => <div>SETTINGS</div> }));
 vi.mock('@/features/offline/components/UnifiedDownloadManager', () => ({ UnifiedDownloadManager: () => <div>DOWNLOADS</div> }));
@@ -94,7 +95,7 @@ const baseProps: AppViewRouterProps = {
 describe('AppViewRouter', () => {
   it('renders watchlist view', () => {
     render(<AppViewRouter {...baseProps} />);
-    expect(screen.getByText('MY WATCHLIST')).toBeInTheDocument();
+    expect(screen.getByText('MY LIBRARY')).toBeInTheDocument();
   });
 
   it('renders loading state for empty list', () => {

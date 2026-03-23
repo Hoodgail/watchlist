@@ -7,6 +7,7 @@ import {
   createGetFollowersUseCase,
   createGetFollowingUseCase,
   createGetFriendListUseCase,
+  createGetFriendsActivityUseCase,
   createGetGroupedFriendListUseCase,
   createGetPublicProfileUseCase,
   createGetReceivedSuggestionsUseCase,
@@ -43,6 +44,7 @@ export function createSocialApplication(dependencies?: Partial<SocialApplication
     acceptSuggestion: createAcceptSuggestionUseCase({ socialGateway }),
     dismissSuggestion: createDismissSuggestionUseCase({ socialGateway }),
     deleteSuggestion: createDeleteSuggestionUseCase({ socialGateway }),
+    getFriendsActivity: createGetFriendsActivityUseCase({ socialGateway }),
   };
 }
 

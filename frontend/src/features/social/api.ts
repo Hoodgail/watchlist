@@ -179,6 +179,27 @@ export interface FeedOptions {
   mediaType?: CommentMediaType;
 }
 
+export interface FriendActivityItem {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  current: number;
+  total: number | null;
+  imageUrl: string | null;
+  refId: string | null;
+  updatedAt: string;
+}
+
+export interface FriendActivityEntry {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  latestItem: FriendActivityItem | null;
+  updatedAt: string;
+}
+
 export async function getFollowing(): Promise<User[]> {
   const response = await fetchWithAuth('/friends');
 
@@ -201,6 +222,17 @@ export async function getFollowers(): Promise<User[]> {
 
   const users: { id: string; username: string }[] = await response.json();
   return users.map((user) => ({ id: user.id, username: user.username, list: [] }));
+}
+
+export async function getFriendsActivity(): Promise<FriendActivityEntry[]> {
+  const response = await fetchWithAuth('/friends/activity');
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch friends activity');
+  }
+
+  return await response.json();
 }
 
 export async function followUser(userId: string): Promise<void> {

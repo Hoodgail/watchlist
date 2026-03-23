@@ -123,3 +123,24 @@ export interface PrivateProfileResponse {
 }
 
 export type SocialProfileResponse = PublicProfileResponse | PrivateProfileResponse;
+
+export interface FriendActivityItem {
+  id: string;
+  title: string;
+  type: MediaType;
+  status: MediaStatus;
+  current: number;
+  total: number | null;
+  imageUrl: string | null;
+  refId: string | null;
+  updatedAt: Date;
+}
+
+export interface FriendActivityEntry {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  latestItem: FriendActivityItem | null;
+  updatedAt: Date;
+}

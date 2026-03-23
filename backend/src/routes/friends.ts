@@ -13,6 +13,9 @@ router.use(authenticate);
 router.get('/', friendController.getFollowing);
 router.get('/followers', friendController.getFollowers);
 
+// Friends activity (what friends are currently watching/reading)
+router.get('/activity', friendController.getFriendsActivity);
+
 // User search
 router.get('/search', validate(searchQuerySchema, 'query'), friendController.searchUsers);
 

@@ -3,6 +3,7 @@ import { MediaList } from '@/features/library/components/MediaList';
 import { SearchMedia } from '@/features/library/components/SearchMedia';
 import { TrendingPage } from '@/features/discovery/components/TrendingPage';
 import { FriendList } from '@/features/social/components/FriendList';
+import { FriendsActivityStrip } from '@/features/social/components/FriendsActivityStrip';
 import { SuggestionList } from '@/features/social/components/SuggestionList';
 import { Settings } from '@/features/profile/components/Settings';
 import { UnifiedDownloadManager } from '@/features/offline/components/UnifiedDownloadManager';
@@ -235,22 +236,30 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
       case 'READLIST':
       case 'PLAYLIST':
         return (
-          <MediaList
-            title="MY LIBRARY"
-            items={isMergedLibraryView ? libraryItems : watchlistItems}
-            onUpdate={handleUpdateMedia}
-            onDelete={handleDeleteMedia}
-            onItemClick={handleLibraryItemClick}
-            readonly={false}
-            filterStatus={libraryFilter}
-            friendActivityFilter={libraryFriendFilter}
-            sortBy={librarySort}
-            onFilterChange={setLibraryFilter}
-            onFriendActivityFilterChange={setLibraryFriendFilter}
-            onSortChange={setLibrarySort}
-            showSuggestButton={true}
-            defaultTypeFilter={defaultLibraryTypeFilter}
-          />
+          <>
+            <FriendsActivityStrip
+              onFriendClick={(friendId) => {
+                const friend = friends.find(f => f.id === friendId);
+                if (friend) handleViewFriend(friend);
+              }}
+            />
+            <MediaList
+              title="MY LIBRARY"
+              items={isMergedLibraryView ? libraryItems : watchlistItems}
+              onUpdate={handleUpdateMedia}
+              onDelete={handleDeleteMedia}
+              onItemClick={handleLibraryItemClick}
+              readonly={false}
+              filterStatus={libraryFilter}
+              friendActivityFilter={libraryFriendFilter}
+              sortBy={librarySort}
+              onFilterChange={setLibraryFilter}
+              onFriendActivityFilterChange={setLibraryFriendFilter}
+              onSortChange={setLibrarySort}
+              showSuggestButton={true}
+              defaultTypeFilter={defaultLibraryTypeFilter}
+            />
+          </>
         );
       case 'SEARCH':
         return <SearchMedia onAdd={handleAddMedia} onOpenMedia={handleOpenMedia} />;

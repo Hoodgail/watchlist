@@ -107,3 +107,13 @@ export async function searchUsers(
     next(error);
   }
 }
+
+export async function getFriendsActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = requireAuthenticatedUser(req);
+    const activity = await socialApplication.getFriendsActivity({ userId: user.id });
+    res.json(activity);
+  } catch (error) {
+    next(error);
+  }
+}

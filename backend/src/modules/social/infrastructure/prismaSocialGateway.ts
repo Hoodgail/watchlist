@@ -4,6 +4,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import type { CreateSuggestionInput } from '../../../utils/schemas.js';
 import type {
   ActiveProgress,
+  FriendActivityEntry,
   FriendListResponse,
   FriendResponse,
   GroupedFriendListFilters,
@@ -783,6 +784,76 @@ export function createPrismaSocialGateway(): SocialGateway {
       }
 
       await prisma.suggestion.delete({ where: { id: suggestionId } });
+    },
+
+    async getFriendsActivity(userId) {
+      const friendships = await prisma.friendship.findMany({
+        where: { followerId: userId },
+        include: {
+          following: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+              mediaItems: {
+                where: {
+                  status: { in: ['WATCHING', 'READING', 'PLAYING'] },
+                },
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+                select: {
+                  id: true,
+                  title: true,
+                  type: true,
+                  status: true,
+                  current: true,
+                  total: true,
+                  imageUrl: true,
+                  refId: true,
+                  updatedAt: true,
+                  source: {
+                    select: {
+                      title: true,
+                      imageUrl: true,
+                      total: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const entries: FriendActivityEntry[] = friendships.map((friendship) => {
+        const friend = friendship.following;
+        const latestItem = friend.mediaItems[0] ?? null;
+
+        return {
+          id: friend.id,
+          username: friend.username,
+          displayName: friend.displayName,
+          avatarUrl: friend.avatarUrl,
+          latestItem: latestItem ? {
+            id: latestItem.id,
+            title: latestItem.source?.title ?? latestItem.title ?? 'Unknown',
+            type: latestItem.type,
+            status: latestItem.status,
+            current: latestItem.current,
+            total: latestItem.source?.total ?? latestItem.total,
+            imageUrl: latestItem.source?.imageUrl ?? latestItem.imageUrl,
+            refId: latestItem.refId,
+            updatedAt: latestItem.updatedAt,
+          } : null,
+          updatedAt: latestItem?.updatedAt ?? friendship.createdAt,
+        };
+      });
+
+      // Sort by latest activity (most recently updated first)
+      entries.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+      return entries;
     },
   };
 }
