@@ -23,6 +23,13 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist-api.rule=Host(`watchlist-api.hoodgail.me`)"
       - "traefik.http.routers.watchlist-api.entrypoints=web"
+      - "traefik.http.routers.watchlist-api.middlewares=redirect-to-https@file"
+      - "traefik.http.routers.watchlist-api.service=watchlist-api"
+      - "traefik.http.routers.watchlist-api-secure.rule=Host(`watchlist-api.hoodgail.me`)"
+      - "traefik.http.routers.watchlist-api-secure.entrypoints=websecure"
+      - "traefik.http.routers.watchlist-api-secure.tls=true"
+      - "traefik.http.routers.watchlist-api-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.watchlist-api-secure.service=watchlist-api"
       - "traefik.http.services.watchlist-api.loadbalancer.server.port=3201"
       # Health check
       - "traefik.http.services.watchlist-api.loadbalancer.healthcheck.path=/api/health"
@@ -67,6 +74,13 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.watchlist.rule=Host(`watchlist.hoodgail.me`)"
       - "traefik.http.routers.watchlist.entrypoints=web"
+      - "traefik.http.routers.watchlist.middlewares=redirect-to-https@file"
+      - "traefik.http.routers.watchlist.service=watchlist"
+      - "traefik.http.routers.watchlist-secure.rule=Host(`watchlist.hoodgail.me`)"
+      - "traefik.http.routers.watchlist-secure.entrypoints=websecure"
+      - "traefik.http.routers.watchlist-secure.tls=true"
+      - "traefik.http.routers.watchlist-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.watchlist-secure.service=watchlist"
       - "traefik.http.services.watchlist.loadbalancer.server.port=80"
     healthcheck:
       test:
