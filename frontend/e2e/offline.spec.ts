@@ -69,7 +69,7 @@ test('downloaded video opens and plays after an offline reload', async ({ page, 
       type: 'video/webm',
     });
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(['media', 'episodes', 'blobs'], 'readwrite');
+      const tx = db.transaction(['media', 'episodes', 'blobs', 'hls_segments'], 'readwrite');
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.objectStore('media').put({
@@ -89,6 +89,11 @@ test('downloaded video opens and plays after an offline reload', async ({ page, 
         fileSize: blob.size,
       });
       tx.objectStore('blobs').put({ id: 'fixture-video', blob, type: 'video', size: blob.size });
+      // No completed episode exists yet; this segment must survive for resume.
+      tx.objectStore('hls_segments').put({
+        id: 'hianime:partial/one-seg-0', episodeId: 'hianime:partial/one',
+        segmentIndex: 0, data: new Uint8Array([1, 2, 3]).buffer, duration: 5, size: 3,
+      });
     });
     db.close();
   }, videoBase64);
@@ -106,4 +111,17 @@ test('downloaded video opens and plays after an offline reload', async ({ page, 
   await expect
     .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
     .toBeGreaterThan(0);
+  expect(await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>(resolve => {
+      const request = indexedDB.open('watchlist-video', 2);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const saved = await new Promise<boolean>((resolve, reject) => {
+      const request = db.transaction('hls_segments').objectStore('hls_segments').get('hianime:partial/one-seg-0');
+      request.onsuccess = () => resolve(!!request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return saved;
+  })).toBe(true);
 });

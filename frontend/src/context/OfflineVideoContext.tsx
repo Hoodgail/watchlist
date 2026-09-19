@@ -9,7 +9,6 @@ import {
   parseM3U8,
 } from '../features/offline/video/hls';
 import {
-  cleanupOrphanedData,
   deleteOfflineEpisode,
   deleteOfflineMedia,
   fetchVideoAsBlob,
@@ -135,19 +134,9 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // ============ Initialize ============
 
   useEffect(() => {
-    // Initialize database, request persistent storage, and cleanup orphaned data
-    initVideoDatabase().then(async () => {
-      console.log('[OfflineVideo] Database initialized with persistence request');
-
-      // Run orphaned data cleanup in background (non-blocking)
-      try {
-        const cleanupResult = await cleanupOrphanedData();
-        if (cleanupResult.bytesReclaimed > 0) {
-          console.log('[OfflineVideo] Reclaimed', formatBytes(cleanupResult.bytesReclaimed), 'from orphaned data');
-        }
-      } catch (err) {
-        console.warn('[OfflineVideo] Cleanup failed:', err);
-      }
+    // Partial downloads are resumable; startup must not delete unreferenced bytes.
+    void initVideoDatabase().catch(error => {
+      console.error('[OfflineVideo] Database initialization failed:', error);
     });
 
     // Load downloaded content from IndexedDB
