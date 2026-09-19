@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status !== testInfo.expectedStatus) {
+    console.log('Browser failure page:', await page.locator('body').innerText());
+  }
+});
 test('production shell and its styles survive an offline reload', async ({ page, context }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -38,6 +43,8 @@ test('proxy rejects internal destinations', async ({ request }) => {
 });
 
 test('downloaded video opens and plays after an offline reload', async ({ page, context }) => {
+  page.on('console', message => console.log('[browser]', message.type(), message.text()));
+  page.on('pageerror', error => console.log('[browser error]', error.message));
   const { videoBase64 } = await import('./fixtures/video');
   await page.goto('/');
   await page.evaluate(async () => {

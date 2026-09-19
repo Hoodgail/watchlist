@@ -198,7 +198,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 }) => {
   const {
     isOnline,
-    isEpisodeDownloaded,
     getOfflineVideoUrl,
     updateWatchProgress,
     getWatchProgress,
@@ -360,11 +359,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     try {
       // Check for offline version first
-      const isDownloaded = isEpisodeDownloaded(currentEpisodeId);
-
-      if (isDownloaded) {
-        // Check if this is an HLS download
-        const offlineEpisode = await getOfflineEpisode(currentEpisodeId);
+      // Read storage directly: the context's display index may still be refreshing.
+      const offlineEpisode = await getOfflineEpisode(currentEpisodeId);
+      if (offlineEpisode) {
 
         if (offlineEpisode?.isHLS) {
           // Check if HLS segments are available

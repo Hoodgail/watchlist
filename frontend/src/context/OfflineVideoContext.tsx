@@ -182,7 +182,6 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setIsLoading(true);
       const media = await getAllOfflineMedia();
-      setDownloadedMedia(media);
 
       // Build set of downloaded episode IDs
       const episodeIds = new Set<string>();
@@ -193,6 +192,7 @@ export const OfflineVideoProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       }
       setDownloadedEpisodeIds(episodeIds);
+      setDownloadedMedia(media);
       console.log('[OfflineVideo] Refreshed:', media.length, 'media,', episodeIds.size, 'episodes');
     } catch (error) {
       console.error('[OfflineVideo] Failed to refresh:', error);
