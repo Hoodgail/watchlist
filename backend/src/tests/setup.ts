@@ -132,7 +132,9 @@ beforeAll(async () => {
   }
   
   // Log available features for debugging
-  console.log('Database schema check:', availableTables);
+  if (Object.values(availableTables).some(available => !available)) {
+    throw new Error('Test database is missing required tables/columns; apply all migrations');
+  }
 });
 
 beforeEach(async () => {

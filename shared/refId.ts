@@ -77,8 +77,8 @@ export function getRefIdValidationError(): string {
 export function createRefId(source: string, id: string | number): string {
   const idStr = String(id);
   
-  // If id already contains a colon, it's already in refId format - return as-is
   if (idStr.includes(':')) {
+    if (!idStr.startsWith(`${source}:`)) throw new Error('Reference belongs to a different provider');
     return idStr;
   }
   

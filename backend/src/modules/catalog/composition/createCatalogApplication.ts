@@ -1,4 +1,3 @@
-import { createCreateAutoCatalogProviderMappingUseCase } from '../application/useCases/createAutoCatalogProviderMapping.js';
 import { createDeleteCatalogProviderMappingUseCase } from '../application/useCases/deleteCatalogProviderMapping.js';
 import { createFindCatalogSourceByRefIdUseCase } from '../application/useCases/findCatalogSourceByRefId.js';
 import { createGetAllTrendingCatalogUseCase, createGetPopularAnimeUseCase, createGetPopularGamesUseCase, createGetPopularMangaUseCase, createGetTrendingAnimeUseCase, createGetTrendingGamesUseCase, createGetTrendingMoviesUseCase, createGetTrendingTVUseCase } from '../application/useCases/getTrendingCatalog.js';
@@ -48,7 +47,6 @@ export function createCatalogApplication() {
     getCatalogProviderMapping: createGetCatalogProviderMappingUseCase({ providerMappingGateway }),
     getCatalogProviderMappings: createGetCatalogProviderMappingsUseCase({ providerMappingGateway }),
     upsertCatalogProviderMapping: createUpsertCatalogProviderMappingUseCase({ providerMappingGateway }),
-    createAutoCatalogProviderMapping: createCreateAutoCatalogProviderMappingUseCase({ providerMappingGateway }),
     deleteCatalogProviderMapping: createDeleteCatalogProviderMappingUseCase({ providerMappingGateway }),
   };
 }

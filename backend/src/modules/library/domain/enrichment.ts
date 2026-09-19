@@ -132,14 +132,14 @@ export async function loadActiveProgressMap(
   }
 
   const providerMappings = await prisma.providerMapping.findMany({
-    where: { refId: { in: videoRefIds } },
-    select: { refId: true, providerId: true },
+    where: { userId, refId: { in: videoRefIds } },
+    select: { refId: true, providerId: true, provider: true },
   });
 
   const refIdToProviderIds = new Map<string, string[]>();
   for (const mapping of providerMappings) {
     const existing = refIdToProviderIds.get(mapping.refId) || [];
-    existing.push(mapping.providerId);
+    existing.push(`${mapping.provider}:${mapping.providerId}`);
     refIdToProviderIds.set(mapping.refId, existing);
   }
 

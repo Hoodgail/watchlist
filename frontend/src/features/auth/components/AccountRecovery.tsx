@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   completeAccountRecovery,
   initiateAccountRecovery,
-} from '@/features/auth/api';
-import { useAuth } from '@/context/AuthContext';
+} from '../api';
+import { useAuth } from '../../../context/AuthContext';
 
 interface AccountRecoveryProps {
   onSuccess: () => void;
@@ -25,7 +25,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       await initiateAccountRecovery(email.trim());
       setSuccess('If a recovery email exists for this address, you will receive a recovery link shortly.');
@@ -40,20 +40,20 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
 
   const handleCompleteRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword.length < 8) {
       setError('Password must be at least 8 characters');
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       await completeAccountRecovery(token.trim(), newPassword);
       // Refresh user context with new tokens
@@ -76,7 +76,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
         <div className="text-center">
           <h2 className="text-2xl font-bold uppercase tracking-tighter">Account Recovery</h2>
           <p className="text-sm text-neutral-500 mt-2">
-            {step === 'email' 
+            {step === 'email'
               ? 'Enter your recovery email to regain access to your account.'
               : 'Enter the recovery token and set a new password.'}
           </p>
@@ -109,7 +109,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
                 required
               />
             </div>
-            
+
             <button
               type="submit"
               disabled={loading || !email.trim()}
@@ -170,7 +170,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({ onSuccess, onB
                 required
               />
             </div>
-            
+
             <button
               type="submit"
               disabled={loading || !token.trim() || !newPassword || !confirmPassword}

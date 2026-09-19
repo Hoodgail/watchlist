@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Suggestion, SuggestionStatus, SuggestionUser } from '@/types';
+import { Suggestion, SuggestionStatus, SuggestionUser } from '../../../types';
 import {
   acceptSuggestion,
   deleteSuggestion,
   dismissSuggestion,
   getReceivedSuggestions,
   getSentSuggestions,
-} from '@/features/social/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
-import { useToast } from '@/context/ToastContext';
+} from '../api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
+import { useToast } from '../../../context/ToastContext';
 
 const STATUS_FILTER_OPTIONS: { value: SuggestionStatus | ''; label: string }[] = [
   { value: 'PENDING', label: 'PENDING' },
@@ -251,7 +251,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({
               <h3 className="font-bold text-lg leading-tight uppercase tracking-tight text-white">
                 {suggestion.title}
               </h3>
-              
+
               <div className="flex flex-wrap gap-2 text-xs uppercase mt-1">
                 <span className="bg-neutral-900 text-neutral-400 px-1.5 py-0.5 border border-neutral-800">
                   {suggestion.type}

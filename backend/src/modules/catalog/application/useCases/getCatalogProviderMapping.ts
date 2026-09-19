@@ -3,11 +3,12 @@ import type { CatalogProviderMappingGateway } from '../ports/CatalogProviderMapp
 
 export interface GetCatalogProviderMappingQuery {
   refId: string;
+  userId?: string;
   provider: string;
 }
 
 export function createGetCatalogProviderMappingUseCase(dependencies: { providerMappingGateway: CatalogProviderMappingGateway }) {
   return async function getCatalogProviderMapping(query: GetCatalogProviderMappingQuery): Promise<CatalogProviderMapping | null> {
-    return dependencies.providerMappingGateway.getMapping(query.refId, query.provider);
+    return dependencies.providerMappingGateway.getMapping(query.refId, query.provider, query.userId);
   };
 }

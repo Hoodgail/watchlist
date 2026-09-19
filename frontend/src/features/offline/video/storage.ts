@@ -1,4 +1,4 @@
-import { videoOfflineStorageContract } from '@/shared/contracts/storage';
+import { videoOfflineStorageContract } from '../../../shared/contracts/storage';
 
 // IndexedDB Offline Video Storage Service
 // Manages offline storage for video media, episodes, and watch progress
@@ -245,7 +245,8 @@ async function putToStore<T>(storeName: string, data: T): Promise<void> {
     const store = transaction.objectStore(storeName);
     const request = store.put(data);
 
-    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
     request.onerror = () => reject(new Error(`Failed to put to ${storeName}`));
   });
 }
@@ -257,7 +258,8 @@ async function deleteFromStore(storeName: string, key: string): Promise<void> {
     const store = transaction.objectStore(storeName);
     const request = store.delete(key);
 
-    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
     request.onerror = () => reject(new Error(`Failed to delete ${key} from ${storeName}`));
   });
 }
@@ -356,9 +358,7 @@ async function getBlobFromChunks(blobId: string, chunkCount: number): Promise<Bl
   chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
   // Verify we have all chunks
-  if (chunks.length !== chunkCount) {
-    console.warn(`[OfflineVideo] Expected ${chunkCount} chunks but found ${chunks.length}`);
-  }
+  if (chunks.length !== chunkCount || chunks.some((chunk, index) => chunk.chunkIndex !== index)) return null;
 
   // Get content type from blob metadata
   const blobMeta = await getFromStore<StoredBlob>(STORES.BLOBS, blobId);
@@ -449,17 +449,17 @@ export async function getOfflineMediaByRefId(refId: string): Promise<OfflineVide
     await putToStore(STORES.MEDIA, direct);
     return direct;
   }
-  
+
   // Search all media for matching originalRefId
   const allMedia = await getAllFromStore<OfflineVideoMedia>(STORES.MEDIA);
   const match = allMedia.find(m => m.originalRefId === refId);
-  
+
   if (match) {
     match.lastAccessedAt = new Date();
     await putToStore(STORES.MEDIA, match);
     return match;
   }
-  
+
   return null;
 }
 
@@ -495,6 +495,8 @@ export async function saveEpisodeOffline(
   videoBlob: Blob,
   subtitleBlobs?: Record<string, Blob>
 ): Promise<void> {
+  const existing = await getOfflineEpisode(episode.id);
+  if (existing && existing.mediaId !== mediaId) throw new Error('Episode ID belongs to another title');
   const videoBlobId = `video-${episode.id}`;
   let videoChunkCount: number | undefined;
 
@@ -749,14 +751,12 @@ export async function clearAllVideoData(): Promise<void> {
   const storeNames = [STORES.MEDIA, STORES.EPISODES, STORES.BLOBS, STORES.CHUNKS, STORES.HLS_SEGMENTS, STORES.WATCH_PROGRESS];
   const transaction = db.transaction(storeNames, 'readwrite');
 
-  await Promise.all(
-    storeNames.map(
-      (storeName) =>
-        new Promise<void>((resolve) => {
-          transaction.objectStore(storeName).clear().onsuccess = () => resolve();
-        })
-    )
-  );
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('Failed to clear video storage'));
+    transaction.onabort = () => reject(transaction.error || new Error('Video storage transaction aborted'));
+    for (const storeName of storeNames) transaction.objectStore(storeName).clear();
+  });
 }
 
 // ============ Video Download Utilities ============
@@ -764,10 +764,12 @@ export async function clearAllVideoData(): Promise<void> {
 export async function fetchVideoAsBlob(
   url: string,
   headers?: Record<string, string>,
-  onProgress?: (loaded: number, total: number) => void
+  onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal
 ): Promise<Blob> {
   const response = await fetch(url, {
     headers: headers || {},
+    signal,
   });
 
   if (!response.ok) {
@@ -806,7 +808,7 @@ export async function fetchVideoAsBlob(
   }
 
   const contentType = response.headers.get('content-type') || 'video/mp4';
-  return new Blob(chunks, { type: contentType });
+  return new Blob(chunks.map(chunk => new Uint8Array(chunk).buffer), { type: contentType });
 }
 
 export async function fetchSubtitleAsBlob(url: string): Promise<Blob> {
@@ -834,7 +836,7 @@ export async function saveHLSSegment(
     id: `${episodeId}-seg-${segmentIndex}`,
     episodeId,
     segmentIndex,
-    data: data.buffer as ArrayBuffer,
+    data: new Uint8Array(data).buffer,
     duration,
     size: data.length,
   };
@@ -851,9 +853,9 @@ export async function getHLSSegment(
 ): Promise<Uint8Array | null> {
   const id = `${episodeId}-seg-${segmentIndex}`;
   const segment = await getFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS, id);
-  
+
   if (!segment) return null;
-  
+
   return new Uint8Array(segment.data);
 }
 
@@ -864,7 +866,7 @@ export async function getHLSSegmentMetadata(
   episodeId: string
 ): Promise<Array<{ index: number; duration: number; size: number }>> {
   const segments = await getByIndex<StoredHLSSegment>(STORES.HLS_SEGMENTS, 'episodeId', episodeId);
-  
+
   return segments
     .map((seg) => ({
       index: seg.segmentIndex,
@@ -879,7 +881,7 @@ export async function getHLSSegmentMetadata(
  */
 export async function getDownloadedSegmentIndices(episodeId: string): Promise<Set<number>> {
   const metadata = await getHLSSegmentMetadata(episodeId);
-  return new Set(metadata.map((m) => m.index));
+  return new Set(metadata.filter(m => m.index >= 0).map(m => m.index));
 }
 
 /**
@@ -887,7 +889,7 @@ export async function getDownloadedSegmentIndices(episodeId: string): Promise<Se
  */
 export async function deleteHLSSegments(episodeId: string): Promise<void> {
   const segments = await getByIndex<StoredHLSSegment>(STORES.HLS_SEGMENTS, 'episodeId', episodeId);
-  
+
   for (const segment of segments) {
     await deleteFromStore(STORES.HLS_SEGMENTS, segment.id);
   }
@@ -909,6 +911,11 @@ export async function saveHLSEpisodeOffline(
   subtitleBlobs?: Record<string, Blob>,
   hasInitSegment?: boolean
 ): Promise<void> {
+  const existing = await getOfflineEpisode(episode.id);
+  if (existing && existing.mediaId !== mediaId) throw new Error('Episode ID belongs to another title');
+  const segments = await getDownloadedSegmentIndices(episode.id);
+  if (segmentCount < 1 || segments.size !== segmentCount || Array.from({ length: segmentCount }, (_, i) => i).some(i => !segments.has(i))) throw new Error('HLS download is incomplete');
+  if (hasInitSegment && !await hasHLSInitSegment(episode.id)) throw new Error('HLS initialization segment is missing');
   // Save subtitle blobs if provided
   const subtitleBlobIds: Record<string, string> = {};
   if (subtitleBlobs) {
@@ -964,7 +971,7 @@ export async function saveHLSInitSegment(
     id: `${episodeId}-init`,
     episodeId,
     segmentIndex: -1, // Use -1 to indicate init segment
-    data: data.buffer as ArrayBuffer,
+    data: new Uint8Array(data).buffer,
     duration: 0, // Init segment has no duration
     size: data.length,
   };
@@ -980,9 +987,9 @@ export async function getHLSInitSegment(
 ): Promise<Uint8Array | null> {
   const id = `${episodeId}-init`;
   const segment = await getFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS, id);
-  
+
   if (!segment) return null;
-  
+
   return new Uint8Array(segment.data);
 }
 
@@ -1010,19 +1017,19 @@ export interface CleanupResult {
  */
 export async function cleanupOrphanedData(): Promise<CleanupResult> {
   console.log('[OfflineVideo] Starting orphaned data cleanup...');
-  
+
   const result: CleanupResult = {
     orphanedChunks: 0,
     orphanedSegments: 0,
     bytesReclaimed: 0,
   };
-  
+
   try {
     // Get all valid episode IDs and blob IDs
     const episodes = await getAllFromStore<OfflineVideoEpisode>(STORES.EPISODES);
     const validEpisodeIds = new Set(episodes.map(e => e.id));
     const validBlobIds = new Set(episodes.map(e => e.videoBlobId).filter(Boolean));
-    
+
     // Clean up orphaned chunks (video data stored in 5MB pieces)
     const allChunks = await getAllFromStore<StoredChunk>(STORES.CHUNKS);
     for (const chunk of allChunks) {
@@ -1032,7 +1039,7 @@ export async function cleanupOrphanedData(): Promise<CleanupResult> {
         await deleteFromStore(STORES.CHUNKS, chunk.id);
       }
     }
-    
+
     // Clean up orphaned HLS segments
     const allSegments = await getAllFromStore<StoredHLSSegment>(STORES.HLS_SEGMENTS);
     for (const segment of allSegments) {
@@ -1042,22 +1049,22 @@ export async function cleanupOrphanedData(): Promise<CleanupResult> {
         await deleteFromStore(STORES.HLS_SEGMENTS, segment.id);
       }
     }
-    
+
     // Clean up orphaned blob metadata
     const allBlobs = await getAllFromStore<StoredBlob>(STORES.BLOBS);
     for (const blob of allBlobs) {
       // Check if this blob belongs to any valid episode
       const isValidVideo = validBlobIds.has(blob.id);
-      const isValidSubtitle = blob.type === 'subtitle' && episodes.some(e => 
+      const isValidSubtitle = blob.type === 'subtitle' && episodes.some(e =>
         e.subtitleBlobIds && Object.values(e.subtitleBlobIds).includes(blob.id)
       );
-      
+
       if (!isValidVideo && !isValidSubtitle && blob.type !== 'cover') {
         result.bytesReclaimed += blob.size;
         await deleteFromStore(STORES.BLOBS, blob.id);
       }
     }
-    
+
     if (result.orphanedChunks > 0 || result.orphanedSegments > 0) {
       console.log('[OfflineVideo] Cleanup complete:', {
         orphanedChunks: result.orphanedChunks,
@@ -1067,7 +1074,7 @@ export async function cleanupOrphanedData(): Promise<CleanupResult> {
     } else {
       console.log('[OfflineVideo] No orphaned data found');
     }
-    
+
     return result;
   } catch (error) {
     console.error('[OfflineVideo] Cleanup failed:', error);

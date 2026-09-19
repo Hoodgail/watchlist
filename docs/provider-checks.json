@@ -1,0 +1,250 @@
+{
+  "checkedAt": "2026-09-19T21:25:48.588Z",
+  "sdk": "@consumet/extensions",
+  "results": {
+    "hianime": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Something went wrong. Please try again later."
+      }
+    ],
+    "animepahe": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Connection to establish proxy tunnel timed out after 5000ms"
+      }
+    ],
+    "animekai": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Something went wrong. Please try again later."
+      }
+    ],
+    "kickassanime": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "timeout of 10000ms exceeded"
+      }
+    ],
+    "flixhq": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Request failed with status code 522"
+      }
+    ],
+    "goku": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Connection to establish proxy tunnel timed out after 5000ms"
+      }
+    ],
+    "sflix": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Connection to establish proxy tunnel timed out after 5000ms"
+      }
+    ],
+    "himovies": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Incorrect adapter: instantiates FlixHQ instead of HiMovies"
+      }
+    ],
+    "dramacool": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Request failed with status code 502"
+      }
+    ],
+    "mangadex": [
+      {
+        "stage": "search",
+        "status": "passed",
+        "detail": "20 results"
+      },
+      {
+        "stage": "info",
+        "status": "failed",
+        "detail": "Missing title"
+      }
+    ],
+    "comick": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Connection to establish proxy tunnel timed out after 5000ms"
+      }
+    ],
+    "mangapill": [
+      {
+        "stage": "search",
+        "status": "passed",
+        "detail": "50 results"
+      },
+      {
+        "stage": "info",
+        "status": "passed",
+        "detail": "Detail returned a title"
+      },
+      {
+        "stage": "pages",
+        "status": "passed",
+        "detail": "17 pages; image bytes not verified"
+      }
+    ],
+    "mangahere": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Connection to establish proxy tunnel timed out after 5000ms"
+      }
+    ],
+    "mangareader": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Connection to establish proxy tunnel timed out after 5000ms"
+      }
+    ],
+    "asurascans": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Cannot read properties of undefined (reading 'split')"
+      }
+    ],
+    "anilist": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Cannot read properties of undefined (reading 'Page')"
+      }
+    ],
+    "anilist-manga": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Request failed with status code 403"
+      }
+    ],
+    "myanimelist": [
+      {
+        "stage": "search",
+        "status": "passed",
+        "detail": "9 results"
+      },
+      {
+        "stage": "info",
+        "status": "failed",
+        "detail": "Cannot read properties of undefined (reading 'trim')"
+      }
+    ],
+    "tmdb": [
+      {
+        "stage": "search",
+        "status": "unconfigured",
+        "detail": "TMDB_API_KEY absent"
+      }
+    ],
+    "libgen": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "BOOKS.Libgen is not a constructor"
+      }
+    ],
+    "novelupdates": [
+      {
+        "stage": "search",
+        "status": "failed",
+        "detail": "Search returned no results for the fixture query"
+      }
+    ],
+    "getcomics": [
+      {
+        "stage": "probe",
+        "status": "timeout",
+        "detail": "45 second budget exceeded"
+      }
+    ],
+    "rawg": [
+      {
+        "stage": "search",
+        "status": "unconfigured",
+        "detail": "RAWG_API_KEY absent"
+      }
+    ],
+    "mangaplus": [
+      {
+        "stage": "pages",
+        "status": "failed",
+        "detail": "Fixture chapter returned no pages"
+      }
+    ],
+    "hianime-comments": [
+      {
+        "stage": "comments",
+        "status": "failed",
+        "detail": "The operation was aborted due to timeout"
+      }
+    ],
+    "reddit-comments": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Removed stub: returned empty results without making a request"
+      }
+    ],
+    "mal-comments": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Removed stub: returned empty results without making a request"
+      }
+    ],
+    "anilist-comments": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Removed stub: returned empty results without making a request"
+      }
+    ],
+    "letterboxd-comments": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Removed stub: returned empty results without making a request"
+      }
+    ],
+    "mangakakalot": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Stale frontend identifier with no backend adapter; removed from selectors"
+      }
+    ],
+    "readlightnovels": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Stale frontend identifier with no backend adapter; removed from selectors"
+      }
+    ],
+    "animenewsnetwork": [
+      {
+        "stage": "adapter",
+        "status": "disabled",
+        "detail": "Advertised in registry but no callable adapter"
+      }
+    ]
+  }
+}

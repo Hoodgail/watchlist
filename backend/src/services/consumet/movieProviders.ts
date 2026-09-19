@@ -20,11 +20,10 @@ import {
 
 type MovieProvider = InstanceType<typeof MOVIES.FlixHQ> | InstanceType<typeof MOVIES.Goku> | InstanceType<typeof MOVIES.SFlix> | InstanceType<typeof MOVIES.DramaCool>;
 
-const providers: Record<MovieProviderName, () => MovieProvider> = {
+const providers: Partial<Record<MovieProviderName, () => MovieProvider>> = {
   flixhq: () => new MOVIES.FlixHQ(),
   goku: () => new MOVIES.Goku(),
   sflix: () => new MOVIES.SFlix(),
-  himovies: () => new MOVIES.FlixHQ(), // HiMovies uses same interface as FlixHQ
   dramacool: () => new MOVIES.DramaCool(),
 };
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { saveProviderMapping } from '@/features/profile/api';
-import { VideoProviderName } from '@/types';
-import { MatchResult, searchWithProvider, findTopMatches, LOW_CONFIDENCE_THRESHOLD } from '@/services/videoResolver';
-import { getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '@/services/providerConfig';
-import { useToast } from '@/context/ToastContext';
-import { getProxiedImageUrl } from '@/shared/media';
+import { saveProviderMapping } from '../../profile/api';
+import { VideoProviderName } from '../../../types';
+import { MatchResult, searchWithProvider, findTopMatches, LOW_CONFIDENCE_THRESHOLD } from '../../../services/videoResolver';
+import { getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../../../services/providerConfig';
+import { useToast } from '../../../context/ToastContext';
+import { getProxiedImageUrl } from '../../../shared/media/index';
 
 interface ConfidenceCheckModalProps {
   /** The original reference ID (e.g., "tmdb:12345") */
@@ -153,15 +153,15 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
                 {confidenceDisplay.text} match
               </span>
             </div>
-            
+
             <button
               onClick={() => {
                 setSelectedId(matchedProviderId);
                 setSelectedTitle(matchedTitle);
               }}
               className={`w-full p-3 flex gap-3 text-left border transition-colors ${
-                isCurrentMatch 
-                  ? 'border-white bg-neutral-900' 
+                isCurrentMatch
+                  ? 'border-white bg-neutral-900'
                   : 'border-neutral-800 hover:border-neutral-600'
               }`}
             >
@@ -186,19 +186,19 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
               <p className="text-xs text-neutral-600 uppercase tracking-wider mb-3">
                 Alternative Matches ({alternatives.length})
               </p>
-              
+
               <div className="space-y-2">
                 {alternatives.map((alt, idx) => {
                   const isSelected = selectedId === alt.id;
                   const altConfidence = getConfidenceDisplay(alt.score);
-                  
+
                   return (
                     <button
                       key={alt.id || idx}
                       onClick={() => handleSelectAlternative(alt)}
                       className={`w-full p-3 flex gap-3 text-left border transition-colors ${
-                        isSelected 
-                          ? 'border-white bg-neutral-900' 
+                        isSelected
+                          ? 'border-white bg-neutral-900'
                           : 'border-neutral-800 hover:border-neutral-600'
                       }`}
                     >
@@ -215,7 +215,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
                           />
                         </div>
                       )}
-                      
+
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-white uppercase tracking-tight line-clamp-2 text-sm">
@@ -265,7 +265,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
           >
             {isSaving ? 'Confirming...' : `Confirm "${selectedTitle}"`}
           </button>
-          
+
           {/* Search manually option */}
           <button
             onClick={onSearchManually}
@@ -273,7 +273,7 @@ export const ConfidenceCheckModal: React.FC<ConfidenceCheckModalProps> = ({
           >
             SEARCH MANUALLY
           </button>
-          
+
           {/* Cancel */}
           <button
             onClick={onClose}

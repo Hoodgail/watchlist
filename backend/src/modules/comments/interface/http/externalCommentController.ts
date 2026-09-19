@@ -9,7 +9,11 @@ import type {
 } from './externalCommentSchemas.js';
 import type { SupportedCommentMediaType } from '../../application/dto/comments.js';
 
-export async function getProviders(_req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getProviders(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
     const providers = await commentsApplication.getExternalProviders();
     res.json({
@@ -60,7 +64,12 @@ export async function fetchComments(
   try {
     requireAuthenticatedUser(req);
     const { refId, mediaType, title, ...options } = req.body;
-    const result = await commentsApplication.fetchExternalComments({ refId, mediaType, title, options });
+    const result = await commentsApplication.fetchExternalComments({
+      refId,
+      mediaType,
+      title,
+      options,
+    });
     res.json(result);
   } catch (error) {
     next(error);
@@ -90,16 +99,6 @@ export async function fetchFromProvider(
       options,
     });
     res.json(result);
-  } catch (error) {
-    next(error);
-  }
-}
-
-export async function refreshPopularMedia(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    requireAuthenticatedUser(req);
-    const result = await commentsApplication.refreshExternalComments();
-    res.json({ message: 'Refresh job completed', ...result });
   } catch (error) {
     next(error);
   }

@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import compression from 'compression';
+import { fetchPublic } from './server/publicFetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -45,12 +46,12 @@ async function fetchProfile(username: string): Promise<ProfileData | null> {
     console.log(`[SSR] Fetching profile from: ${API_URL}/profile/${username}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
+
     const response = await fetch(`${API_URL}/profile/${encodeURIComponent(username)}`, {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       console.log(`[SSR] Profile response not ok: ${response.status}`);
       return null;
@@ -69,7 +70,7 @@ function generateProfileMetaTags(profile: ProfileData, username: string): string
   const displayName = escapeHtml(profile.displayName || profile.username);
   const pageTitle = `${displayName}'s Watchlist`;
   const pageUrl = `${FRONTEND_URL}/u/${encodeURIComponent(username)}`;
-  
+
   let description: string;
   if (profile.list) {
     const itemCount = profile.list.length;
@@ -78,14 +79,14 @@ function generateProfileMetaTags(profile: ProfileData, username: string): string
     description = `${displayName}'s profile is private.`;
   }
   description = escapeHtml(description);
-  
+
   const avatarUrl = profile.avatarUrl ? escapeHtml(profile.avatarUrl) : `${FRONTEND_URL}/assets/logo.png`;
-  
+
   return `
     <title>${pageTitle}</title>
     <meta name="title" content="${pageTitle}" />
     <meta name="description" content="${description}" />
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="profile" />
     <meta property="og:url" content="${pageUrl}" />
@@ -93,7 +94,7 @@ function generateProfileMetaTags(profile: ProfileData, username: string): string
     <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${avatarUrl}" />
     <meta property="og:site_name" content="Watchlist" />
-    
+
     <!-- Twitter -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:url" content="${pageUrl}" />
@@ -124,12 +125,12 @@ async function fetchCollection(collectionId: string): Promise<CollectionData | n
     console.log(`[SSR] Fetching collection from: ${API_URL}/collections/${collectionId}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
+
     const response = await fetch(`${API_URL}/collections/${encodeURIComponent(collectionId)}`, {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       console.log(`[SSR] Collection response not ok: ${response.status}`);
       return null;
@@ -148,22 +149,22 @@ function generateCollectionMetaTags(collection: CollectionData): string {
   const pageTitle = escapeHtml(`${collection.title} - Collection`);
   const pageUrl = `${FRONTEND_URL}/c/${encodeURIComponent(collection.id)}`;
   const ownerName = escapeHtml(collection.owner.displayName || collection.owner.username);
-  
+
   let description: string;
   if (collection.description) {
     description = escapeHtml(collection.description.slice(0, 150) + (collection.description.length > 150 ? '...' : ''));
   } else {
     description = `A collection by ${ownerName} with ${collection.itemCount} items.`;
   }
-  
+
   const imageUrl = collection.coverUrl ? escapeHtml(collection.coverUrl) : `${FRONTEND_URL}/assets/banner.png`;
   const twitterCard = collection.coverUrl ? 'summary_large_image' : 'summary';
-  
+
   return `
     <title>${pageTitle}</title>
     <meta name="title" content="${pageTitle}" />
     <meta name="description" content="${description}" />
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${pageUrl}" />
@@ -171,7 +172,7 @@ function generateCollectionMetaTags(collection: CollectionData): string {
     <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${imageUrl}" />
     <meta property="og:site_name" content="Watchlist" />
-    
+
     <!-- Twitter -->
     <meta name="twitter:card" content="${twitterCard}" />
     <meta name="twitter:url" content="${pageUrl}" />
@@ -187,7 +188,7 @@ function getDefaultMetaTags(): string {
     <title>Watchlist - Track Movies, TV Shows, Anime & Manga</title>
     <meta name="title" content="Watchlist - Track Movies, TV Shows, Anime & Manga" />
     <meta name="description" content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching. Free and easy to use." />
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${FRONTEND_URL}/" />
@@ -195,7 +196,7 @@ function getDefaultMetaTags(): string {
     <meta property="og:description" content="Track your movies, TV shows, anime, and manga. Share your progress with friends and discover what they're watching." />
     <meta property="og:image" content="${FRONTEND_URL}/assets/banner.png" />
     <meta property="og:site_name" content="Watchlist" />
-    
+
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="${FRONTEND_URL}/" />
@@ -215,9 +216,9 @@ async function createServer() {
 
   // ============ MangaDex Proxy Endpoints ============
   // These bypass CORS restrictions for MangaDex API
-  
+
   const MANGADEX_API_BASE = 'https://api.mangadex.org';
-  
+
   // Helper to build query string from Express query object (handles arrays)
   function buildQueryString(query: Record<string, any>): string {
     const params = new URLSearchParams();
@@ -230,18 +231,18 @@ async function createServer() {
     }
     return params.toString();
   }
-  
+
   // Proxy search requests
   app.get('/api/mangadex/manga', async (req: Request, res: Response) => {
     try {
       const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga?${queryString}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -249,20 +250,20 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy manga details
   app.get('/api/mangadex/manga/:mangaId', async (req: Request, res: Response) => {
     const { mangaId } = req.params;
-    
+
     try {
       const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga/${mangaId}?${queryString}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -270,20 +271,20 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy manga aggregate (chapter list summary)
   app.get('/api/mangadex/manga/:mangaId/aggregate', async (req: Request, res: Response) => {
     const { mangaId } = req.params;
-    
+
     try {
       const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga/${mangaId}/aggregate?${queryString}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -291,18 +292,18 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy chapter list
   app.get('/api/mangadex/chapter', async (req: Request, res: Response) => {
     try {
       const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/chapter?${queryString}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -310,19 +311,19 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy at-home server (for chapter pages)
   app.get('/api/mangadex/at-home/server/:chapterId', async (req: Request, res: Response) => {
-    const { chapterId } = req.params;
-    
+    const chapterId = String(req.params.chapterId);
+
     try {
       const response = await fetch(`${MANGADEX_API_BASE}/at-home/server/${chapterId}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -330,20 +331,20 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy manga feed (chapter list)
   app.get('/api/mangadex/manga/:mangaId/feed', async (req: Request, res: Response) => {
     const { mangaId } = req.params;
-    
+
     try {
       const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/manga/${mangaId}/feed?${queryString}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -351,19 +352,19 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy statistics
   app.get('/api/mangadex/statistics/manga/:mangaId', async (req: Request, res: Response) => {
     const { mangaId } = req.params;
-    
+
     try {
       const response = await fetch(`${MANGADEX_API_BASE}/statistics/manga/${mangaId}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -371,20 +372,20 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy chapter details
   app.get('/api/mangadex/chapter/:chapterId', async (req: Request, res: Response) => {
-    const { chapterId } = req.params;
-    
+    const chapterId = String(req.params.chapterId);
+
     try {
       const queryString = buildQueryString(req.query as Record<string, any>);
       const response = await fetch(`${MANGADEX_API_BASE}/chapter/${chapterId}?${queryString}`);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaDex' });
         return;
       }
-      
+
       const data = await response.json();
       res.json(data);
     } catch (error) {
@@ -392,11 +393,11 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy cover images with localhost referrer
   app.get('/api/mangadex/covers/:mangaId/:fileName', async (req: Request, res: Response) => {
     const { mangaId, fileName } = req.params;
-    
+
     try {
       const coverUrl = `https://uploads.mangadex.org/covers/${mangaId}/${fileName}`;
       const response = await fetch(coverUrl, {
@@ -405,15 +406,22 @@ async function createServer() {
           'User-Agent': 'Mozilla/5.0 (compatible; Watchlist/1.0)',
         },
       });
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch cover' });
         return;
       }
-      
+
+      const contentType = response.headers.get('Content-Type')?.split(';')[0].toLowerCase() || '';
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(contentType)) {
+        await response.body?.cancel();
+        res.status(415).json({ error: 'Unsupported upstream image type' });
+        return;
+      }
       const buffer = await response.arrayBuffer();
-      const contentType = response.headers.get('Content-Type') || 'image/jpeg';
-      
+      res.set('X-Content-Type-Options', 'nosniff');
+      res.set('Content-Security-Policy', "default-src 'none'; sandbox");
+
       res.set('Content-Type', contentType);
       res.set('Cache-Control', 'public, max-age=604800'); // Cache for 7 days
       res.send(Buffer.from(buffer));
@@ -425,21 +433,21 @@ async function createServer() {
 
   // ============ Generic Image Proxy Endpoint ============
   // Proxy images with browser-like headers to bypass hotlink protection
-  
+
   app.get('/api/proxy/image', async (req: Request, res: Response) => {
     const { url, referer } = req.query;
-    
+
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
       return;
     }
-    
+
     try {
       // Use provided referer or fall back to image URL's origin
       const parsedUrl = new URL(url);
       const refererOrigin = typeof referer === 'string' ? referer : parsedUrl.origin;
-      
-      const response = await fetch(url, {
+
+      const response = await fetchPublic(url, {
         headers: {
           'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
           'Accept-Encoding': 'gzip, deflate, br, zstd',
@@ -455,15 +463,22 @@ async function createServer() {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
         },
       });
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch image' });
         return;
       }
-      
+
+      const contentType = response.headers.get('Content-Type')?.split(';')[0].toLowerCase() || '';
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(contentType)) {
+        await response.body?.cancel();
+        res.status(415).json({ error: 'Unsupported upstream image type' });
+        return;
+      }
       const buffer = await response.arrayBuffer();
-      const contentType = response.headers.get('Content-Type') || 'image/jpeg';
-      
+      res.set('X-Content-Type-Options', 'nosniff');
+      res.set('Content-Security-Policy', "default-src 'none'; sandbox");
+
       res.set('Content-Type', contentType);
       res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
       res.send(Buffer.from(buffer));
@@ -475,69 +490,69 @@ async function createServer() {
 
   // ============ MangaPlus Proxy Endpoints ============
   // These bypass CORS restrictions for MangaPlus API and images
-  
+
   // Fetch chapter data (pages + encryption keys)
   app.get('/api/mangaplus/chapter/:chapterId', async (req: Request, res: Response) => {
-    const { chapterId } = req.params;
-    
+    const chapterId = String(req.params.chapterId);
+
     try {
       const mangaPlusUrl = buildMangaPlusApiUrl(chapterId);
-      
+
       const response = await fetch(mangaPlusUrl);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch from MangaPlus' });
         return;
       }
-      
+
       const buffer = await response.arrayBuffer();
       const pages = parseMangaPlusResponse(buffer);
-      
+
       if (pages.length === 0) {
         res.status(404).json({ error: 'No pages found in chapter' });
         return;
       }
-      
+
       res.json({ pages });
     } catch (error) {
       console.error('[MangaPlus] Chapter fetch error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Fetch and decrypt image
   app.get('/api/mangaplus/image', async (req: Request, res: Response) => {
     const { url, key } = req.query;
-    
+
     if (!url || !key || typeof url !== 'string' || typeof key !== 'string') {
       res.status(400).json({ error: 'Missing url or key parameter' });
       return;
     }
-    
+
     // Validate the URL is from MangaPlus CDN
     if (!isValidMangaPlusCdnUrl(url)) {
       res.status(400).json({ error: 'Invalid image URL' });
       return;
     }
-    
+
     // Validate key is 128 hex characters
     if (!isValidEncryptionKey(key)) {
       res.status(400).json({ error: 'Invalid encryption key' });
       return;
     }
-    
+
     try {
-      const response = await fetch(url);
-      
+      const response = await fetchPublic(url);
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch image' });
         return;
       }
-      
+
       const buffer = await response.arrayBuffer();
       const encrypted = new Uint8Array(buffer);
       const decrypted = decryptMangaPlusImage(encrypted, key);
-      
+
       res.set('Content-Type', 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
       res.send(Buffer.from(decrypted));
@@ -549,64 +564,44 @@ async function createServer() {
 
   // ============ Video Proxy Endpoints ============
   // These bypass CORS/Referer restrictions for video streaming (M3U8, TS segments)
-  
-  // Allowed referer domains - these are the video embed sources we trust
-  // The actual video CDN domains (like sunburst93.live) change frequently,
-  // so we validate the referer instead
-  const ALLOWED_REFERER_DOMAINS = [
-    'megacloud.blog',
-    'megacloud.tv',
-    'rapid-cloud.co',
-    'rabbitstream.net',
-    'vidstream.pro',
-    'vidcloud.co',
-    'streameeeeee.site',
-  ];
-  
+
   function isAllowedReferer(referer: string | undefined): boolean {
     if (!referer) return false;
-    // try {
-    //   const parsed = new URL(referer);
-    //   return ALLOWED_REFERER_DOMAINS.some(domain => 
-    //     parsed.hostname === domain || parsed.hostname.endsWith('.' + domain)
-    //   );
-    // } catch {
-    //   return false;
-    // }
-    return true;
+    try { return ['http:', 'https:'].includes(new URL(referer).protocol); }
+    catch { return false; }
   }
-  
+
   // Proxy M3U8 playlist - rewrites segment URLs to go through proxy
   // Use ?raw=1 to get the original M3U8 content without URL rewriting (for downloads)
   app.get('/api/video/m3u8', async (req: Request, res: Response) => {
     const { url, referer, raw } = req.query;
-    
+
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
       return;
     }
-    
+
     const refererStr = typeof referer === 'string' ? referer : undefined;
     const returnRaw = raw === '1' || raw === 'true';
-    
+
     // Validate referer is from a trusted video platform
     if (!isAllowedReferer(refererStr)) {
       console.warn('[Video] Blocked - invalid or missing referer:', refererStr);
       res.status(403).json({ error: 'Invalid referer' });
       return;
     }
-    
+
     try {
       const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
-      
+
       console.log(`[Video] Proxying M3U8${returnRaw ? ' (raw)' : ''}: ${url.substring(0, 80)}...`);
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-      
-      const response = await fetch(url, {
+
+      const response = await fetchPublic(url, {
         signal: controller.signal,
         headers: {
           'Accept': '*/*',
@@ -616,19 +611,19 @@ async function createServer() {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
         },
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         console.error(`[Video] M3U8 fetch failed: ${response.status}`);
         res.status(response.status).json({ error: 'Failed to fetch M3U8', status: response.status });
         return;
       }
-      
+
       // M3U8 files are text and need URL rewriting, so we still need to load them fully
       // But they're typically small (<100KB), so this is acceptable
       let m3u8Content = await response.text();
-      
+
       // If raw mode, return the original content without URL rewriting
       // The client (HLS downloader) will handle URL resolution itself
       if (returnRaw) {
@@ -638,13 +633,13 @@ async function createServer() {
         res.send(m3u8Content);
         return;
       }
-      
+
       // Rewrite URLs in M3U8 to go through our proxy
       // Handle both relative and absolute URLs
       const lines = m3u8Content.split('\n');
       const rewrittenLines = lines.map(line => {
         const trimmedLine = line.trim();
-        
+
         // Skip comments and empty lines
         if (trimmedLine.startsWith('#') || trimmedLine === '') {
           // But check for URI= in EXT-X-KEY and EXT-X-MAP tags
@@ -657,7 +652,7 @@ async function createServer() {
           }
           return line;
         }
-        
+
         // If it's a URL line (segment or sub-playlist)
         if (trimmedLine.startsWith('http')) {
           // Absolute URL
@@ -673,12 +668,12 @@ async function createServer() {
           }
           return `/api/video/segment?url=${encodeURIComponent(absoluteUrl)}&referer=${encodeURIComponent(refererOrigin)}`;
         }
-        
+
         return line;
       });
-      
+
       const rewrittenContent = rewrittenLines.join('\n');
-      
+
       res.set('Content-Type', 'application/vnd.apple.mpegurl');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'no-cache');
@@ -693,76 +688,82 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
   // Proxy video segments (TS files, encryption keys, etc.)
   // Support both GET and HEAD methods for size estimation
   // Uses streaming to avoid loading entire segments into memory
   const handleSegmentProxy = async (req: Request, res: Response) => {
     const { url, referer } = req.query;
     const isHead = req.method === 'HEAD';
-    
+
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
       return;
     }
-    
+
     const refererStr = typeof referer === 'string' ? referer : undefined;
-    
+
     // Validate referer is from a trusted video platform
     if (!isAllowedReferer(refererStr)) {
       console.warn('[Video] Segment blocked - invalid referer:', refererStr);
       res.status(403).json({ error: 'Invalid referer' });
       return;
     }
-    
+
     try {
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for segments
-      
-      const response = await fetch(url, {
+
+      const response = await fetchPublic(url, {
         method: isHead ? 'HEAD' : 'GET',
         signal: controller.signal,
         headers: {
           'Accept': '*/*',
+          ...(req.headers.range ? { Range: req.headers.range } : {}),
           'Accept-Language': 'en-US,en;q=0.9',
           'Referer': refererOrigin,
           'Origin': new URL(refererStr!).origin,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
         },
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         console.error(`[Video] Segment fetch failed: ${response.status} for ${url.substring(0, 60)}...`);
         res.status(response.status).json({ error: 'Failed to fetch segment', status: response.status });
         return;
       }
-      
+
       const contentType = response.headers.get('Content-Type') || 'video/mp2t';
       const contentLength = response.headers.get('Content-Length');
-      
+
+      res.status(response.status);
       res.set('Content-Type', contentType);
+      for (const header of ['content-range', 'accept-ranges']) {
+        const value = response.headers.get(header);
+        if (value) res.set(header, value);
+      }
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'public, max-age=3600'); // Cache segments for 1 hour
       if (contentLength) {
         res.set('Content-Length', contentLength);
       }
-      
+
       if (isHead) {
         res.end();
         return;
       }
-      
+
       // Stream the response body directly to the client using pipe()
       // This avoids loading the entire segment into memory
       if (response.body) {
         const { Readable } = await import('stream');
         const nodeStream = Readable.fromWeb(response.body as any);
-        
+
         // Handle stream errors
         nodeStream.on('error', (err) => {
           console.error('[Video] Segment stream error:', err);
@@ -772,12 +773,12 @@ async function createServer() {
             res.end();
           }
         });
-        
+
         // Handle client disconnect
         res.on('close', () => {
           nodeStream.destroy();
         });
-        
+
         nodeStream.pipe(res);
       } else {
         // Fallback for environments where body is not a ReadableStream
@@ -794,47 +795,47 @@ async function createServer() {
       res.status(500).json({ error: 'Internal server error' });
     }
   };
-  
+
   app.get('/api/video/segment', handleSegmentProxy);
   app.head('/api/video/segment', handleSegmentProxy);
- 
-  
+
+
   // Proxy subtitles/VTT files
   // Uses streaming to handle large subtitle files efficiently
   // Supports optional encoding parameter for non-UTF-8 subtitle files (e.g., Windows-1252, ISO-8859-1)
   app.get('/api/video/subtitle', async (req: Request, res: Response) => {
     const { url, referer, encoding } = req.query;
-    
+
     if (!url || typeof url !== 'string') {
       res.status(400).json({ error: 'Missing url parameter' });
       return;
     }
-    
+
     const refererStr = typeof referer === 'string' ? referer : undefined;
     const encodingStr = typeof encoding === 'string' ? encoding : 'UTF-8';
-    
+
     // Validate encoding parameter (only allow known safe encodings)
     const allowedEncodings = ['UTF-8', 'Windows-1252', 'ISO-8859-1'];
     if (!allowedEncodings.includes(encodingStr)) {
       res.status(400).json({ error: 'Invalid encoding parameter' });
       return;
     }
-    
+
     // Validate referer is from a trusted video platform
     if (!isAllowedReferer(refererStr)) {
       console.warn('[Video] Subtitle blocked - invalid referer:', refererStr);
       res.status(403).json({ error: 'Invalid referer' });
       return;
     }
-    
+
     try {
       // Strip referer to just origin with trailing slash - CDNs expect this format
       const refererOrigin = new URL(refererStr!).origin + '/';
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-      
-      const response = await fetch(url, {
+
+      const response = await fetchPublic(url, {
         signal: controller.signal,
         headers: {
           'Accept': '*/*',
@@ -842,50 +843,50 @@ async function createServer() {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
         },
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         res.status(response.status).json({ error: 'Failed to fetch subtitle', status: response.status });
         return;
       }
-      
+
       // If a non-UTF-8 encoding is requested, we need to decode the raw bytes
       // with the specified encoding and re-encode as UTF-8
       if (encodingStr !== 'UTF-8') {
         const buffer = await response.arrayBuffer();
         const decoder = new TextDecoder(encodingStr);
         const content = decoder.decode(buffer);
-        
+
         // Determine content type (preserve original but ensure UTF-8 charset)
         const originalContentType = response.headers.get('Content-Type') || 'text/vtt';
-        const contentType = originalContentType.includes('charset') 
+        const contentType = originalContentType.includes('charset')
           ? originalContentType.replace(/charset=[^;]+/i, 'charset=utf-8')
           : `${originalContentType}; charset=utf-8`;
-        
+
         res.set('Content-Type', contentType);
         res.set('Access-Control-Allow-Origin', '*');
         res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
         res.send(content);
         return;
       }
-      
+
       // Default UTF-8 path: stream the response directly
       const contentType = response.headers.get('Content-Type') || 'text/vtt';
       const contentLength = response.headers.get('Content-Length');
-      
+
       res.set('Content-Type', contentType);
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
       if (contentLength) {
         res.set('Content-Length', contentLength);
       }
-      
+
       // Stream the response body directly to the client
       if (response.body) {
         const { Readable } = await import('stream');
         const nodeStream = Readable.fromWeb(response.body as any);
-        
+
         nodeStream.on('error', (err) => {
           console.error('[Video] Subtitle stream error:', err);
           if (!res.headersSent) {
@@ -894,11 +895,11 @@ async function createServer() {
             res.end();
           }
         });
-        
+
         res.on('close', () => {
           nodeStream.destroy();
         });
-        
+
         nodeStream.pipe(res);
       } else {
         // Fallback: load into memory if streaming is not available
@@ -927,32 +928,32 @@ async function createServer() {
       appType: 'custom', // Use 'custom' instead of 'spa' to prevent Vite from handling HTML
     });
     template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
-    
+
     // Handle profile pages with dynamic meta tags BEFORE Vite middleware
     app.get('/u/:username', async (req: Request, res: Response) => {
-      const { username } = req.params;
+      const username = String(req.params.username);
       console.log(`[SSR] Profile request for: ${username}`);
-      
+
       try {
         // Fetch profile data first (can happen in parallel with transform)
         const profile = await fetchProfile(username);
         console.log(`[SSR] Profile fetched:`, profile ? 'found' : 'not found');
-        
+
         // Generate appropriate meta tags
-        const metaTags = profile 
+        const metaTags = profile
           ? generateProfileMetaTags(profile, username)
           : getDefaultMetaTags();
-        
+
         // Replace the entire SSR_META block with our dynamic tags
         let modifiedTemplate = template.replace(
           /<!--SSR_META_START-->[\s\S]*?<!--SSR_META_END-->/,
           metaTags
         );
-        
+
         console.log(`[SSR] Transforming HTML...`);
         let html = await vite.transformIndexHtml(req.originalUrl, modifiedTemplate);
         console.log(`[SSR] HTML transformed, length: ${html.length}`);
-        
+
         console.log(`[SSR] Sending response...`);
         res.status(200).type('html').send(html);
         console.log(`[SSR] Response sent`);
@@ -961,32 +962,32 @@ async function createServer() {
         res.status(200).type('html').send(template);
       }
     });
-    
+
     // Handle collection pages with dynamic meta tags BEFORE Vite middleware
     app.get('/c/:collectionId', async (req: Request, res: Response) => {
-      const { collectionId } = req.params;
+      const collectionId = String(req.params.collectionId);
       console.log(`[SSR] Collection request for: ${collectionId}`);
-      
+
       try {
         // Fetch collection data
         const collection = await fetchCollection(collectionId);
         console.log(`[SSR] Collection fetched:`, collection ? 'found' : 'not found');
-        
+
         // Generate appropriate meta tags
-        const metaTags = collection 
+        const metaTags = collection
           ? generateCollectionMetaTags(collection)
           : getDefaultMetaTags();
-        
+
         // Replace the entire SSR_META block with our dynamic tags
         let modifiedTemplate = template.replace(
           /<!--SSR_META_START-->[\s\S]*?<!--SSR_META_END-->/,
           metaTags
         );
-        
+
         console.log(`[SSR] Transforming HTML...`);
         let html = await vite.transformIndexHtml(req.originalUrl, modifiedTemplate);
         console.log(`[SSR] HTML transformed, length: ${html.length}`);
-        
+
         console.log(`[SSR] Sending response...`);
         res.status(200).type('html').send(html);
         console.log(`[SSR] Response sent`);
@@ -995,17 +996,17 @@ async function createServer() {
         res.status(200).type('html').send(template);
       }
     });
-    
+
     // Then add Vite middleware for everything else (JS, CSS, HMR, etc.)
     app.use(vite.middlewares);
-    
+
     // SPA fallback for non-asset routes
     app.use((req: Request, res: Response, next: NextFunction) => {
       // Skip if it's a file request (has extension)
       if (req.originalUrl.includes('.')) {
         return next();
       }
-      
+
       (async () => {
         try {
           let html = await vite.transformIndexHtml(req.originalUrl, template);
@@ -1021,75 +1022,76 @@ async function createServer() {
     // In production, server.js is in the same directory as index.html and assets
     const distPath = __dirname;
     template = fs.readFileSync(path.resolve(distPath, 'index.html'), 'utf-8');
-    
+
     // Handle profile pages with dynamic meta tags
     app.get('/u/:username', async (req: Request, res: Response) => {
-      const { username } = req.params;
-      
+      const username = String(req.params.username);
+
       try {
         // Fetch profile data
         const profile = await fetchProfile(username);
-        
+
         // Generate appropriate meta tags
-        const metaTags = profile 
+        const metaTags = profile
           ? generateProfileMetaTags(profile, username)
           : getDefaultMetaTags();
-        
+
         // Replace the entire SSR_META block with our dynamic tags
         const html = template.replace(
           /<!--SSR_META_START-->[\s\S]*?<!--SSR_META_END-->/,
           metaTags
         );
-        
+
         res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
       } catch (e) {
         console.error('SSR Error:', e);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       }
     });
-    
+
     // Handle collection pages with dynamic meta tags
     app.get('/c/:collectionId', async (req: Request, res: Response) => {
-      const { collectionId } = req.params;
-      
+      const collectionId = String(req.params.collectionId);
+
       try {
         // Fetch collection data
         const collection = await fetchCollection(collectionId);
-        
+
         // Generate appropriate meta tags
-        const metaTags = collection 
+        const metaTags = collection
           ? generateCollectionMetaTags(collection)
           : getDefaultMetaTags();
-        
+
         // Replace the entire SSR_META block with our dynamic tags
         const html = template.replace(
           /<!--SSR_META_START-->[\s\S]*?<!--SSR_META_END-->/,
           metaTags
         );
-        
+
         res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
       } catch (e) {
         console.error('SSR Error:', e);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       }
     });
-    
+
     // Serve static assets with caching
     app.use('/assets', express.static(path.resolve(distPath, 'assets'), {
       maxAge: '1y',
       immutable: true,
     }));
+    app.use('/assets', (_req, res) => { res.status(404).end(); });
     app.use(express.static(distPath, {
       index: false, // Don't serve index.html automatically
     }));
-    
+
     // SPA fallback for all other routes
     app.use((req: Request, res: Response, next: NextFunction) => {
       // Skip file requests
       if (req.originalUrl.includes('.')) {
         return next();
       }
-      
+
       try {
         // Serve original template with default meta tags intact
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);

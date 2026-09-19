@@ -1,14 +1,13 @@
-import React from 'react';
-import CollectionForm from '@/features/collections/components/CollectionForm';
-import { ConflictResolutionModal } from '@/features/playback/components/ConflictResolutionModal';
-import { ChapterReader } from '@/features/manga/components/ChapterReader';
-import { MangaDetail } from '@/features/manga/components/MangaDetail';
-import MediaDetail from '@/features/playback/components/MediaDetail';
-import VideoPlayer from '@/features/playback/components/VideoPlayer';
-import { OfflineVideoProvider } from '@/context/OfflineVideoContext';
-import type { ChapterInfo } from '@/services/mangadexTypes';
-import type { NewItemData } from '@/features/playback/components/ConflictResolutionModal';
-import type { Collection, MediaItem, VideoEpisode, VideoProviderName } from '@/types';
+import React, { lazy, Suspense } from 'react';
+import CollectionForm from '../features/collections/components/CollectionForm';
+import { ConflictResolutionModal } from '../features/playback/components/ConflictResolutionModal';
+import { ChapterReader } from '../features/manga/components/ChapterReader';
+import { MangaDetail } from '../features/manga/components/MangaDetail';
+import MediaDetail from '../features/playback/components/MediaDetail';
+const VideoPlayer = lazy(() => import('../features/playback/components/VideoPlayer'));
+import type { ChapterInfo } from '../services/mangadexTypes';
+import type { NewItemData } from '../features/playback/components/ConflictResolutionModal';
+import type { Collection, MediaItem, VideoEpisode, VideoProviderName } from '../types';
 
 interface ReaderState {
   mangaId: string;
@@ -114,8 +113,7 @@ export const AppOverlays: React.FC<AppOverlaysProps> = ({
 
   if (playerState) {
     return (
-      <OfflineVideoProvider>
-        <VideoPlayer
+        <Suspense fallback={<div role="status">Loading player…</div>}><VideoPlayer
           mediaId={playerState.mediaId}
           episodeId={playerState.episodeId}
           episodes={playerState.episodes}
@@ -127,8 +125,7 @@ export const AppOverlays: React.FC<AppOverlaysProps> = ({
           seasonNumber={playerState.seasonNumber}
           onProviderChange={onProviderChange}
           mediaType={playerState.mediaType}
-        />
-      </OfflineVideoProvider>
+        /></Suspense>
     );
   }
 
@@ -145,7 +142,6 @@ export const AppOverlays: React.FC<AppOverlaysProps> = ({
 
   if (selectedMedia) {
     return (
-      <OfflineVideoProvider>
         <MediaDetail
           mediaId={selectedMedia.id}
           provider={selectedMedia.provider}
@@ -154,7 +150,6 @@ export const AppOverlays: React.FC<AppOverlaysProps> = ({
           onClose={onCloseMedia}
           onWatchEpisode={onWatchEpisode}
         />
-      </OfflineVideoProvider>
     );
   }
 

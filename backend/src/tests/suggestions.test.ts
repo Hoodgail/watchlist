@@ -16,7 +16,7 @@ async function seedMediaSource(input: {
   sourceCounter += 1;
   return prisma.mediaSource.create({
     data: {
-      refId: `${input.refId}-${sourceCounter}`,
+      refId: `fixture:${input.refId.replace(':', '-')}-${sourceCounter}`,
       title: input.title,
       type: input.type,
       imageUrl: input.imageUrl ?? null,
@@ -38,11 +38,11 @@ async function createSuggestionPayload(
 async function seedCommonSuggestionSources() {
   await prisma.mediaSource.createMany({
     data: [
-      { refId: 'tmdb:12345', title: 'Test Show', type: 'TV' },
-      { refId: 'tmdb:111', title: 'Show 1', type: 'TV' },
-      { refId: 'tmdb:222', title: 'Show 2', type: 'TV' },
-      { refId: 'tmdb:1396', title: 'Breaking Bad', type: 'TV', imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg', total: 62 },
-      { refId: 'tmdb:27205', title: 'Inception', type: 'MOVIE' },
+      { refId: 'tmdb:tv/12345', title: 'Test Show', type: 'TV' },
+      { refId: 'tmdb:tv/111', title: 'Show 1', type: 'TV' },
+      { refId: 'tmdb:tv/222', title: 'Show 2', type: 'TV' },
+      { refId: 'tmdb:tv/1396', title: 'Breaking Bad', type: 'TV', imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg', total: 62 },
+      { refId: 'tmdb:movie/27205', title: 'Inception', type: 'MOVIE' },
       { refId: 'anilist:1429', title: 'Attack on Titan', type: 'ANIME' },
       { refId: 'mangadex:a1c7c817-4e59-43b7-9365-09675a149a6f', title: 'One Piece', type: 'MANGA' },
     ],
@@ -52,10 +52,10 @@ async function seedCommonSuggestionSources() {
 
 /**
  * Suggestions API Tests
- * 
+ *
  * These tests require the 'suggestions' table to exist in the database.
  * If the table doesn't exist, all tests will be skipped.
- * 
+ *
  * To enable these tests, run database migrations:
  * npx prisma db push
  */
@@ -75,14 +75,14 @@ describeDb('Suggestions Endpoints', () => {
   describe('POST /api/suggestions/:userId', () => {
     it('should create suggestion when following target user', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       // Sender follows recipient
       await createFollow(sender.accessToken, recipient.id);
       const source = await seedMediaSource({
-        refId: 'tmdb:1396',
+        refId: 'tmdb:tv/1396',
         title: 'Breaking Bad',
         type: 'TV',
         imageUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
@@ -116,7 +116,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should create suggestion without optional fields', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -139,7 +139,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if not following target user (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -151,7 +151,7 @@ describeDb('Suggestions Endpoints', () => {
         .send({
           title: 'Test Show',
           type: 'TV',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(403);
 
@@ -160,7 +160,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if suggesting to self (400)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -169,7 +169,7 @@ describeDb('Suggestions Endpoints', () => {
         .send({
           title: 'Test Show',
           type: 'TV',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(400);
 
@@ -178,7 +178,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if duplicate pending suggestion exists (409)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -210,7 +210,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should require authentication (401)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const recipient = await createTestUser();
 
       await request(app)
@@ -218,14 +218,14 @@ describeDb('Suggestions Endpoints', () => {
         .send({
           title: 'Test Show',
           type: 'TV',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(401);
     });
 
     it('should validate required non-derived fields (400)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -237,7 +237,7 @@ describeDb('Suggestions Endpoints', () => {
         .set(authHeader(sender.accessToken))
         .send({
           title: 'Test Show',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(400);
 
@@ -258,7 +258,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should validate refId format', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -279,7 +279,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail for non-existent user (404)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
 
       await request(app)
@@ -288,7 +288,7 @@ describeDb('Suggestions Endpoints', () => {
         .send({
           title: 'Test Show',
           type: 'TV',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(404);
     });
@@ -297,7 +297,7 @@ describeDb('Suggestions Endpoints', () => {
   describe('GET /api/suggestions/received', () => {
     it('should return pending suggestions by default', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -328,13 +328,13 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should filter by status query param', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const sourceOne = await seedMediaSource({ refId: 'tmdb:111', title: 'Show 1', type: 'TV' });
-      const sourceTwo = await seedMediaSource({ refId: 'tmdb:222', title: 'Show 2', type: 'TV' });
+      const sourceOne = await seedMediaSource({ refId: 'tmdb:tv/111', title: 'Show 1', type: 'TV' });
+      const sourceTwo = await seedMediaSource({ refId: 'tmdb:tv/222', title: 'Show 2', type: 'TV' });
 
       // Create first suggestion
       const suggestion1 = await request(app)
@@ -386,12 +386,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should include fromUser details', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -411,7 +411,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should return empty array when no suggestions', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -424,7 +424,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should require authentication', async () => {
       if (!availableTables.suggestions) return;
-      
+
       await request(app)
         .get('/api/suggestions/received')
         .expect(401);
@@ -434,15 +434,15 @@ describeDb('Suggestions Endpoints', () => {
   describe('GET /api/suggestions/sent', () => {
     it('should return all sent suggestions', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient1 = await createTestUser();
       const recipient2 = await createTestUser();
 
       await createFollow(sender.accessToken, recipient1.id);
       await createFollow(sender.accessToken, recipient2.id);
-      const firstPayload = await createSuggestionPayload('tmdb:111', 'Show 1');
-      const secondPayload = await createSuggestionPayload('tmdb:222', 'Show 2');
+      const firstPayload = await createSuggestionPayload('tmdb:tv/111', 'Show 1');
+      const secondPayload = await createSuggestionPayload('tmdb:tv/222', 'Show 2');
 
       // Create suggestions to different users
       await request(app)
@@ -467,12 +467,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should include toUser details', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -492,7 +492,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should return empty array when no suggestions sent', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -505,7 +505,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should require authentication', async () => {
       if (!availableTables.suggestions) return;
-      
+
       await request(app)
         .get('/api/suggestions/sent')
         .expect(401);
@@ -515,7 +515,7 @@ describeDb('Suggestions Endpoints', () => {
   describe('PATCH /api/suggestions/:id/accept', () => {
     it('should accept suggestion and add media to list', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -563,13 +563,13 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if not the recipient (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
       const other = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -590,12 +590,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if sender tries to accept (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -616,7 +616,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if suggestion not found (404)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const user = await createTestUser();
 
       await request(app)
@@ -627,12 +627,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if already accepted (400)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -659,12 +659,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if already dismissed (400)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -691,7 +691,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should require authentication', async () => {
       if (!availableTables.suggestions) return;
-      
+
       await request(app)
         .patch('/api/suggestions/00000000-0000-0000-0000-000000000000/accept')
         .expect(401);
@@ -701,12 +701,12 @@ describeDb('Suggestions Endpoints', () => {
   describe('PATCH /api/suggestions/:id/dismiss', () => {
     it('should dismiss suggestion', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -726,13 +726,13 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if not the recipient (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
       const other = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -753,12 +753,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if sender tries to dismiss (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -779,7 +779,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if suggestion not found (404)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const user = await createTestUser();
 
       await request(app)
@@ -790,12 +790,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if already processed (400)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -822,7 +822,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should require authentication', async () => {
       if (!availableTables.suggestions) return;
-      
+
       await request(app)
         .patch('/api/suggestions/00000000-0000-0000-0000-000000000000/dismiss')
         .expect(401);
@@ -832,12 +832,12 @@ describeDb('Suggestions Endpoints', () => {
   describe('DELETE /api/suggestions/:id', () => {
     it('should delete suggestion if sender', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       const createResponse = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -864,7 +864,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if not the sender (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -876,7 +876,7 @@ describeDb('Suggestions Endpoints', () => {
         .send({
           title: 'Test Show',
           type: 'TV',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(201);
 
@@ -893,7 +893,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if other user tries to delete (403)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
       const other = await createTestUser();
@@ -906,7 +906,7 @@ describeDb('Suggestions Endpoints', () => {
         .send({
           title: 'Test Show',
           type: 'TV',
-          refId: 'tmdb:12345',
+          refId: 'tmdb:tv/12345',
         })
         .expect(201);
 
@@ -923,7 +923,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should fail if suggestion not found (404)', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const user = await createTestUser();
 
       await request(app)
@@ -934,7 +934,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should require authentication', async () => {
       if (!availableTables.suggestions) return;
-      
+
       await request(app)
         .delete('/api/suggestions/00000000-0000-0000-0000-000000000000')
         .expect(401);
@@ -944,12 +944,12 @@ describeDb('Suggestions Endpoints', () => {
   describe('Media types', () => {
     it('should support TV suggestions', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const tvPayload = await createSuggestionPayload('tmdb:1396', 'Breaking Bad');
+      const tvPayload = await createSuggestionPayload('tmdb:tv/1396', 'Breaking Bad');
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -962,12 +962,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should support MOVIE suggestions', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const moviePayload = await createSuggestionPayload('tmdb:27205', 'Inception', 'MOVIE');
+      const moviePayload = await createSuggestionPayload('tmdb:movie/27205', 'Inception', 'MOVIE');
 
       const response = await request(app)
         .post(`/api/suggestions/${recipient.id}`)
@@ -980,7 +980,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should support ANIME suggestions', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -998,7 +998,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should support MANGA suggestions', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
@@ -1018,12 +1018,12 @@ describeDb('Suggestions Endpoints', () => {
   describe('Edge cases', () => {
     it('should allow new pending suggestion after previous one was accepted', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       // Create first suggestion
       const firstSuggestion = await request(app)
@@ -1050,12 +1050,12 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should allow new pending suggestion after previous one was dismissed', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:12345');
+      const payload = await createSuggestionPayload('tmdb:tv/12345');
 
       // Create first suggestion
       const firstSuggestion = await request(app)
@@ -1082,14 +1082,14 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should handle multiple users sending same media suggestion', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender1 = await createTestUser();
       const sender2 = await createTestUser();
       const recipient = await createTestUser();
 
       await createFollow(sender1.accessToken, recipient.id);
       await createFollow(sender2.accessToken, recipient.id);
-      const payload = await createSuggestionPayload('tmdb:1396', 'Breaking Bad');
+      const payload = await createSuggestionPayload('tmdb:tv/1396', 'Breaking Bad');
 
       // Both senders suggest the same media
       const suggestion1 = await request(app)
@@ -1116,7 +1116,7 @@ describeDb('Suggestions Endpoints', () => {
 
     it('should not add duplicate media to list when accepting', async () => {
       if (!availableTables.suggestions) return;
-      
+
       const sender = await createTestUser();
       const recipient = await createTestUser();
 

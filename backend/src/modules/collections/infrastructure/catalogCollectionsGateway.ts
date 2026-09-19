@@ -6,7 +6,7 @@ export function createCatalogCollectionsGateway(): CollectionCatalogGateway {
   return {
     async getOrCreateMediaSource(refId: string, type: MediaType) {
       const source = await getOrCreateCatalogMediaSource(refId, type);
-      return { id: source.id };
+      return { id: source.id, refId: source.refId };
     },
   };
 }

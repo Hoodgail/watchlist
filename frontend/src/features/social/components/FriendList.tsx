@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User } from '@/types';
-import { UserAvatar } from '@/shared/ui';
-import { FriendActivityFeed } from '@/features/social/components/FriendActivityFeed';
+import { User } from '../../../types';
+import { UserAvatar } from '../../../shared/ui/index';
+import { FriendActivityFeed } from './FriendActivityFeed';
 
 export const FriendAvatar: React.FC<{
   user: User | { username: string; displayName?: string | null; avatarUrl?: string | null };

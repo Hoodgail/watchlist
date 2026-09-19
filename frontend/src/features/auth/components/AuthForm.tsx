@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/context/ToastContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 
 interface AuthFormProps {
   onToggleMode: () => void;
@@ -92,7 +92,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onToggleMode, onRecovery, is
             onClick={handleDiscordLogin}
             disabled={oauthLoading || loading}
             className="w-full flex items-center justify-center gap-3 px-6 py-4 font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-            style={{ 
+            style={{
               backgroundColor: '#5865F2',
               color: 'white',
             }}

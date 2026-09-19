@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireCatalogEditor } from '../middleware/catalogEditor.js';
 import * as commentController from '../controllers/commentController.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
@@ -18,68 +19,43 @@ router.get(
   '/media/:refId',
   optionalAuth,
   validate(getMediaCommentsSchema, 'query'),
-  commentController.getMediaComments
+  commentController.getMediaComments,
 );
 
-router.get(
-  '/feed/public',
-  validate(feedQuerySchema, 'query'),
-  commentController.getPublicFeed
-);
+router.get('/feed/public', validate(feedQuerySchema, 'query'), commentController.getPublicFeed);
 
-router.get(
-  '/:id',
-  optionalAuth,
-  commentController.getComment
-);
+router.get('/:id', optionalAuth, commentController.getComment);
 
 // Authenticated routes
-router.post(
-  '/',
-  authenticate,
-  validate(createCommentSchema),
-  commentController.createComment
-);
+router.post('/', authenticate, validate(createCommentSchema), commentController.createComment);
 
 router.get(
   '/feed/friends',
   authenticate,
   validate(feedQuerySchema, 'query'),
-  commentController.getFriendsFeed
+  commentController.getFriendsFeed,
 );
 
-router.patch(
-  '/:id',
-  authenticate,
-  validate(updateCommentSchema),
-  commentController.updateComment
-);
+router.patch('/:id', authenticate, validate(updateCommentSchema), commentController.updateComment);
 
-router.delete(
-  '/:id',
-  authenticate,
-  commentController.deleteComment
-);
+router.delete('/:id', authenticate, commentController.deleteComment);
 
 router.post(
   '/:id/reactions',
   authenticate,
   validate(reactionSchema),
-  commentController.addReaction
+  commentController.addReaction,
 );
 
-router.delete(
-  '/:id/reactions',
-  authenticate,
-  commentController.removeReaction
-);
+router.delete('/:id/reactions', authenticate, commentController.removeReaction);
 
 // Admin/system routes
 router.post(
   '/import-external',
   authenticate,
+  requireCatalogEditor,
   validate(importExternalCommentSchema),
-  commentController.importExternalComment
+  commentController.importExternalComment,
 );
 
 export default router;

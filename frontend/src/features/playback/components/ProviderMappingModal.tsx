@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { saveProviderMapping } from '@/features/profile/api';
-import { VideoProviderName, SearchResult } from '@/types';
-import { searchWithProvider, PaginatedSearchResults } from '@/services/mediaSearch';
-import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '@/services/providerConfig';
-import { useToast } from '@/context/ToastContext';
-import { getProxiedImageUrl } from '@/shared/media';
+import { saveProviderMapping } from '../../profile/api';
+import { VideoProviderName, SearchResult } from '../../../types';
+import { searchWithProvider, PaginatedSearchResults } from '../../../services/mediaSearch';
+import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../../../services/providerConfig';
+import { useToast } from '../../../context/ToastContext';
+import { getProxiedImageUrl } from '../../../shared/media/index';
 
 interface ProviderMappingModalProps {
   /** The reference ID to map (e.g., "tmdb:12345") */

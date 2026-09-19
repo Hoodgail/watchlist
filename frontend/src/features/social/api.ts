@@ -1,17 +1,10 @@
-import {
-  MediaStatus,
-  SortBy,
-  Suggestion,
-  SuggestionStatus,
-  User,
-  MediaType,
-} from '../../../types';
-import { API_BASE_URL, fetchWithAuth } from '@/shared/api/client';
+import { MediaStatus, SortBy, Suggestion, SuggestionStatus, User, MediaType } from '../../types';
+import { API_BASE_URL, fetchWithAuth } from '../../shared/api/client';
 import {
   transformBackendItem,
   type MediaTypeFilter,
   type StatusGroupPagination,
-} from '@/features/library/api';
+} from '../library/api';
 
 interface BackendFollowingUser {
   id: string;
@@ -169,6 +162,7 @@ export interface GetMediaCommentsOptions {
   chapterNumber?: number;
   volumeNumber?: number;
   includeExternal?: boolean;
+  friendsOnly?: boolean;
   limit?: number;
   cursor?: string;
 }
@@ -300,7 +294,12 @@ export async function getFriendGroupedList(
   }
 
   const data: BackendGroupedFriendList = await response.json();
-  const transformGroup = (group: { items: BackendMediaItem[]; total: number; hasMore: boolean; page: number }): StatusGroupPagination => ({
+  const transformGroup = (group: {
+    items: BackendMediaItem[];
+    total: number;
+    hasMore: boolean;
+    page: number;
+  }): StatusGroupPagination => ({
     items: group.items.map((item) => transformBackendItem(item as any)),
     total: group.total,
     hasMore: group.hasMore,
@@ -350,7 +349,10 @@ export async function getSentSuggestions(): Promise<Suggestion[]> {
   return await response.json();
 }
 
-export async function sendSuggestion(userId: string, suggestion: SendSuggestionPayload): Promise<Suggestion> {
+export async function sendSuggestion(
+  userId: string,
+  suggestion: SendSuggestionPayload,
+): Promise<Suggestion> {
   const response = await fetchWithAuth(`/suggestions/${userId}`, {
     method: 'POST',
     body: JSON.stringify(suggestion),
@@ -415,11 +417,17 @@ export async function getMediaComments(
 ): Promise<CommentFeedResponse> {
   const params = new URLSearchParams();
   params.append('mediaType', options.mediaType);
-  if (options.seasonNumber !== undefined) params.append('seasonNumber', String(options.seasonNumber));
-  if (options.episodeNumber !== undefined) params.append('episodeNumber', String(options.episodeNumber));
-  if (options.chapterNumber !== undefined) params.append('chapterNumber', String(options.chapterNumber));
-  if (options.volumeNumber !== undefined) params.append('volumeNumber', String(options.volumeNumber));
-  if (options.includeExternal !== undefined) params.append('includeExternal', String(options.includeExternal));
+  if (options.seasonNumber !== undefined)
+    params.append('seasonNumber', String(options.seasonNumber));
+  if (options.episodeNumber !== undefined)
+    params.append('episodeNumber', String(options.episodeNumber));
+  if (options.chapterNumber !== undefined)
+    params.append('chapterNumber', String(options.chapterNumber));
+  if (options.volumeNumber !== undefined)
+    params.append('volumeNumber', String(options.volumeNumber));
+  if (options.friendsOnly) params.append('friendsOnly', 'true');
+  if (options.includeExternal !== undefined)
+    params.append('includeExternal', String(options.includeExternal));
   if (options.limit !== undefined) params.append('limit', String(options.limit));
   if (options.cursor) params.append('cursor', options.cursor);
 
@@ -433,7 +441,9 @@ export async function getMediaComments(
   return await response.json();
 }
 
-export async function getFriendCommentsFeed(options: FeedOptions = {}): Promise<CommentFeedResponse> {
+export async function getFriendCommentsFeed(
+  options: FeedOptions = {},
+): Promise<CommentFeedResponse> {
   const params = new URLSearchParams();
   if (options.limit !== undefined) params.append('limit', String(options.limit));
   if (options.cursor) params.append('cursor', options.cursor);
@@ -450,7 +460,9 @@ export async function getFriendCommentsFeed(options: FeedOptions = {}): Promise<
   return await response.json();
 }
 
-export async function getPublicCommentsFeed(options: FeedOptions = {}): Promise<CommentFeedResponse> {
+export async function getPublicCommentsFeed(
+  options: FeedOptions = {},
+): Promise<CommentFeedResponse> {
   const params = new URLSearchParams();
   if (options.limit !== undefined) params.append('limit', String(options.limit));
   if (options.cursor) params.append('cursor', options.cursor);
@@ -478,7 +490,10 @@ export async function getComment(commentId: string): Promise<Comment> {
   return await response.json();
 }
 
-export async function updateComment(commentId: string, payload: UpdateCommentPayload): Promise<Comment> {
+export async function updateComment(
+  commentId: string,
+  payload: UpdateCommentPayload,
+): Promise<Comment> {
   const response = await fetchWithAuth(`/comments/${commentId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
@@ -501,7 +516,10 @@ export async function deleteComment(commentId: string): Promise<void> {
   }
 }
 
-export async function addCommentReaction(commentId: string, reactionType: ReactionType): Promise<void> {
+export async function addCommentReaction(
+  commentId: string,
+  reactionType: ReactionType,
+): Promise<void> {
   const response = await fetchWithAuth(`/comments/${commentId}/reactions`, {
     method: 'POST',
     body: JSON.stringify({ reactionType }),

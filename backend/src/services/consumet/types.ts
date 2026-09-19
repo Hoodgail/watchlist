@@ -4,75 +4,16 @@
 
 // ============ Provider Types ============
 
-export type AnimeProviderName = 
-  | 'hianime' 
-  | 'animepahe' 
-  | 'animekai' 
-  | 'kickassanime';
+export type { AnimeProviderName, MovieProviderName, MangaProviderName, MetaProviderName, BookProviderName, LightNovelProviderName, ComicProviderName, GameProviderName, NewsProviderName, ProviderName, MediaCategory, ProviderInfo } from '@shared/providers.js';
+import type { ProviderName } from '@shared/providers.js';
 
-export type MovieProviderName = 
-  | 'flixhq' 
-  | 'goku' 
-  | 'sflix' 
-  | 'himovies'
-  | 'dramacool';
-
-export type MangaProviderName = 
-  | 'mangadex' 
-  | 'comick' 
-  | 'mangapill' 
-  | 'mangahere' 
-  | 'mangareader'
-  | 'asurascans';
-
-export type MetaProviderName = 
-  | 'anilist' 
-  | 'anilist-manga'
-  | 'tmdb'
-  | 'myanimelist';
-
-export type BookProviderName = 'libgen';
-
-export type LightNovelProviderName = 
-  | 'novelupdates';
-
-export type ComicProviderName = 'getcomics';
-
-export type GameProviderName = 'rawg';
-
-export type NewsProviderName = 'animenewsnetwork';
-
-export type ProviderName = 
-  | AnimeProviderName 
-  | MovieProviderName 
-  | MangaProviderName 
-  | MetaProviderName
-  | BookProviderName
-  | LightNovelProviderName
-  | ComicProviderName
-  | GameProviderName
-  | NewsProviderName;
-
-// ============ Media Types ============
-
-export type MediaCategory = 
-  | 'anime' 
-  | 'movie' 
-  | 'tv'
-  | 'manga' 
-  | 'book' 
-  | 'lightnovel' 
-  | 'comic'
-  | 'game'
-  | 'news';
-
-export type MediaType = 
-  | 'TV' 
-  | 'MOVIE' 
-  | 'ANIME' 
-  | 'MANGA' 
-  | 'BOOK' 
-  | 'LIGHT_NOVEL' 
+export type MediaType =
+  | 'TV'
+  | 'MOVIE'
+  | 'ANIME'
+  | 'MANGA'
+  | 'BOOK'
+  | 'LIGHT_NOVEL'
   | 'COMIC'
   | 'GAME';
 
@@ -252,17 +193,6 @@ export interface SearchOptions {
 }
 
 // ============ Provider Info ============
-
-export interface ProviderInfo {
-  name: ProviderName;
-  displayName: string;
-  category: MediaCategory;
-  language: string;
-  isWorking: boolean;
-  logo?: string;
-  baseUrl?: string;
-  supportedTypes?: string[];
-}
 
 // ============ Paginated Results ============
 

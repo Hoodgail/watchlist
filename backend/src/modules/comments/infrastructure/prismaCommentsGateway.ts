@@ -1,3 +1,4 @@
+import { canonicalMediaRefId } from '@shared/mediaIdentity.js';
 import type { MediaType, Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../utils/errors.js';
@@ -102,7 +103,9 @@ function formatCommentWithAuthor(comment: RawComment): CommentWithAuthor {
   };
 }
 
-function toVisibilityCondition(rule: ReturnType<typeof getCommentVisibilityRules>[number]): Prisma.CommentWhereInput {
+function toVisibilityCondition(
+  rule: ReturnType<typeof getCommentVisibilityRules>[number],
+): Prisma.CommentWhereInput {
   switch (rule.kind) {
     case 'own':
       return { userId: rule.userId };
@@ -119,7 +122,9 @@ function toVisibilityCondition(rule: ReturnType<typeof getCommentVisibilityRules
   }
 }
 
-async function buildFeedMediaInfo(refIds: string[]): Promise<Map<string, { title: string; imageUrl: string | null }>> {
+async function buildFeedMediaInfo(
+  refIds: string[],
+): Promise<Map<string, { title: string; imageUrl: string | null }>> {
   const sources = await prisma.mediaSource.findMany({
     where: { refId: { in: refIds } },
     select: { refId: true, title: true, imageUrl: true },
@@ -147,9 +152,21 @@ async function buildFeedMediaInfo(refIds: string[]): Promise<Map<string, { title
   return mediaInfoMap;
 }
 
+async function resolveCommentRef(refId: string, mediaType: MediaType): Promise<string> {
+  const normalized = canonicalMediaRefId(refId, mediaType);
+  const alias = await prisma.mediaSourceAlias.findUnique({
+    where: { refId: normalized },
+    include: { mediaSource: true },
+  });
+  if (alias && alias.mediaSource.type !== mediaType)
+    throw new BadRequestError('Alias belongs to a different media type');
+  return alias?.mediaSource.refId ?? normalized;
+}
+
 export function createPrismaCommentsGateway(): CommentsGatewayContract {
   return {
     async createComment(userId, data) {
+      data = { ...data, refId: await resolveCommentRef(data.refId, data.mediaType) };
       validateContent(data.content);
 
       const user = await prisma.user.findUnique({
@@ -229,6 +246,11 @@ export function createPrismaCommentsGateway(): CommentsGatewayContract {
     },
 
     async getMediaComments(refId, options, userId) {
+      refId = await resolveCommentRef(refId, options.mediaType);
+      const aliases = await prisma.mediaSourceAlias.findMany({
+        where: { mediaSource: { refId } },
+        select: { refId: true },
+      });
       const limit = Math.min(options.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
       let followingUserIds: string[] = [];
 
@@ -247,10 +269,12 @@ export function createPrismaCommentsGateway(): CommentsGatewayContract {
       });
 
       const where: Prisma.CommentWhereInput = {
-        refId,
+        refId: { in: [refId, ...aliases.map((alias) => alias.refId)] },
         mediaType: options.mediaType,
         OR: visibilityRules.map(toVisibilityCondition),
       };
+
+      if (options.friendsOnly) where.userId = { in: followingUserIds };
 
       if (options.seasonNumber !== undefined) {
         where.seasonNumber = options.seasonNumber;
@@ -264,14 +288,13 @@ export function createPrismaCommentsGateway(): CommentsGatewayContract {
       if (options.volumeNumber !== undefined) {
         where.volumeNumber = options.volumeNumber;
       }
-      if (options.cursor) {
-        where.id = { lt: options.cursor };
-      }
 
       const comments = await prisma.comment.findMany({
         where,
         select: commentSelect,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        cursor: options?.cursor ? { id: options.cursor } : undefined,
+        skip: options?.cursor ? 1 : 0,
         take: limit + 1,
       });
 
@@ -303,21 +326,22 @@ export function createPrismaCommentsGateway(): CommentsGatewayContract {
       if (options?.mediaType) {
         where.mediaType = options.mediaType;
       }
-      if (options?.cursor) {
-        where.id = { lt: options.cursor };
-      }
 
       const comments = await prisma.comment.findMany({
         where,
         select: commentSelect,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        cursor: options?.cursor ? { id: options.cursor } : undefined,
+        skip: options?.cursor ? 1 : 0,
         take: limit + 1,
       });
 
       const hasMore = comments.length > limit;
       const resultComments = hasMore ? comments.slice(0, limit) : comments;
       const nextCursor = hasMore ? resultComments[resultComments.length - 1].id : null;
-      const mediaInfoMap = await buildFeedMediaInfo(Array.from(new Set(resultComments.map((comment) => comment.refId))));
+      const mediaInfoMap = await buildFeedMediaInfo(
+        Array.from(new Set(resultComments.map((comment) => comment.refId))),
+      );
 
       const feedItems: CommentFeedItem[] = resultComments.map((comment) => {
         const mediaInfo = mediaInfoMap.get(comment.refId);
@@ -345,21 +369,22 @@ export function createPrismaCommentsGateway(): CommentsGatewayContract {
       if (options?.mediaType) {
         where.mediaType = options.mediaType;
       }
-      if (options?.cursor) {
-        where.id = { lt: options.cursor };
-      }
 
       const comments = await prisma.comment.findMany({
         where,
         select: commentSelect,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        cursor: options?.cursor ? { id: options.cursor } : undefined,
+        skip: options?.cursor ? 1 : 0,
         take: limit + 1,
       });
 
       const hasMore = comments.length > limit;
       const resultComments = hasMore ? comments.slice(0, limit) : comments;
       const nextCursor = hasMore ? resultComments[resultComments.length - 1].id : null;
-      const mediaInfoMap = await buildFeedMediaInfo(Array.from(new Set(resultComments.map((comment) => comment.refId))));
+      const mediaInfoMap = await buildFeedMediaInfo(
+        Array.from(new Set(resultComments.map((comment) => comment.refId))),
+      );
 
       const feedItems: CommentFeedItem[] = resultComments.map((comment) => {
         const mediaInfo = mediaInfoMap.get(comment.refId);
@@ -519,11 +544,20 @@ export async function deleteComment(userId: string, commentId: string) {
   return prismaCommentsGateway.deleteComment(userId, commentId);
 }
 
-export async function getMediaComments(refId: string, options: GetMediaCommentsOptions, userId?: string) {
+export async function getMediaComments(
+  refId: string,
+  options: GetMediaCommentsOptions,
+  userId?: string,
+) {
   return prismaCommentsGateway.getMediaComments(refId, options, userId);
 }
 
-export async function getCommentsForMedia(userId: string, refId: string, mediaType: MediaType, options?: Omit<GetMediaCommentsOptions, 'mediaType'>) {
+export async function getCommentsForMedia(
+  userId: string,
+  refId: string,
+  mediaType: MediaType,
+  options?: Omit<GetMediaCommentsOptions, 'mediaType'>,
+) {
   return prismaCommentsGateway.getMediaComments(refId, { ...options, mediaType }, userId);
 }
 

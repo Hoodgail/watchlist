@@ -9,7 +9,7 @@ async function seedSource(refId: string, title: string) {
   sourceCounter += 1;
   return prisma.mediaSource.create({
     data: {
-      refId: `${refId}-${sourceCounter}`,
+      refId: `fixture:profile-${sourceCounter}`,
       title,
       type: 'TV',
       total: 62,

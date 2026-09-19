@@ -1,1 +1,1 @@
-export * from '../../../services/api/profile';
+export * from '../../features/profile/api';

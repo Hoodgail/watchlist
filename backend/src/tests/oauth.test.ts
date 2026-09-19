@@ -6,10 +6,10 @@ import { describeDb } from './testSuites.js';
 
 /**
  * OAuth API Tests
- * 
+ *
  * Some tests require the 'oauth_accounts' table to exist in the database.
  * Tests that don't require the table will run regardless.
- * 
+ *
  * To enable all tests, run database migrations:
  * npx prisma db push
  */
@@ -43,7 +43,7 @@ describeDb('OAuth Endpoints', () => {
       }
     });
 
-    it('should accept optional state parameter', async () => {
+    it('ignores caller state and generates its own', async () => {
       const response = await request(app)
         .get('/api/auth/oauth/discord?state=mystate123')
         .expect((res) => {
@@ -53,7 +53,8 @@ describeDb('OAuth Endpoints', () => {
         });
 
       if (response.status === 200) {
-        expect(response.body.authorizationUrl).toContain('state=mystate123');
+        expect(new URL(response.body.authorizationUrl).searchParams.get('state')).not.toBe('mystate123');
+        expect(response.headers['set-cookie']).toBeDefined();
       }
     });
 
@@ -119,7 +120,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should require code parameter', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -133,7 +134,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should fail for invalid provider', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -142,7 +143,7 @@ describeDb('OAuth Endpoints', () => {
         .send({ code: 'testcode' })
         .expect(400);
 
-      expect(response.body.error).toBe('Unknown OAuth provider: invalidprovider');
+      expect(response.body.error).toContain('Invalid OAuth state');
     });
 
     // Note: Full linking test requires mocking Discord API
@@ -158,7 +159,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should fail if no OAuth linked', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -171,7 +172,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should successfully unlink when user has password', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       // Manually add OAuth link
@@ -201,7 +202,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should fail for invalid provider', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -216,7 +217,7 @@ describeDb('OAuth Endpoints', () => {
   describe('GET /api/auth/oauth/providers', () => {
     it('should return empty array for user with no OAuth', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -232,7 +233,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should return linked providers', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       // Manually add OAuth link
@@ -265,7 +266,7 @@ describeDb('OAuth Endpoints', () => {
   describe('OAuth-only user scenarios', () => {
     it('should not allow unlinking last OAuth when no password set', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       // Create OAuth-only user directly in database
       const user = await prisma.user.create({
         data: {
@@ -299,7 +300,7 @@ describeDb('OAuth Endpoints', () => {
 
     it('should allow unlinking OAuth when another OAuth is linked', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       // Create user with two OAuth providers
       const user = await prisma.user.create({
         data: {
@@ -360,7 +361,7 @@ describe('Auth /me endpoint with OAuth fields', () => {
   describe('GET /api/auth/me', () => {
     it('should return hasPassword true for password-registered user', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -373,7 +374,7 @@ describe('Auth /me endpoint with OAuth fields', () => {
 
     it('should return oauthProviders as empty array when no OAuth linked', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       const response = await request(app)
@@ -387,7 +388,7 @@ describe('Auth /me endpoint with OAuth fields', () => {
 
     it('should return linked OAuth providers', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       const user = await createTestUser();
 
       // Manually add OAuth link
@@ -412,7 +413,7 @@ describe('Auth /me endpoint with OAuth fields', () => {
 
     it('should return avatarUrl field', async () => {
       if (!availableTables.avatarUrl) return;
-      
+
       const user = await createTestUser();
 
       // Update user with avatar
@@ -431,7 +432,7 @@ describe('Auth /me endpoint with OAuth fields', () => {
 
     it('should return hasPassword false for OAuth-only user', async () => {
       if (!availableTables.oauthAccounts) return;
-      
+
       // Create OAuth-only user
       const user = await prisma.user.create({
         data: {

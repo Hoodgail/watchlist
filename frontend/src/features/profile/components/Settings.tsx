@@ -7,12 +7,12 @@ import {
   setPassword,
   setRecoveryEmail,
   unlinkOAuthAccount,
-} from '@/features/auth/api';
-import { updatePrivacySettings } from '@/features/profile/api';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/context/ToastContext';
-import { useSpoilerProtection } from '@/context/SpoilerContext';
-import { UserAvatar } from '@/shared/ui';
+} from '../../auth/api';
+import { updatePrivacySettings } from '../api';
+import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
+import { useSpoilerProtection } from '../../../context/SpoilerContext';
+import { UserAvatar } from '../../../shared/ui/index';
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoodgail.me';
 
@@ -45,14 +45,14 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
   const { spoilerProtectionEnabled, setSpoilerProtectionEnabled } = useSpoilerProtection();
-  
+
   const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
   const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState<boolean>(user?.isPublic ?? false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
-  
+
   // Comment visibility settings (stored locally until backend support is added)
   // Options: 'public' | 'friends' | 'private'
   const [commentVisibility, setCommentVisibility] = useState<'public' | 'friends' | 'private'>(() => {
@@ -67,12 +67,12 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
     const stored = localStorage.getItem('showInActivityFeed');
     return stored !== null ? stored === 'true' : true;
   });
-  
+
   // Recovery email state
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryEmailLoading, setRecoveryEmailLoading] = useState(false);
   const [showRecoveryEmailForm, setShowRecoveryEmailForm] = useState(false);
-  
+
   // Password state
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -115,14 +115,14 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const hasOAuth = linkedProviders.length > 0;
   const authMethodCount = (hasPassword ? 1 : 0) + linkedProviders.length;
   const hasRecoveryOption = hasPassword || (hasRecoveryEmail && recoveryEmailVerified);
-  
+
   // Account is at risk if: OAuth only + no password + no verified recovery email
   const accountAtRisk = hasOAuth && !hasPassword && !recoveryEmailVerified;
 
   const handlePrivacyToggle = async () => {
     setPrivacyLoading(true);
     const newValue = !isPublic;
-    
+
     try {
       await updatePrivacySettings(newValue);
       setIsPublic(newValue);
@@ -139,13 +139,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const handleLinkDiscord = async () => {
     setLinkingProvider('discord');
     try {
-      // Get OAuth URL and redirect - when user returns, the callback will handle linking
-      // For account linking, we need a different flow
-      const authUrl = await getOAuthUrl('discord');
-      // Add state parameter to indicate this is a link operation
-      const url = new URL(authUrl);
-      url.searchParams.set('state', 'link');
-      window.location.href = url.toString();
+      window.location.href = await getOAuthUrl('discord', 'link');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect Discord';
       showToast(message, 'error');
@@ -156,10 +150,10 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const handleUnlinkProvider = async (provider: string) => {
     // Check if this would leave the user without any auth method
     const otherProviders = linkedProviders.filter(p => p !== provider);
-    
+
     // Can unlink if: has password OR has other OAuth providers OR has verified recovery email
     const canUnlink = hasPassword || otherProviders.length > 0;
-    
+
     if (!canUnlink) {
       showToast('Cannot unlink - you need at least one way to sign in. Set a password or recovery email first.', 'error');
       return;
@@ -182,7 +176,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
   const handleSetRecoveryEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recoveryEmail.trim()) return;
-    
+
     setRecoveryEmailLoading(true);
     try {
       await setRecoveryEmail(recoveryEmail.trim());
@@ -203,7 +197,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
       showToast('Cannot remove recovery email - it is your only recovery method', 'error');
       return;
     }
-    
+
     setRecoveryEmailLoading(true);
     try {
       await removeRecoveryEmail();
@@ -219,17 +213,17 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword.length < 8) {
       showToast('Password must be at least 8 characters', 'error');
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
     }
-    
+
     setPasswordLoading(true);
     try {
       if (hasPassword) {
@@ -291,7 +285,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 Account at Risk
               </h3>
               <p className="text-xs text-yellow-600 mt-1">
-                You're signed in with Discord only. If you lose access to your Discord account, 
+                You're signed in with Discord only. If you lose access to your Discord account,
                 you won't be able to recover this account. Set up a password or recovery email below.
               </p>
             </div>
@@ -313,7 +307,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               <p className="text-xs text-neutral-600 truncate">{user.email}</p>
             </div>
           </div>
-          
+
           {/* Profile Link */}
           <div className="p-4 border border-neutral-800 bg-neutral-900/50">
             <div className="flex items-center justify-between">
@@ -342,18 +336,18 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
         <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
           Privacy
         </h3>
-        
+
         <div className="p-4 border border-neutral-800 bg-neutral-900/50">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="font-bold uppercase text-sm">Public Profile</p>
               <p className="text-xs text-neutral-500 mt-1">
-                {isPublic 
+                {isPublic
                   ? 'Anyone can view your watchlist without logging in.'
                   : 'Only your followers can view your watchlist.'}
               </p>
             </div>
-            
+
             <button
               onClick={handlePrivacyToggle}
               disabled={privacyLoading}
@@ -369,12 +363,12 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               />
             </button>
           </div>
-          
+
           <div className="mt-3 pt-3 border-t border-neutral-800">
             <p className="text-xs text-neutral-600">
               {isPublic ? (
                 <>
-                  <span className="text-green-500 font-semibold">Public:</span> Your profile is visible to everyone. 
+                  <span className="text-green-500 font-semibold">Public:</span> Your profile is visible to everyone.
                   Anyone can see your watchlist, ratings, and notes via your profile link.
                 </>
               ) : (
@@ -396,7 +390,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 Who can see your comments
               </p>
             </div>
-            
+
             <select
               value={commentVisibility}
               onChange={(e) => {
@@ -404,8 +398,8 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 setCommentVisibility(newValue);
                 localStorage.setItem('commentVisibility', newValue);
                 showToast(
-                  newValue === 'public' 
-                    ? 'Comments will be visible to everyone' 
+                  newValue === 'public'
+                    ? 'Comments will be visible to everyone'
                     : newValue === 'friends'
                       ? 'Comments will be visible to friends only'
                       : 'Comments will be visible only to you',
@@ -419,7 +413,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               <option value="private">Only me</option>
             </select>
           </div>
-          
+
           <div className="mt-3 pt-3 border-t border-neutral-800">
             <p className="text-xs text-neutral-600">
               {commentVisibility === 'public' ? (
@@ -448,15 +442,15 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 Allow your comments to appear in friends' activity feeds
               </p>
             </div>
-            
+
             <button
               onClick={() => {
                 const newValue = !showInActivityFeed;
                 setShowInActivityFeed(newValue);
                 localStorage.setItem('showInActivityFeed', String(newValue));
                 showToast(
-                  newValue 
-                    ? 'Your comments will appear in activity feeds' 
+                  newValue
+                    ? 'Your comments will appear in activity feeds'
                     : 'Your comments will be hidden from activity feeds',
                   'success'
                 );
@@ -473,7 +467,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               />
             </button>
           </div>
-          
+
           <div className="mt-3 pt-3 border-t border-neutral-800">
             <p className="text-xs text-neutral-600">
               {showInActivityFeed ? (
@@ -500,18 +494,18 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 </svg>
               </div>
               <p className="text-xs text-neutral-500 mt-1">
-                {spoilerProtectionEnabled 
+                {spoilerProtectionEnabled
                   ? 'Friend activity that may contain spoilers is blurred.'
                   : 'All friend activity is shown without blur.'}
               </p>
             </div>
-            
+
             <button
               onClick={() => {
                 setSpoilerProtectionEnabled(!spoilerProtectionEnabled);
                 showToast(
-                  !spoilerProtectionEnabled 
-                    ? 'Spoiler protection enabled' 
+                  !spoilerProtectionEnabled
+                    ? 'Spoiler protection enabled'
                     : 'Spoiler protection disabled',
                   'success'
                 );
@@ -528,12 +522,12 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               />
             </button>
           </div>
-          
+
           <div className="mt-3 pt-3 border-t border-neutral-800">
             <p className="text-xs text-neutral-600">
               {spoilerProtectionEnabled ? (
                 <>
-                  <span className="text-green-500 font-semibold">Protected:</span> Episode titles and thumbnails from friends who are ahead of you on a show will be blurred. 
+                  <span className="text-green-500 font-semibold">Protected:</span> Episode titles and thumbnails from friends who are ahead of you on a show will be blurred.
                   Tap "Reveal" to temporarily unblur spoiler content.
                 </>
               ) : (
@@ -552,12 +546,12 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
         <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
           Connected Accounts
         </h3>
-        
+
         {/* Discord */}
         <div className="p-4 border border-neutral-800 bg-neutral-900/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div 
+              <div
                 className="w-10 h-10 rounded-full flex items-center justify-center"
                 style={{ backgroundColor: '#5865F2' }}
               >
@@ -570,14 +564,14 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
                 </p>
               </div>
             </div>
-            
+
             {isDiscordLinked ? (
               <button
                 onClick={() => handleUnlinkProvider('discord')}
                 disabled={!canUnlinkDiscord || unlinkingProvider === 'discord'}
                 className={`text-xs border px-3 py-2 uppercase tracking-wider transition-colors ${
-                  canUnlinkDiscord 
-                    ? 'border-neutral-700 text-neutral-400 hover:border-red-900 hover:text-red-500' 
+                  canUnlinkDiscord
+                    ? 'border-neutral-700 text-neutral-400 hover:border-red-900 hover:text-red-500'
                     : 'border-neutral-800 text-neutral-700 cursor-not-allowed'
                 }`}
                 title={!canUnlinkDiscord ? 'Set a password before unlinking' : undefined}
@@ -603,7 +597,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               </button>
             )}
           </div>
-          
+
           {!canUnlinkDiscord && isDiscordLinked && (
             <p className="text-xs text-yellow-600 mt-3 border-t border-neutral-800 pt-3">
               You cannot disconnect Discord without setting a password first, as it's your only sign-in method.
@@ -617,7 +611,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
         <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest border-b border-neutral-900 pb-2">
           Security
         </h3>
-        
+
         {/* Password */}
         <div className="p-4 border border-neutral-800 bg-neutral-900/50">
           <div className="flex items-center justify-between">
@@ -641,7 +635,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               {hasPassword ? 'Change' : 'Set Password'}
             </button>
           </div>
-          
+
           {showPasswordForm && (
             <form onSubmit={handleSetPassword} className="mt-4 pt-4 border-t border-neutral-800 space-y-3">
               {hasPassword && (
@@ -708,7 +702,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               </div>
             </form>
           )}
-          
+
           {!hasPassword && !showPasswordForm && (
             <p className="text-xs text-neutral-600 mt-3 border-t border-neutral-800 pt-3">
               Setting a password allows you to sign in with email and provides a backup if you lose OAuth access.
@@ -730,9 +724,9 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               <div>
                 <p className="font-bold uppercase text-sm">Recovery Email</p>
                 <p className="text-xs text-neutral-500">
-                  {hasRecoveryEmail 
-                    ? (recoveryEmailVerified 
-                        ? `${user?.recoveryEmail} (verified)` 
+                  {hasRecoveryEmail
+                    ? (recoveryEmailVerified
+                        ? `${user?.recoveryEmail} (verified)`
                         : `${user?.recoveryEmail} (pending verification)`)
                     : 'Not set'}
                 </p>
@@ -755,7 +749,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               </button>
             )}
           </div>
-          
+
           {showRecoveryEmailForm && !hasRecoveryEmail && (
             <form onSubmit={handleSetRecoveryEmail} className="mt-4 pt-4 border-t border-neutral-800 space-y-3">
               <div>
@@ -792,13 +786,13 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
               </div>
             </form>
           )}
-          
+
           {hasRecoveryEmail && !recoveryEmailVerified && (
             <p className="text-xs text-yellow-600 mt-3 border-t border-neutral-800 pt-3">
               Please check your email inbox and verify your recovery email address to complete setup.
             </p>
           )}
-          
+
           {!hasRecoveryEmail && !showRecoveryEmailForm && (
             <p className="text-xs text-neutral-600 mt-3 border-t border-neutral-800 pt-3">
               A recovery email allows you to regain access if you lose your password and OAuth access.
@@ -829,11 +823,11 @@ export const Settings: React.FC<SettingsProps> = ({ onBack }) => {
           <div className="flex justify-between">
             <span className="text-neutral-500 uppercase">Recovery Options</span>
             <span className={recoveryEmailVerified ? 'text-green-500' : 'text-yellow-500'}>
-              {recoveryEmailVerified 
-                ? 'Email verified' 
-                : hasRecoveryEmail 
-                  ? 'Email pending' 
-                  : hasPassword 
+              {recoveryEmailVerified
+                ? 'Email verified'
+                : hasRecoveryEmail
+                  ? 'Email pending'
+                  : hasPassword
                     ? 'Password set'
                     : 'None set'}
             </span>

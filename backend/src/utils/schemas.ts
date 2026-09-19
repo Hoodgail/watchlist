@@ -87,8 +87,8 @@ export const suggestionQuerySchema = z.object({
 
 // Watch progress schemas
 export const updateWatchProgressSchema = z.object({
-  mediaId: z.string().min(1, 'Media ID is required'),
-  episodeId: z.string().optional(),
+  mediaId: z.string().min(1, 'Media ID is required').max(100),
+  episodeId: z.string().max(500).optional(),
   episodeNumber: z.number().int().min(1).optional(),
   seasonNumber: z.number().int().min(1).optional(),
   currentTime: z.number().min(0, 'Current time must be non-negative'),

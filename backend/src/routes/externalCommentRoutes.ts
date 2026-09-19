@@ -7,7 +7,6 @@ import {
   fetchWithResolution,
   getProviders,
   getProvidersForMediaType,
-  refreshPopularMedia,
   resolvePreview,
 } from '../modules/comments/interface/http/externalCommentController.js';
 import {
@@ -31,7 +30,9 @@ router.post(
   fetchFromProvider,
 );
 
-router.post('/refresh', authenticate, refreshPopularMedia);
+router.post('/refresh', authenticate, (_req, res) => {
+  res.status(410).json({ error: 'Background comment refresh is not implemented' });
+});
 
 router.post(
   '/fetch-with-resolution',

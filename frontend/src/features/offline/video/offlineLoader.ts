@@ -1,24 +1,24 @@
 /**
  * HLS Offline Loader
  * Custom hls.js fragment loader for playing back HLS content from IndexedDB
- * 
+ *
  * This module provides:
  * 1. A custom fragment loader that serves segments from IndexedDB
  * 2. A virtual M3U8 playlist generator from stored segment metadata
  */
 
-import Hls, { 
-  LoaderContext, 
-  LoaderConfiguration, 
+import Hls, {
+  LoaderContext,
+  LoaderConfiguration,
   LoaderCallbacks,
   FragmentLoaderContext,
   Loader,
   LoaderStats,
   HlsConfig,
 } from 'hls.js';
-import { 
-  getHLSSegment, 
-  getHLSSegmentMetadata, 
+import {
+  getHLSSegment,
+  getHLSSegmentMetadata,
   getOfflineEpisode,
   getHLSInitSegment,
 } from './storage';
@@ -38,19 +38,19 @@ interface OfflineLoaderConfig {
 export async function generateOfflineM3U8(episodeId: string): Promise<string> {
   const metadata = await getHLSSegmentMetadata(episodeId);
   const episode = await getOfflineEpisode(episodeId);
-  
+
   if (metadata.length === 0) {
     throw new Error(`No segments found for episode ${episodeId}`);
   }
-  
+
   // Calculate target duration (max segment duration, rounded up)
   const maxDuration = Math.max(...metadata.map(m => m.duration));
   const targetDuration = Math.ceil(maxDuration);
-  
+
   // Determine if we need version 6+ for fMP4 (EXT-X-MAP)
   const hasInitSegment = episode?.hlsHasInitSegment;
   const version = hasInitSegment ? 6 : 3;
-  
+
   // Build M3U8 content
   const lines: string[] = [
     '#EXTM3U',
@@ -59,12 +59,12 @@ export async function generateOfflineM3U8(episodeId: string): Promise<string> {
     '#EXT-X-MEDIA-SEQUENCE:0',
     '#EXT-X-PLAYLIST-TYPE:VOD',
   ];
-  
+
   // Add init segment for fMP4 if present
   if (hasInitSegment) {
     lines.push(`#EXT-X-MAP:URI="offline://${episodeId}/init.mp4"`);
   }
-  
+
   // Add segments
   for (const seg of metadata) {
     lines.push(`#EXTINF:${seg.duration.toFixed(3)},`);
@@ -73,10 +73,10 @@ export async function generateOfflineM3U8(episodeId: string): Promise<string> {
     const extension = hasInitSegment ? 'm4s' : 'ts';
     lines.push(`offline://${episodeId}/segment/${seg.index}.${extension}`);
   }
-  
+
   // End marker
   lines.push('#EXT-X-ENDLIST');
-  
+
   return lines.join('\n');
 }
 
@@ -112,7 +112,7 @@ function parseOfflineUrl(url: string): { episodeId: string; segmentIndex: number
       isInit: true,
     };
   }
-  
+
   // Format for regular segment: offline://{episodeId}/segment/{index}.(ts|m4s)
   const segMatch = url.match(/^offline:\/\/([^/]+)\/segment\/(\d+)\.(ts|m4s)$/);
   if (segMatch) {
@@ -122,7 +122,7 @@ function parseOfflineUrl(url: string): { episodeId: string; segmentIndex: number
       isInit: false,
     };
   }
-  
+
   return null;
 }
 
@@ -135,14 +135,14 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
   public context: LoaderContext | null = null;
   private callbacks: LoaderCallbacks<LoaderContext> | null = null;
   public stats: LoaderStats;
-  
+
   constructor(config: HlsConfig) {
     // Keep a reference to the default loader for fallback
     const DefaultLoaderClass = Hls.DefaultConfig.loader;
     this.defaultLoader = new DefaultLoaderClass(config);
     this.stats = this.defaultLoader.stats;
   }
-  
+
   /**
    * Load a segment - either from IndexedDB or via network
    */
@@ -153,9 +153,9 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
   ): Promise<void> {
     this.context = context;
     this.callbacks = callbacks;
-    
+
     const url = context.url;
-    
+
     // Check if this is an offline URL
     if (isOfflineUrl(url)) {
       try {
@@ -165,16 +165,16 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
           { code: 0, text: error instanceof Error ? error.message : 'Unknown error' },
           context,
           null,
-          null
+          this.stats
         );
       }
       return;
     }
-    
+
     // Fall back to default network loader
     return this.defaultLoader.load(context, config, callbacks);
   }
-  
+
   /**
    * Load segment data from IndexedDB
    */
@@ -183,16 +183,16 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
     callbacks: LoaderCallbacks<LoaderContext>
   ): Promise<void> {
     const parsed = parseOfflineUrl(context.url);
-    
+
     if (!parsed) {
       throw new Error(`Invalid offline URL: ${context.url}`);
     }
-    
+
     const { episodeId, segmentIndex, isInit } = parsed;
-    
+
     // Fetch segment from IndexedDB
     let segmentData: Uint8Array | null;
-    
+
     if (isInit) {
       // Load init segment (for fMP4)
       segmentData = await getHLSInitSegment(episodeId);
@@ -206,7 +206,7 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
         throw new Error(`Segment ${segmentIndex} not found for episode ${episodeId}`);
       }
     }
-    
+
     // Create response stats
     const now = performance.now();
     const stats: LoaderStats = {
@@ -220,7 +220,7 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
       parsing: { start: now, end: now },
       buffering: { start: now, first: now, end: now },
     };
-    
+
     // Call success callback with the data
     callbacks.onSuccess(
       {
@@ -232,14 +232,14 @@ export class OfflineFragmentLoader implements Loader<LoaderContext> {
       null
     );
   }
-  
+
   /**
    * Abort the current load
    */
   abort(): void {
     this.defaultLoader.abort();
   }
-  
+
   /**
    * Destroy the loader
    */
@@ -270,13 +270,13 @@ export function createOfflineHLSConfig(): Partial<HlsConfig> {
  */
 export async function isHLSEpisodeOffline(episodeId: string): Promise<boolean> {
   const episode = await getOfflineEpisode(episodeId);
-  
+
   if (!episode) return false;
   if (!episode.isHLS) return false;
-  
+
   // Check if we have all segments
   const metadata = await getHLSSegmentMetadata(episodeId);
-  
+
   return metadata.length === episode.hlsSegmentCount;
 }
 

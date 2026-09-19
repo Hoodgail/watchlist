@@ -207,8 +207,8 @@ export async function getMangaById(id: string): Promise<MangaDetails> {
   });
 
   const [mangaRes, aggregateRes] = await Promise.all([
-    fetch(`${MANGADEX_API_BASE}/manga/${id}?${params.toString()}`),
-    fetch(`${MANGADEX_API_BASE}/manga/${id}/aggregate?translatedLanguage[]=en`),
+    fetch(`${MANGADEX_API_BASE}/manga/${encodeURIComponent(id)}?${params.toString()}`, { signal: AbortSignal.timeout(15000) }),
+    fetch(`${MANGADEX_API_BASE}/manga/${encodeURIComponent(id)}/aggregate?translatedLanguage[]=en`, { signal: AbortSignal.timeout(15000) }),
   ]);
 
   if (!mangaRes.ok) {
@@ -225,11 +225,11 @@ export async function getMangaById(id: string): Promise<MangaDetails> {
   if (aggregateRes.ok) {
     const aggregateData = await aggregateRes.json() as MangaDexAggregateResponse;
     const volumes = Object.keys(aggregateData.volumes);
-    
+
     // Count unique chapters
     const allChapters = new Set<string>();
     let maxChapterNum = 0;
-    
+
     for (const volKey of volumes) {
       const vol = aggregateData.volumes[volKey];
       for (const chKey of Object.keys(vol.chapters)) {
@@ -276,7 +276,7 @@ export async function getMangaChapters(
     'includes[]': 'scanlation_group',
   });
 
-  const response = await fetch(`${MANGADEX_API_BASE}/chapter?${params.toString()}`);
+  const response = await fetch(`${MANGADEX_API_BASE}/chapter?${params.toString()}`, { signal: AbortSignal.timeout(15000) });
 
   if (!response.ok) {
     throw new Error(`MangaDex chapters fetch failed: ${response.status}`);
@@ -298,7 +298,7 @@ export async function getMangaChapters(
 }
 
 export async function getChapterPages(chapterId: string): Promise<ChapterPages> {
-  const response = await fetch(`${MANGADEX_API_BASE}/at-home/server/${chapterId}`);
+  const response = await fetch(`${MANGADEX_API_BASE}/at-home/server/${encodeURIComponent(chapterId)}`, { signal: AbortSignal.timeout(15000) });
 
   if (!response.ok) {
     throw new Error(`MangaDex chapter pages fetch failed: ${response.status}`);

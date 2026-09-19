@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { createCollection, updateCollection } from '@/features/collections/api';
-import { ModalFrame } from '@/shared/ui';
-import { Collection } from '@/types';
-import { useToast } from '@/context/ToastContext';
+import { createCollection, updateCollection } from '../api';
+import { ModalFrame } from '../../../shared/ui/index';
+import { Collection } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 interface CollectionFormProps {
   collection?: Collection; // If provided, editing mode

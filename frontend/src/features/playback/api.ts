@@ -1,5 +1,5 @@
-import { fetchWithAuth, API_BASE_URL } from '@/shared/api/client';
-import { SourceAlias } from '../../../types';
+import { fetchWithAuth, API_BASE_URL } from '../../shared/api/client';
+import { SourceAlias } from '../../types';
 
 export interface WatchProgressData {
   id: string;

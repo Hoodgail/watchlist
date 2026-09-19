@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { getPublicProfile } from '@/features/profile/api';
-import { followUser, unfollowUser } from '@/features/social/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { UserAvatar } from '@/shared/ui';
+import { getPublicProfile } from '../api';
+import { followUser, unfollowUser } from '../../social/api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { UserAvatar } from '../../../shared/ui/index';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { PublicProfile as PublicProfileType, PublicProfileMediaItem, MediaStatus } from '@/types';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/context/ToastContext';
+import { PublicProfile as PublicProfileType, PublicProfileMediaItem, MediaStatus } from '../../../types';
+import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 
 const STATUS_ORDER: MediaStatus[] = ['WATCHING', 'READING', 'PAUSED', 'PLAN_TO_WATCH', 'COMPLETED', 'DROPPED'];
 
@@ -24,7 +24,7 @@ const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoo
 
 function StarRating({ rating }: { rating: number | null }) {
   if (rating === null || rating === undefined) return null;
-  
+
   return (
     <div className="flex items-center gap-1">
       <svg className="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
@@ -39,7 +39,7 @@ function MediaCard({ item }: { item: PublicProfileMediaItem; key?: string }) {
   const imageUrl = resolveMediaImageUrl(item.imageUrl);
   const config = STATUS_CONFIG[item.status] || STATUS_CONFIG.WATCHING;
   const progressPercentage = item.total ? Math.min(100, (item.current / item.total) * 100) : 0;
-  
+
   return (
     <div className={`group relative bg-black border border-neutral-800 hover:border-neutral-600 transition-colors ${config.borderColor} border-l-2 overflow-hidden`}>
       {/* Progress bar at bottom */}
@@ -51,7 +51,7 @@ function MediaCard({ item }: { item: PublicProfileMediaItem; key?: string }) {
           />
         </div>
       )}
-      
+
       <div className="flex p-3 pb-4">
         {imageUrl && (
           <div className="w-12 h-18 flex-shrink-0 mr-3">
@@ -110,14 +110,14 @@ function ProfileHeader({ profile, onFollow, onUnfollow, isFollowLoading }: Profi
           sizeClassName="w-16 h-16 sm:w-20 sm:h-20 text-xl sm:text-2xl"
           fallbackClassName="bg-neutral-900 border border-neutral-700 text-neutral-400"
         />
-        
+
         {/* Profile Info */}
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-tighter text-white truncate">
             {profile.displayName || profile.username}
           </h1>
           <p className="text-neutral-500 text-sm">@{profile.username}</p>
-          
+
           <div className="flex flex-wrap items-center gap-3 mt-3 text-xs uppercase">
             <span className="px-2 py-1 border border-neutral-800 text-neutral-400">
               <span className="font-bold text-white">{profile.followerCount}</span> FOLLOWERS
@@ -132,7 +132,7 @@ function ProfileHeader({ profile, onFollow, onUnfollow, isFollowLoading }: Profi
             )}
           </div>
         </div>
-        
+
         {/* Actions */}
         {user && !profile.isOwnProfile && (
           <div className="flex-shrink-0">
@@ -156,7 +156,7 @@ function ProfileHeader({ profile, onFollow, onUnfollow, isFollowLoading }: Profi
           </div>
         )}
       </div>
-      
+
       {/* Share link */}
       <div className="mt-3 flex items-center gap-3">
         <button
@@ -176,7 +176,7 @@ function ProfileHeader({ profile, onFollow, onUnfollow, isFollowLoading }: Profi
 function PrivateProfileMessage({ profile }: { profile: PublicProfileType }) {
   const { user } = useAuth();
   const initials = (profile.displayName || profile.username).slice(0, 2).toUpperCase();
-  
+
   return (
     <div className="max-w-2xl mx-auto text-center py-12">
       {/* Avatar */}
@@ -191,23 +191,23 @@ function PrivateProfileMessage({ profile }: { profile: PublicProfileType }) {
           <span className="text-2xl font-bold text-neutral-400">{initials}</span>
         </div>
       )}
-      
+
       <h1 className="text-2xl font-bold uppercase tracking-tighter text-white mt-4">
         {profile.displayName || profile.username}
       </h1>
       <p className="text-neutral-500 text-sm">@{profile.username}</p>
-      
+
       <div className="mt-6 p-6 bg-black border border-neutral-800">
         <svg className="w-12 h-12 mx-auto text-neutral-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
         <h2 className="text-lg font-bold uppercase text-white mb-2">Private Profile</h2>
         <p className="text-neutral-500 text-sm">
-          {user 
+          {user
             ? "Follow this user to see their watchlist."
             : "Sign in and follow this user to see their watchlist."}
         </p>
-        
+
         {!user && (
           <Link
             to="/"
@@ -223,7 +223,7 @@ function PrivateProfileMessage({ profile }: { profile: PublicProfileType }) {
 
 function MediaListSection({ title, items }: { title: string; items: PublicProfileMediaItem[] }) {
   if (items.length === 0) return null;
-  
+
   // Group by status
   const groupedItems = STATUS_ORDER.reduce((acc, status) => {
     const statusItems = items.filter(item => item.status === status);
@@ -232,13 +232,13 @@ function MediaListSection({ title, items }: { title: string; items: PublicProfil
     }
     return acc;
   }, [] as { status: string; items: PublicProfileMediaItem[] }[]);
-  
+
   return (
     <div className="mb-8">
       <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest mb-4 border-b border-neutral-900 pb-2">
         {title}
       </h2>
-      
+
       {groupedItems.map(({ status, items: statusItems }) => {
         const config = STATUS_CONFIG[status] || STATUS_CONFIG.WATCHING;
         return (
@@ -265,19 +265,19 @@ export function PublicProfile() {
   const { username } = useParams<{ username: string }>();
   const { user } = useAuth();
   const { showToast } = useToast();
-  
+
   const [profile, setProfile] = useState<PublicProfileType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
-  
+
   useEffect(() => {
     if (!username) return;
-    
+
     const fetchProfile = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const data = await getPublicProfile(username);
         setProfile(data);
@@ -287,14 +287,14 @@ export function PublicProfile() {
         setLoading(false);
       }
     };
-    
+
     fetchProfile();
   }, [username]);
-  
+
   const handleFollow = async () => {
     if (!profile) return;
     setIsFollowLoading(true);
-    
+
     try {
       await followUser(profile.id);
       setProfile(prev => prev ? { ...prev, isFollowing: true, followerCount: prev.followerCount + 1 } : null);
@@ -305,11 +305,11 @@ export function PublicProfile() {
       setIsFollowLoading(false);
     }
   };
-  
+
   const handleUnfollow = async () => {
     if (!profile) return;
     setIsFollowLoading(true);
-    
+
     try {
       await unfollowUser(profile.id);
       setProfile(prev => prev ? { ...prev, isFollowing: false, followerCount: prev.followerCount - 1 } : null);
@@ -320,7 +320,7 @@ export function PublicProfile() {
       setIsFollowLoading(false);
     }
   };
-  
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -332,7 +332,7 @@ export function PublicProfile() {
       </div>
     );
   }
-  
+
   if (error || !profile) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -352,13 +352,13 @@ export function PublicProfile() {
       </div>
     );
   }
-  
+
   // SEO meta tags
   const pageTitle = `${profile.displayName || profile.username}'s Watchlist`;
-  const pageDescription = profile.list 
+  const pageDescription = profile.list
     ? `Check out what ${profile.username} is watching. ${profile.list.length} items in their watchlist.`
     : `${profile.username}'s watchlist on Watchlist`;
-  
+
   // Check if profile is private and user can't view it
   if (!profile.list) {
     return (
@@ -377,11 +377,11 @@ export function PublicProfile() {
       </div>
     );
   }
-  
+
   // Split list into watchlist and readlist
   const watchlist = profile.list.filter(item => item.type !== 'MANGA');
   const readlist = profile.list.filter(item => item.type === 'MANGA');
-  
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <Helmet>
@@ -394,22 +394,22 @@ export function PublicProfile() {
         {profile.avatarUrl && <meta property="og:image" content={profile.avatarUrl} />}
         <meta name="twitter:card" content="summary" />
       </Helmet>
-      
+
       <ProfileHeader
         profile={profile}
         onFollow={handleFollow}
         onUnfollow={handleUnfollow}
         isFollowLoading={isFollowLoading}
       />
-      
+
       {watchlist.length > 0 && (
         <MediaListSection title="Watchlist" items={watchlist} />
       )}
-      
+
       {readlist.length > 0 && (
         <MediaListSection title="Readlist" items={readlist} />
       )}
-      
+
       {profile.list.length === 0 && (
         <div className="text-center py-12 border border-neutral-800 border-dashed">
           <p className="text-neutral-600 text-sm uppercase">This user hasn't added anything to their list yet.</p>

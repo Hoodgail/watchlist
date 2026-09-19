@@ -13,7 +13,7 @@ export const fetchCommentsSchema = z.object({
   volumeNumber: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(100).optional(),
   providerNames: z.array(z.string()).optional(),
-  providerIds: z.record(z.string()).optional(),
+  providerIds: z.record(z.string(), z.string()).optional(),
 });
 
 export const fetchFromProviderSchema = z.object({
@@ -27,7 +27,7 @@ export const fetchFromProviderSchema = z.object({
   chapterNumber: z.number().int().min(0).optional(),
   volumeNumber: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(100).optional(),
-  providerIds: z.record(z.string()).optional(),
+  providerIds: z.record(z.string(), z.string()).optional(),
 });
 
 export const fetchWithResolutionSchema = z.object({
@@ -37,7 +37,7 @@ export const fetchWithResolutionSchema = z.object({
   refId: z.string().optional(),
   seasonNumber: z.number().int().min(0).optional(),
   episodeNumber: z.number().int().min(0).optional(),
-  providerIds: z.record(z.string()).optional(),
+  providerIds: z.record(z.string(), z.string()).optional(),
   limit: z.number().int().min(1).max(100).optional(),
 });
 

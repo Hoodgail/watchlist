@@ -1,3 +1,4 @@
+import { canonicalMediaRefId } from '@shared/mediaIdentity.js';
 import type { MediaType } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../config/database.js';
@@ -20,7 +21,7 @@ async function seedMediaSource(input: {
 }) {
   return prisma.mediaSource.create({
     data: {
-      refId: input.refId ?? nextRefId(),
+      refId: input.refId ? canonicalMediaRefId(input.refId, input.type) : nextRefId(),
       title: input.title,
       type: input.type,
       total: input.total ?? null,

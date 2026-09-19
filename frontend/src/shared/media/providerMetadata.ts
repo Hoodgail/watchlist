@@ -1,4 +1,10 @@
-import type { ProviderName, VideoProviderName } from '../../../types';
+import {
+  ANIME_PROVIDERS,
+  MOVIE_PROVIDERS,
+  MANGA_PROVIDERS,
+  PROVIDER_INFO,
+} from '@shared/providers';
+import type { ProviderName, VideoProviderName } from '../../types';
 
 export type MangaProviderName =
   | 'mangadex'
@@ -9,79 +15,35 @@ export type MangaProviderName =
   | 'asurascans'
   | 'anilist-manga';
 
-export const VIDEO_PROVIDER_DISPLAY_NAMES: Record<VideoProviderName, string> = {
-  hianime: 'HiAnime',
-  animepahe: 'AnimePahe',
-  animekai: 'AnimeKai',
-  kickassanime: 'KickAssAnime',
-  flixhq: 'FlixHQ',
-  goku: 'Goku',
-  sflix: 'SFlix',
-  himovies: 'HiMovies',
-  dramacool: 'DramaCool',
-};
-
-export const VIDEO_PROVIDER_BASE_URLS: Record<VideoProviderName, string> = {
-  hianime: 'https://hianime.to',
-  animepahe: 'https://animepahe.com',
-  animekai: 'https://animekai.to',
-  kickassanime: 'https://kickassanime.am',
-  flixhq: 'https://flixhq.to',
-  goku: 'https://goku.sx',
-  sflix: 'https://sflix.to',
-  himovies: 'https://himovies.to',
-  dramacool: 'https://dramacool.ee',
-};
-
-export const MANGA_PROVIDER_DISPLAY_NAMES: Record<MangaProviderName, string> = {
-  mangadex: 'MangaDex',
-  mangahere: 'MangaHere',
-  mangapill: 'MangaPill',
-  comick: 'ComicK',
-  mangareader: 'MangaReader',
-  asurascans: 'AsuraScans',
-  'anilist-manga': 'AniList',
-};
-
-export const GENERIC_PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderName, string>> = {
-  anilist: 'AniList',
-  tmdb: 'TMDB',
-  libgen: 'Libgen',
-  readlightnovels: 'ReadLightNovels',
-  getcomics: 'GetComics',
-  rawg: 'RAWG',
-  mangakakalot: 'MangaKakalot',
-};
-
-export const MANGA_PROVIDER_BASE_URLS: Record<MangaProviderName, string> = {
-  mangadex: 'https://mangadex.org',
-  mangahere: 'https://mangahere.cc',
-  mangapill: 'https://mangapill.com',
-  comick: 'https://comick.io',
-  mangareader: 'https://mangareader.to',
-  asurascans: 'https://asuracomic.net',
-  'anilist-manga': 'https://anilist.co',
-};
-
-export const GENERIC_PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = {
-  anilist: 'https://anilist.co',
-  tmdb: 'https://www.themoviedb.org',
-  libgen: 'https://libgen.is',
-  readlightnovels: 'https://readlightnovels.net',
-  getcomics: 'https://getcomics.info',
-  rawg: 'https://rawg.io',
-  mangakakalot: 'https://mangakakalot.com',
-};
-
-export const ALL_VIDEO_PROVIDERS = Object.keys(VIDEO_PROVIDER_DISPLAY_NAMES) as VideoProviderName[];
-export const ALL_MANGA_PROVIDERS = Object.keys(MANGA_PROVIDER_DISPLAY_NAMES) as MangaProviderName[];
+export const ALL_VIDEO_PROVIDERS: VideoProviderName[] = [...ANIME_PROVIDERS, ...MOVIE_PROVIDERS];
+export const ALL_MANGA_PROVIDERS: MangaProviderName[] = [...MANGA_PROVIDERS, 'anilist-manga'];
+function metadata<K extends keyof typeof PROVIDER_INFO>(
+  names: readonly K[],
+  field: 'displayName' | 'baseUrl',
+): Record<K, string> {
+  return Object.fromEntries(
+    names.map((name) => [name, PROVIDER_INFO[name][field] || '']),
+  ) as Record<K, string>;
+}
+export const VIDEO_PROVIDER_DISPLAY_NAMES = metadata(ALL_VIDEO_PROVIDERS, 'displayName');
+export const VIDEO_PROVIDER_BASE_URLS = metadata(ALL_VIDEO_PROVIDERS, 'baseUrl');
+export const MANGA_PROVIDER_DISPLAY_NAMES = metadata(ALL_MANGA_PROVIDERS, 'displayName');
+export const MANGA_PROVIDER_BASE_URLS = metadata(ALL_MANGA_PROVIDERS, 'baseUrl');
+export const GENERIC_PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderName, string>> = metadata(
+  Object.keys(PROVIDER_INFO) as (keyof typeof PROVIDER_INFO)[],
+  'displayName',
+);
+export const GENERIC_PROVIDER_BASE_URLS: Partial<Record<ProviderName, string>> = metadata(
+  Object.keys(PROVIDER_INFO) as (keyof typeof PROVIDER_INFO)[],
+  'baseUrl',
+);
 
 export function isVideoProviderName(provider: string): provider is VideoProviderName {
-  return provider in VIDEO_PROVIDER_DISPLAY_NAMES;
+  return Object.hasOwn(VIDEO_PROVIDER_DISPLAY_NAMES, provider);
 }
 
 export function isMangaProviderName(provider: string): provider is MangaProviderName {
-  return provider in MANGA_PROVIDER_DISPLAY_NAMES;
+  return Object.hasOwn(MANGA_PROVIDER_DISPLAY_NAMES, provider);
 }
 
 export function getVideoProviderDisplayName(provider: VideoProviderName): string {

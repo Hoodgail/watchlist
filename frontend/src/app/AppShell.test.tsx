@@ -5,14 +5,14 @@ import { AppShell } from './AppShell';
 
 const layoutMock = vi.fn();
 
-vi.mock('@/app/layout/Layout', () => ({
+vi.mock('./layout/Layout', () => ({
   Layout: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => {
     layoutMock(props);
     return <div data-testid="layout">{children}</div>;
   },
 }));
 
-vi.mock('@/app/components/AccountSecurityBanner', () => ({
+vi.mock('./components/AccountSecurityBanner', () => ({
   AccountSecurityBanner: ({ onSetupRecovery }: { onSetupRecovery: () => void }) => (
     <button onClick={onSetupRecovery}>setup recovery</button>
   ),

@@ -1,6 +1,6 @@
-import { localStorageContract } from '@/shared/contracts/storage';
+import { localStorageContract } from '../contracts/storage';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3201/api';
 
 export function buildApiUrl(endpoint: string): string {
   if (/^https?:\/\//.test(endpoint)) {
@@ -43,7 +43,7 @@ export function removeTokens(): void {
   clearTokens();
 }
 
-async function tryRefreshToken(): Promise<boolean> {
+async function performRefreshToken(): Promise<boolean> {
   const refresh = getRefreshToken();
   if (!refresh) return false;
 
@@ -65,6 +65,12 @@ async function tryRefreshToken(): Promise<boolean> {
 
   clearTokens();
   return false;
+}
+
+let refreshInFlight: Promise<boolean> | undefined;
+function tryRefreshToken(): Promise<boolean> {
+  refreshInFlight ??= performRefreshToken().finally(() => { refreshInFlight = undefined; });
+  return refreshInFlight;
 }
 
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promise<Response> {

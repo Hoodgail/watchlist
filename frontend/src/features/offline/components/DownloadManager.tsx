@@ -1,8 +1,8 @@
 // DownloadManager Component - Shows download queue, progress, and storage info
 import React, { useState, useEffect } from 'react';
-import { formatBytes, type StorageInfo } from '@/features/offline/manga/storage';
-import { useOffline } from '@/context/OfflineContext';
-import { getProviderDisplayName, MangaProviderName } from '@/services/manga';
+import { formatBytes, type StorageInfo } from '../manga/storage';
+import { useOffline } from '../../../context/OfflineContext';
+import { getProviderDisplayName, MangaProviderName } from '../../../services/manga';
 
 interface DownloadManagerProps {
   onMangaClick: (mangaId: string, provider?: MangaProviderName) => void;
@@ -157,7 +157,7 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ onMangaClick }
           {/* Progress bars for each chapter */}
           <div className="space-y-2">
             {activeDownload.progress.map((prog, idx) => {
-              const percent = prog.totalPages > 0 
+              const percent = prog.totalPages > 0
                 ? Math.round((prog.currentPage / prog.totalPages) * 100)
                 : 0;
 
@@ -248,7 +248,7 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ onMangaClick }
               </svg>
               <p className="uppercase tracking-wider text-sm">No offline manga</p>
               <p className="text-xs mt-2 text-neutral-700">
-                {isOnline 
+                {isOnline
                   ? 'Search for manga and download chapters for offline reading'
                   : 'Go online to download manga'
                 }
@@ -312,7 +312,7 @@ export const DownloadManager: React.FC<DownloadManagerProps> = ({ onMangaClick }
       )}
 
       {/* Storage Warning */}
-      {storageInfo && storageInfo.quota && 
+      {storageInfo && storageInfo.quota &&
        storageInfo.estimatedSize > storageInfo.quota * 0.8 && (
         <div className="bg-yellow-900/20 border border-yellow-700/50 p-4 text-yellow-500 text-sm">
           <div className="flex items-start gap-3">

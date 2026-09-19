@@ -1,3 +1,4 @@
+import { prisma } from '../config/database.js';
 import { Router } from 'express';
 import authRoutes from './auth.js';
 import listRoutes from './list.js';
@@ -28,8 +29,13 @@ router.use('/external-comments', externalCommentRoutes);
 router.use('/collections', collectionRoutes);
 
 // Health check
-router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+router.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: 'unavailable' });
+  }
 });
 
 export default router;

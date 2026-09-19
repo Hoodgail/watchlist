@@ -1,4 +1,4 @@
-import type { ProviderName } from '../../../types';
+import type { ProviderName } from '../../types';
 import { getProxiedImageUrl, resolveTmdbImageUrl } from './imageProxy';
 import { getProviderBaseUrl, type MangaProviderName } from './providerMetadata';
 import { extractProviderFromRefId } from './refId';

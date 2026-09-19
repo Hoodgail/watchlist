@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface AccountSecurityBannerProps {
   onSetupRecovery: () => void;
@@ -21,7 +21,7 @@ export const AccountSecurityBanner: React.FC<AccountSecurityBannerProps> = ({ on
   // Check if user only has OAuth and no verified recovery options
   const hasOAuth = user.oauthProviders && user.oauthProviders.length > 0;
   const isAtRisk = hasOAuth && !user.hasPassword && !user.recoveryEmailVerified;
-  
+
   if (!isAtRisk) {
     return null;
   }
@@ -30,17 +30,17 @@ export const AccountSecurityBanner: React.FC<AccountSecurityBannerProps> = ({ on
     <div className="bg-yellow-900/30 border border-yellow-700/50 p-4 mb-6">
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
-          <svg 
-            className="w-5 h-5 text-yellow-500" 
-            fill="none" 
-            viewBox="0 0 24 24" 
+          <svg
+            className="w-5 h-5 text-yellow-500"
+            fill="none"
+            viewBox="0 0 24 24"
             stroke="currentColor"
           >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
         </div>
@@ -49,8 +49,8 @@ export const AccountSecurityBanner: React.FC<AccountSecurityBannerProps> = ({ on
             Secure Your Account
           </h3>
           <p className="text-xs text-yellow-600 mt-1">
-            You're signed in with Discord only. If you lose access to your Discord account, 
-            you won't be able to recover this account. Set up a recovery email or password 
+            You're signed in with Discord only. If you lose access to your Discord account,
+            you won't be able to recover this account. Set up a recovery email or password
             to prevent lockout.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">

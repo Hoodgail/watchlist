@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { MediaItem, User } from '@/types';
-import { getFollowing, sendSuggestion } from '@/features/social/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { useToast } from '@/context/ToastContext';
+import { MediaItem, User } from '../../../types';
+import { getFollowing, sendSuggestion } from '../api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { useToast } from '../../../context/ToastContext';
 
 interface SuggestToFriendModalProps {
   item: MediaItem;

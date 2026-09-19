@@ -21,10 +21,10 @@ import {
   removeCollectionItem,
   reorderCollectionItems,
   updateCollectionItem,
-} from '@/features/collections/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { CollectionItem } from '@/types';
-import { useToast } from '@/context/ToastContext';
+} from '../api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { CollectionItem } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 interface CollectionItemListProps {
   collectionId: string;
@@ -245,7 +245,7 @@ export const CollectionItemList: React.FC<CollectionItemListProps> = ({
       const newIndex = items.findIndex((item) => item.id === over.id);
 
       const newItems = arrayMove(items, oldIndex, newIndex);
-      
+
       // Update local state immediately for responsiveness
       onItemsChange(newItems);
 

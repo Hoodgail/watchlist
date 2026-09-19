@@ -1,1 +1,1 @@
-export * from '../../services/offlineVideoStorage';
+export * from '../features/offline/video/storage';

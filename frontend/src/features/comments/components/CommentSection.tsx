@@ -6,11 +6,11 @@ import {
   removeCommentReaction,
   type Comment as ApiComment,
   type CommentMediaType,
-} from '@/features/social/api';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/context/ToastContext';
+} from '../../social/api';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
+import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 
 // Types
 interface CommentUser {
@@ -58,15 +58,17 @@ function transformApiComment(apiComment: ApiComment): Comment {
     isSpoiler: apiComment.isSpoiler,
     createdAt: apiComment.createdAt,
     updatedAt: apiComment.updatedAt,
-    user: apiComment.author ? {
-      id: apiComment.author.id,
-      username: apiComment.author.username,
-      displayName: apiComment.author.displayName || undefined,
-      avatarUrl: apiComment.author.avatarUrl,
-    } : {
-      id: 'external',
-      username: apiComment.externalAuthor || 'Unknown',
-    },
+    user: apiComment.author
+      ? {
+          id: apiComment.author.id,
+          username: apiComment.author.username,
+          displayName: apiComment.author.displayName || undefined,
+          avatarUrl: apiComment.author.avatarUrl,
+        }
+      : {
+          id: 'external',
+          username: apiComment.externalAuthor || 'Unknown',
+        },
     reactions: [],
     reactionCount: apiComment.reactionCounts?.LIKE || 0,
     userHasReacted: apiComment.userReaction === 'LIKE',
@@ -103,9 +105,7 @@ const ExternalSourceBadge: React.FC<{ source: string; url?: string }> = ({ sourc
 
   return (
     <div className="flex items-center gap-1">
-      <span className={`px-1.5 py-0.5 text-[10px] uppercase border ${colorClass}`}>
-        {source}
-      </span>
+      <span className={`px-1.5 py-0.5 text-[10px] uppercase border ${colorClass}`}>{source}</span>
       {url && (
         <a
           href={url}
@@ -115,7 +115,12 @@ const ExternalSourceBadge: React.FC<{ source: string; url?: string }> = ({ sourc
           onClick={(e) => e.stopPropagation()}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       )}
@@ -146,7 +151,12 @@ const CommentCard: React.FC<{
           {comment.isExternal ? (
             <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-500">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"
+                />
               </svg>
             </div>
           ) : (
@@ -187,9 +197,7 @@ const CommentCard: React.FC<{
       <div className="relative">
         {isSpoilerHidden ? (
           <div className="relative">
-            <p className="text-sm text-neutral-400 blur-sm select-none">
-              {comment.content}
-            </p>
+            <p className="text-sm text-neutral-400 blur-sm select-none">{comment.content}</p>
             <button
               onClick={() => setRevealed(true)}
               className="absolute inset-0 flex items-center justify-center bg-neutral-900/80"
@@ -283,57 +291,60 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   // Fetch comments
-  const fetchComments = useCallback(async (cursor?: string) => {
-    const isInitialLoad = !cursor;
-    if (isInitialLoad) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-    setError(null);
-
-    try {
-      const data = await getMediaComments(refId, {
-        mediaType: mediaType as CommentMediaType,
-        seasonNumber,
-        episodeNumber,
-        chapterNumber,
-        volumeNumber,
-        includeExternal,
-        cursor,
-      });
-
-      const transformedComments = data.comments.map(transformApiComment);
-
+  const fetchComments = useCallback(
+    async (cursor?: string) => {
+      const isInitialLoad = !cursor;
       if (isInitialLoad) {
-        setComments(transformedComments);
+        setIsLoading(true);
       } else {
-        setComments(prev => [...prev, ...transformedComments]);
+        setIsLoadingMore(true);
       }
-      setNextCursor(data.nextCursor);
-      setHasMore(!!data.nextCursor);
-    } catch (err) {
-      console.error('Failed to fetch comments:', err);
-      setError('Failed to load comments');
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [refId, mediaType, seasonNumber, episodeNumber, chapterNumber, volumeNumber, includeExternal]);
+      setError(null);
 
-  // Fetch comments when expanded
+      try {
+        const data = await getMediaComments(refId, {
+          mediaType: mediaType as CommentMediaType,
+          seasonNumber,
+          episodeNumber,
+          chapterNumber,
+          volumeNumber,
+          includeExternal,
+          friendsOnly: filterOption === 'friends',
+          cursor,
+        });
+
+        const transformedComments = data.comments.map(transformApiComment);
+
+        if (isInitialLoad) {
+          setComments(transformedComments);
+        } else {
+          setComments((prev) => [...prev, ...transformedComments]);
+        }
+        setNextCursor(data.nextCursor);
+        setHasMore(!!data.nextCursor);
+      } catch (err) {
+        console.error('Failed to fetch comments:', err);
+        setError('Failed to load comments');
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [
+      refId,
+      mediaType,
+      seasonNumber,
+      episodeNumber,
+      chapterNumber,
+      volumeNumber,
+      includeExternal,
+      filterOption,
+    ],
+  );
+
   useEffect(() => {
-    if (isExpanded && comments.length === 0 && !isLoading) {
-      fetchComments();
-    }
+    if (isExpanded) void fetchComments();
   }, [isExpanded, fetchComments]);
-
-  // Refetch when filter changes
-  useEffect(() => {
-    if (isExpanded) {
-      fetchComments();
-    }
-  }, [includeExternal]);
 
   // Post a new comment
   const handlePostComment = async () => {
@@ -355,7 +366,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
       const createdComment = transformApiComment(createdApiComment);
 
       // Add to beginning of list
-      setComments(prev => [createdComment, ...prev]);
+      setComments((prev) => [createdComment, ...prev]);
       setNewComment('');
       setIsSpoiler(false);
       showToast('Comment posted!', 'success');
@@ -384,8 +395,8 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
       }
 
       // Update local state
-      setComments(prev =>
-        prev.map(c => {
+      setComments((prev) =>
+        prev.map((c) => {
           if (c.id === commentId) {
             return {
               ...c,
@@ -394,7 +405,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
             };
           }
           return c;
-        })
+        }),
       );
     } catch (err) {
       console.error('Failed to update reaction:', err);
@@ -426,13 +437,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
   };
 
   // Filter comments based on selected filter
-  const filteredComments = comments.filter(comment => {
+  const filteredComments = comments.filter((comment) => {
     if (filterOption === 'hide_spoilers' && comment.isSpoiler) {
       return false;
-    }
-    if (filterOption === 'friends') {
-      // TODO: Implement friends-only filter when friend data is available
-      return true;
     }
     return true;
   });
@@ -450,9 +457,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
           <span className="text-sm font-bold text-neutral-400 uppercase tracking-wider">
             Comments
           </span>
-          {commentCount > 0 && (
-            <span className="text-xs text-neutral-600">({commentCount})</span>
-          )}
+          {commentCount > 0 && <span className="text-xs text-neutral-600">({commentCount})</span>}
         </div>
         <div className="flex items-center gap-2">
           {/* Filter dropdown trigger */}
@@ -467,26 +472,33 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
               >
                 Filters
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
 
               {showFilterDropdown && (
                 <div className="absolute right-0 top-full mt-1 w-40 bg-neutral-900 border border-neutral-800 z-50">
-                  {(['all', 'friends', 'hide_spoilers', 'show_external'] as FilterOption[]).map(option => (
-                    <button
-                      key={option}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFilterChange(option);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs uppercase hover:bg-neutral-800 transition-colors ${
-                        filterOption === option ? 'text-yellow-500' : 'text-neutral-400'
-                      }`}
-                    >
-                      {option.replace('_', ' ')}
-                    </button>
-                  ))}
+                  {(['all', 'friends', 'hide_spoilers', 'show_external'] as FilterOption[]).map(
+                    (option) => (
+                      <button
+                        key={option}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFilterChange(option);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs uppercase hover:bg-neutral-800 transition-colors ${
+                          filterOption === option ? 'text-yellow-500' : 'text-neutral-400'
+                        }`}
+                      >
+                        {option.replace('_', ' ')}
+                      </button>
+                    ),
+                  )}
                 </div>
               )}
             </div>
@@ -593,7 +605,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
           {/* Comments list */}
           {!isLoading && !error && filteredComments.length > 0 && (
             <div className="divide-y divide-neutral-800">
-              {filteredComments.map(comment => (
+              {filteredComments.map((comment) => (
                 <div key={comment.id} className="p-4">
                   <CommentCard
                     comment={comment}

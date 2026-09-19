@@ -607,7 +607,8 @@ export async function getTMDBInfo(
     }
 
     const provider = getTMDBProvider();
-    const info = await provider.fetchMediaInfo(id, type);
+    const qualified = /^(movie|tv)\/(\d+)$/.exec(id);
+    const info = await provider.fetchMediaInfo(qualified?.[2] ?? id, (qualified?.[1] as 'movie' | 'tv') ?? type);
     return convertTMDBInfo(info as IMovieInfo);
   } catch (error) {
     console.error('TMDB info error:', error);

@@ -1,3 +1,5 @@
+import { getInfo } from '../../../services/consumetService.js';
+import { isValidProvider } from '@shared/providers.js';
 import { parseRefId } from '@shared/refId.js';
 import { getAnilistAnimeInfo, getAnilistMangaInfo, getTMDBInfo } from '../../../services/consumet/metaProviders.js';
 import * as rawgService from '../../../services/rawgService.js';
@@ -40,7 +42,7 @@ export async function fetchMediaMetadata(refId: string, type: MediaType): Promis
   }
 
   const { source, id } = parsed;
-  if (!isMetaSource(source)) {
+  if (!isMetaSource(source) && !isValidProvider(source)) {
     throw new BadRequestError(
       `Provider "${source}" is not supported for automatic metadata. Supported: tmdb (movies/TV), anilist (anime), anilist-manga (manga), rawg (games).`,
     );
@@ -49,13 +51,16 @@ export async function fetchMediaMetadata(refId: string, type: MediaType): Promis
   let info;
   switch (source) {
     case 'tmdb':
-      info = await getTMDBInfo(id, getTMDBMediaType(type));
+      info = await getTMDBInfo(id.replace(/^(movie|tv)\//, ''), getTMDBMediaType(type));
       break;
     case 'anilist':
       info = await getAnilistAnimeInfo(id);
       break;
     case 'anilist-manga':
       info = await getAnilistMangaInfo(id);
+      break;
+    default:
+      info = await getInfo(id, source as import('@shared/providers.js').ProviderName);
       break;
     case 'rawg': {
       const gameDetails = await rawgService.getGameDetails(id);

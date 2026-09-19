@@ -28,8 +28,8 @@ describe('shared api client', () => {
   });
 
   it('builds absolute api urls from relative endpoints', () => {
-    expect(buildApiUrl('/comments/feed/public')).toBe('http://localhost:3001/api/comments/feed/public');
-    expect(buildApiUrl('health')).toBe('http://localhost:3001/api/health');
+    expect(buildApiUrl('/comments/feed/public')).toBe('http://localhost:3201/api/comments/feed/public');
+    expect(buildApiUrl('health')).toBe('http://localhost:3201/api/health');
   });
 
   it('adds bearer token headers to authenticated requests', async () => {
@@ -41,7 +41,7 @@ describe('shared api client', () => {
     await fetchWithAuth('/profile/settings/privacy');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:3001/api/profile/settings/privacy');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:3201/api/profile/settings/privacy');
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({
       Authorization: 'Bearer access-token',
       'Content-Type': 'application/json',
@@ -67,7 +67,7 @@ describe('shared api client', () => {
     expect(getAccessToken()).toBe('fresh-access');
     expect(getRefreshToken()).toBe('fresh-refresh');
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:3001/api/auth/refresh');
+    expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:3201/api/auth/refresh');
     expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toMatchObject({
       Authorization: 'Bearer fresh-access',
     });
@@ -79,6 +79,6 @@ describe('shared api client', () => {
 
     await fetchApi('/media/trending');
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/api/media/trending', {});
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3201/api/media/trending', {});
   });
 });

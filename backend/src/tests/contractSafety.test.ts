@@ -1,3 +1,4 @@
+import { prisma } from '../config/database.js';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -9,7 +10,7 @@ const repoRoot = path.resolve(process.cwd(), '..');
 describeDb('Contract safety rails', () => {
   it('keeps auth token payload shapes stable', async () => {
     const registerPayload = {
-      username: `contract-user-${Date.now()}`,
+      username: `contract_user_${Date.now()}`,
       email: `contract-${Date.now()}@example.com`,
       password: 'TestPassword123!',
     };
@@ -61,23 +62,25 @@ describeDb('Contract safety rails', () => {
 
   it('keeps grouped list pagination fields stable', async () => {
     const user = await createTestUser();
+    await prisma.mediaSource.createMany({ data: [{ refId: 'fixture:watching-alpha', title: 'Watching Alpha', type: 'TV', total: 10 },{ refId: 'fixture:watching-beta', title: 'Watching Beta', type: 'TV', total: 10 },{ refId: 'fixture:completed-gamma', title: 'Completed Gamma', type: 'TV', total: 10 }] });
+
 
     await request(app)
       .post('/api/list')
       .set(authHeader(user.accessToken))
-      .send({ title: 'Watching Alpha', type: 'TV', status: 'WATCHING', current: 1, total: 10 })
+      .send({ refId: 'fixture:watching-alpha', type: 'TV', status: 'WATCHING', current: 1, total: 10 })
       .expect(201);
 
     await request(app)
       .post('/api/list')
       .set(authHeader(user.accessToken))
-      .send({ title: 'Watching Beta', type: 'TV', status: 'WATCHING', current: 2, total: 10 })
+      .send({ refId: 'fixture:watching-beta', type: 'TV', status: 'WATCHING', current: 2, total: 10 })
       .expect(201);
 
     await request(app)
       .post('/api/list')
       .set(authHeader(user.accessToken))
-      .send({ title: 'Completed Gamma', type: 'TV', status: 'COMPLETED', current: 10, total: 10 })
+      .send({ refId: 'fixture:completed-gamma', type: 'TV', status: 'COMPLETED', current: 10, total: 10 })
       .expect(201);
 
     const firstPageResponse = await request(app)

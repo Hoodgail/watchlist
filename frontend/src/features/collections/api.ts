@@ -7,8 +7,8 @@ import {
   CollectionInvite,
   CollectionComment,
   CollectionRole,
-} from '../../../types';
-import { fetchWithAuth } from '@/shared/api/client';
+} from '../../types';
+import { fetchWithAuth } from '../../shared/api/client';
 
 export async function createCollection(data: {
   title: string;

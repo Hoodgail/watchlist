@@ -5,7 +5,7 @@ export class AppError extends Error {
     public isOperational = true
   ) {
     super(message);
-    Object.setPrototypeOf(this, AppError.prototype);
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 

@@ -1,14 +1,17 @@
+import { isProviderEnabled } from '@shared/providers';
+import { isVideoProviderName } from '@/shared/media';
+import type { VideoProviderName } from '@/types';
 import React, { useState, useEffect, useCallback } from 'react';
-import { MediaItem, SearchResult, ProviderName } from '@/types';
-import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, searchWithProvider } from '@/services/mediaSearch';
-import { QuickAddModal } from '@/features/collections/components/QuickAddModal';
-import { FormatSelectionModal } from '@/features/playback/components/FormatSelectionModal';
-import { AddToCollectionModal, CollectionItemData } from '@/features/collections/components/AddToCollectionModal';
-import { getProviderDisplayName, getProviderImageUrl } from '@/shared/media';
+import { MediaItem, SearchResult, ProviderName } from '../../../types';
+import { searchMedia, searchResultToMediaItem, SearchCategory, SearchOptions, searchWithProvider } from '../../../services/mediaSearch';
+import { QuickAddModal } from '../../collections/components/QuickAddModal';
+import { FormatSelectionModal } from '../../playback/components/FormatSelectionModal';
+import { AddToCollectionModal, CollectionItemData } from '../../collections/components/AddToCollectionModal';
+import { getProviderDisplayName, getProviderImageUrl } from '../../../shared/media/index';
 
 interface SearchMediaProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
-  onOpenMedia?: (mediaId: string, provider: ProviderName, title?: string, mediaType?: 'movie' | 'tv' | 'anime') => void;
+  onOpenMedia?: (mediaId: string, provider: VideoProviderName, title?: string, mediaType?: 'movie' | 'tv' | 'anime') => void;
 }
 
 const CATEGORIES: { value: SearchCategory; label: string }[] = [
@@ -29,10 +32,10 @@ const CATEGORY_PROVIDERS: Record<SearchCategory, ProviderName[]> = {
   anime: ['anilist', 'hianime', 'animepahe', 'animekai', 'kickassanime'],
   movie: ['tmdb', 'flixhq', 'goku', 'sflix', 'himovies'],
   tv: ['tmdb', 'flixhq', 'goku', 'sflix', 'himovies', 'dramacool'],
-  manga: ['mangadex', 'comick', 'mangapill', 'mangahere', 'mangakakalot', 'mangareader', 'asurascans', 'anilist-manga'],
+  manga: ['mangadex', 'comick', 'mangapill', 'mangahere', 'mangareader', 'asurascans', 'anilist-manga'],
   game: ['rawg'],
   book: ['libgen'],
-  lightnovel: ['readlightnovels'],
+  lightnovel: ['novelupdates'],
   comic: ['getcomics'],
 };
 
@@ -132,7 +135,7 @@ const PlatformIcons: React.FC<{ platforms: string[] }> = ({ platforms }) => {
   };
 
   const uniquePlatforms = getUniquePlatforms(platforms);
-  
+
   return (
     <span className="flex items-center gap-1 text-neutral-400" title={platforms.join(', ')}>
       {uniquePlatforms.slice(0, 4).map((platform, idx) => (
@@ -156,7 +159,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   const [addingItems, setAddingItems] = useState<Set<string>>(new Set());
   const [quickAddItem, setQuickAddItem] = useState<SearchResult | null>(null);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
-  
+
   // Multi-format selection state
   const [formatSelectionItem, setFormatSelectionItem] = useState<SearchResult | null>(null);
   const [animeVariant, setAnimeVariant] = useState<SearchResult | null>(null);
@@ -167,7 +170,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   const [addToCollectionItem, setAddToCollectionItem] = useState<SearchResult | null>(null);
 
   // Get available providers for current category
-  const availableProviders = CATEGORY_PROVIDERS[category] || [];
+  const availableProviders = CATEGORY_PROVIDERS[category].filter(isProviderEnabled) || [];
 
   // Reset provider when category changes if it's not valid for new category
   useEffect(() => {
@@ -202,9 +205,9 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
 
   const handleAdd = async (result: SearchResult) => {
     if (addedItems.has(result.id) || addingItems.has(result.id)) return;
-    
+
     setAddingItems(prev => new Set(prev).add(result.id));
-    
+
     try {
       const mediaItem = searchResultToMediaItem(result);
       await onAdd(mediaItem);
@@ -221,9 +224,9 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   // Quick add to planned
   const handleQuickAdd = async (result: SearchResult) => {
     if (addedItems.has(result.id) || addingItems.has(result.id)) return;
-    
+
     setAddingItems(prev => new Set(prev).add(result.id));
-    
+
     try {
       const mediaItem = searchResultToMediaItem(result);
       await onAdd({ ...mediaItem, status: 'PLAN_TO_WATCH', current: 0 });
@@ -236,46 +239,46 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
       });
     }
   };
-  
+
   // Check if a title exists in both anime and manga formats
   const checkMultiFormat = useCallback(async (result: SearchResult): Promise<{ hasAnime: boolean; hasManga: boolean; animeResult: SearchResult | null; mangaResult: SearchResult | null }> => {
     const normalizedTitle = result.title.toLowerCase().trim();
-    
+
     // Skip check for titles that are clearly one format
     // or if we already know the type from the result
-    if (result.type === 'TV' || result.type === 'MOVIE' || result.type === 'BOOK' || 
+    if (result.type === 'TV' || result.type === 'MOVIE' || result.type === 'BOOK' ||
         result.type === 'LIGHT_NOVEL' || result.type === 'COMIC' || result.type === 'GAME') {
       return { hasAnime: false, hasManga: false, animeResult: null, mangaResult: null };
     }
-    
+
     try {
       // Search in parallel for anime and manga versions
       const [animeResults, mangaResults] = await Promise.all([
-        result.type === 'ANIME' 
+        result.type === 'ANIME'
           ? Promise.resolve({ results: [result] })
           : searchWithProvider(result.title, 'anilist'),
         result.type === 'MANGA'
           ? Promise.resolve({ results: [result] })
           : searchWithProvider(result.title, 'anilist-manga'),
       ]);
-      
+
       // Find close title matches
       const findMatch = (searchResults: SearchResult[]): SearchResult | null => {
         for (const r of searchResults) {
           const rTitle = r.title.toLowerCase().trim();
           // Exact match or very close match
-          if (rTitle === normalizedTitle || 
-              rTitle.includes(normalizedTitle) || 
+          if (rTitle === normalizedTitle ||
+              rTitle.includes(normalizedTitle) ||
               normalizedTitle.includes(rTitle)) {
             return r;
           }
         }
         return null;
       };
-      
+
       const animeMatch = result.type === 'ANIME' ? result : findMatch(animeResults.results);
       const mangaMatch = result.type === 'MANGA' ? result : findMatch(mangaResults.results);
-      
+
       return {
         hasAnime: animeMatch !== null,
         hasManga: mangaMatch !== null,
@@ -287,26 +290,26 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
       return { hasAnime: false, hasManga: false, animeResult: null, mangaResult: null };
     }
   }, []);
-  
+
   // Handle add with multi-format check
   const handleAddWithFormatCheck = useCallback(async (result: SearchResult) => {
     if (addedItems.has(result.id) || addingItems.has(result.id) || checkingFormats.has(result.id)) return;
-    
+
     // Only check for multi-format if this is an anime or manga result and we're in "all" category
     const shouldCheckFormats = (result.type === 'ANIME' || result.type === 'MANGA') && category === 'all';
-    
+
     if (!shouldCheckFormats) {
       // Direct add without format check
       handleQuickAdd(result);
       return;
     }
-    
+
     // Check for multi-format availability
     setCheckingFormats(prev => new Set(prev).add(result.id));
-    
+
     try {
       const { hasAnime, hasManga, animeResult, mangaResult } = await checkMultiFormat(result);
-      
+
       // If both formats exist and they're different results, show selection modal
       if (hasAnime && hasManga && animeResult && mangaResult) {
         setFormatSelectionItem(result);
@@ -324,18 +327,18 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
       });
     }
   }, [addedItems, addingItems, checkingFormats, category, checkMultiFormat, handleQuickAdd]);
-  
+
   // Handle format selection from modal
   const handleFormatSelection = useCallback(async (selectedResult: SearchResult) => {
     setFormatSelectionItem(null);
     setAnimeVariant(null);
     setMangaVariant(null);
-    
+
     // Add the selected format
     if (addedItems.has(selectedResult.id) || addingItems.has(selectedResult.id)) return;
-    
+
     setAddingItems(prev => new Set(prev).add(selectedResult.id));
-    
+
     try {
       const mediaItem = searchResultToMediaItem(selectedResult);
       await onAdd({ ...mediaItem, status: 'PLAN_TO_WATCH', current: 0 });
@@ -352,7 +355,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
   // Handle add from modal
   const handleModalAdd = async (mediaItem: Omit<MediaItem, 'id'>) => {
     if (!quickAddItem) return;
-    
+
     setAddingItems(prev => new Set(prev).add(quickAddItem.id));
     try {
       await onAdd(mediaItem);
@@ -440,7 +443,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                
+
                 {showProviderDropdown && (
                   <div className="absolute top-full left-0 mt-1 bg-black border border-neutral-700 z-10 min-w-[150px]">
                     <button
@@ -615,15 +618,15 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
                   </span>
                 ) : (
                   <div className="flex-shrink-0 flex gap-2 flex-wrap sm:flex-nowrap">
-                    {onOpenMedia && isVideoType(item.type) && item.provider && (
+                    {onOpenMedia && isVideoType(item.type) && item.provider && isVideoProviderName(item.provider) && (
                       <button
                         onClick={() => {
                           // Determine media type for resolution
-                          const mediaType: 'movie' | 'tv' | 'anime' | undefined = 
-                            item.type === 'ANIME' ? 'anime' : 
-                            item.type === 'MOVIE' ? 'movie' : 
+                          const mediaType: 'movie' | 'tv' | 'anime' | undefined =
+                            item.type === 'ANIME' ? 'anime' :
+                            item.type === 'MOVIE' ? 'movie' :
                             item.type === 'TV' ? 'tv' : undefined;
-                          onOpenMedia(item.id, item.provider!, item.title, mediaType);
+                          onOpenMedia(item.id, item.provider as VideoProviderName, item.title, mediaType);
                         }}
                         className="text-sm border border-blue-700 text-blue-400 px-3 py-2 hover:border-blue-500 hover:text-blue-300 transition-all uppercase rounded-none font-bold flex items-center gap-1 flex-1 sm:flex-initial justify-center"
                       >
@@ -678,7 +681,7 @@ export const SearchMedia: React.FC<SearchMediaProps> = ({ onAdd, onOpenMedia }) 
           onClose={() => setQuickAddItem(null)}
         />
       )}
-      
+
       {/* Format Selection Modal */}
       {formatSelectionItem && (animeVariant || mangaVariant) && (
         <FormatSelectionModal

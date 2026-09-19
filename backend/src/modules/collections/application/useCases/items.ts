@@ -38,7 +38,7 @@ export function createAddCollectionItemUseCase(dependencies: {
 
     return dependencies.collectionsGateway.createCollectionItem({
       collectionId: command.collectionId,
-      refId: command.input.refId,
+      refId: source.refId,
       type: command.input.type,
       note: command.input.note,
       orderIndex: command.input.orderIndex ?? itemCount,

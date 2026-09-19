@@ -1,11 +1,11 @@
 // ChapterReader Component - Full-screen manga reader with multiple modes
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
-import { ChapterInfo, ChapterImages, ReadingMode, ImageQuality } from '@/services/mangadexTypes';
-import * as manga from '@/services/manga';
-import { MangaProviderName } from '@/services/manga';
-import { useOffline } from '@/context/OfflineContext';
-import { useToast } from '@/context/ToastContext';
-import { CommentSection } from '@/features/comments/components/CommentSection';
+import { ChapterInfo, ChapterImages, ReadingMode, ImageQuality } from '../../../services/mangadexTypes';
+import * as manga from '../../../services/manga';
+import { MangaProviderName } from '../../../services/manga';
+import { useOffline } from '../../../context/OfflineContext';
+import { useToast } from '../../../context/ToastContext';
+import { CommentSection } from '../../comments/components/CommentSection';
 
 // ============================================================================
 // VIRTUALIZED LONG STRIP - Types and Constants
@@ -68,21 +68,21 @@ const VirtualizedPage = memo(function VirtualizedPage({
   const elementRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
-  
+
   // Track visibility using Intersection Observer
   useEffect(() => {
     const element = elementRef.current;
     const observer = observerRef.current;
-    
+
     if (!element || !observer) return;
-    
+
     observer.observe(element);
-    
+
     return () => {
       observer.unobserve(element);
     };
   }, [observerRef]);
-  
+
   // Store element reference for observer callback
   useEffect(() => {
     const element = elementRef.current;
@@ -91,7 +91,7 @@ const VirtualizedPage = memo(function VirtualizedPage({
       (element as any).__onVisibilityChange = onVisibilityChange;
     }
   }, [index, onVisibilityChange]);
-  
+
   // Handle image load
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -103,12 +103,12 @@ const VirtualizedPage = memo(function VirtualizedPage({
     setIsImageLoaded(true);
     onImageLoad(index, dimensions);
   }, [index, onImageLoad]);
-  
+
   // Handle image error
   const handleImageError = useCallback(() => {
     onImageError(index);
   }, [index, onImageError]);
-  
+
   // Unload image when leaving buffer zone for memory management
   useEffect(() => {
     if (!isInBuffer && imgRef.current) {
@@ -118,10 +118,10 @@ const VirtualizedPage = memo(function VirtualizedPage({
       setIsImageLoaded(false);
     }
   }, [isInBuffer]);
-  
+
   const height = actualHeight ?? estimatedHeight;
   const shouldRenderImage = isInBuffer;
-  
+
   return (
     <div
       ref={elementRef}
@@ -150,7 +150,7 @@ const VirtualizedPage = memo(function VirtualizedPage({
           onError={handleImageError}
         />
       ) : null}
-      
+
       {/* Placeholder shown when image is not rendered or not yet loaded */}
       {(!shouldRenderImage || !isImageLoaded) && (
         <div
@@ -198,13 +198,13 @@ function VirtualizedLongStrip({
   const [pageStates, setPageStates] = useState<Map<number, VirtualizedPageState>>(() => new Map());
   const [pageDimensions, setPageDimensions] = useState<Map<number, PageDimensions>>(() => new Map());
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
-  
+
   // Refs for scroll position management
   const scrollPositionRef = useRef<{ page: number; offset: number } | null>(null);
   const isRestoringScrollRef = useRef(false);
   const visiblePagesRef = useRef<Set<number>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
-  
+
   // Calculate estimated height based on container width and aspect ratio
   const getEstimatedHeight = useCallback((index: number): number => {
     const dimensions = pageDimensions.get(index);
@@ -212,17 +212,17 @@ function VirtualizedLongStrip({
     const height = containerWidth * aspectRatio;
     return Math.max(height, MIN_PLACEHOLDER_HEIGHT);
   }, [containerWidth, pageDimensions]);
-  
+
   // Initialize Intersection Observer
   useEffect(() => {
     const handleIntersection = (entries: IntersectionObserverEntry[]) => {
       const newVisiblePages = new Set(visiblePagesRef.current);
-      
+
       entries.forEach((entry) => {
         const element = entry.target as HTMLElement;
         const pageIndex = (element as any).__pageIndex as number | undefined;
         const callback = (element as any).__onVisibilityChange as VirtualizedPageProps['onVisibilityChange'] | undefined;
-        
+
         if (pageIndex !== undefined && callback) {
           if (entry.isIntersecting) {
             newVisiblePages.add(pageIndex);
@@ -232,45 +232,45 @@ function VirtualizedLongStrip({
           callback(pageIndex, entry.isIntersecting, entry);
         }
       });
-      
+
       visiblePagesRef.current = newVisiblePages;
-      
+
       // Update current page based on topmost visible page
       if (newVisiblePages.size > 0) {
         const sortedVisible = Array.from(newVisiblePages).sort((a, b) => a - b);
         onCurrentPageChange(sortedVisible[0]);
       }
     };
-    
+
     observerRef.current = new IntersectionObserver(handleIntersection, {
       root: containerRef.current,
       rootMargin: OBSERVER_ROOT_MARGIN,
       threshold: [0, 0.1, 0.5, 1],
     });
-    
+
     return () => {
       observerRef.current?.disconnect();
     };
   }, [containerRef, onCurrentPageChange]);
-  
+
   // Handle container resize
   useEffect(() => {
     const handleResize = () => {
       setContainerWidth(window.innerWidth);
     };
-    
+
     const resizeObserver = new ResizeObserver(handleResize);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
-    
+
     window.addEventListener('resize', handleResize);
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
     };
   }, [containerRef]);
-  
+
   // Handle visibility change for a page
   const handleVisibilityChange = useCallback((
     index: number,
@@ -286,20 +286,20 @@ function VirtualizedLongStrip({
         actualHeight: null,
         estimatedHeight: getEstimatedHeight(index),
       };
-      
+
       newStates.set(index, { ...currentState, isVisible });
-      
+
       // Update buffer zone for all pages
       const visibleIndices = Array.from(newStates.entries())
         .filter(([_, state]) => state.isVisible)
         .map(([idx]) => idx);
-      
+
       if (visibleIndices.length > 0) {
         const minVisible = Math.min(...visibleIndices);
         const maxVisible = Math.max(...visibleIndices);
         const bufferStart = Math.max(0, minVisible - BUFFER_SIZE);
         const bufferEnd = Math.min(pageUrls.length - 1, maxVisible + BUFFER_SIZE);
-        
+
         for (let i = 0; i < pageUrls.length; i++) {
           const state = newStates.get(i) || {
             isVisible: false,
@@ -309,17 +309,17 @@ function VirtualizedLongStrip({
             estimatedHeight: getEstimatedHeight(i),
           };
           const shouldBeInBuffer = i >= bufferStart && i <= bufferEnd;
-          
+
           if (state.isInBuffer !== shouldBeInBuffer) {
             newStates.set(i, { ...state, isInBuffer: shouldBeInBuffer });
           }
         }
       }
-      
+
       return newStates;
     });
   }, [pageUrls.length, getEstimatedHeight]);
-  
+
   // Handle image load with dimensions
   const handleImageLoadWithDimensions = useCallback((index: number, dimensions: PageDimensions) => {
     // Store actual dimensions
@@ -328,7 +328,7 @@ function VirtualizedLongStrip({
       newDimensions.set(index, dimensions);
       return newDimensions;
     });
-    
+
     // Update page state
     setPageStates((prev) => {
       const newStates = new Map(prev);
@@ -343,11 +343,11 @@ function VirtualizedLongStrip({
       }
       return newStates;
     });
-    
+
     // Call parent handler
     onImageLoad(index);
   }, [containerWidth, onImageLoad]);
-  
+
   // Handle image error
   const handleImageErrorWithIndex = useCallback((index: number) => {
     setPageStates((prev) => {
@@ -360,32 +360,32 @@ function VirtualizedLongStrip({
     });
     onImageError(index);
   }, [onImageError]);
-  
+
   // Scroll to specific page
   const scrollToPage = useCallback((pageIndex: number) => {
     const container = containerRef.current;
     if (!container) return;
-    
+
     // Calculate scroll position by summing heights of previous pages
     let scrollTop = 64; // Account for top padding
     for (let i = 0; i < pageIndex; i++) {
       const state = pageStates.get(i);
       scrollTop += state?.actualHeight ?? getEstimatedHeight(i);
     }
-    
+
     container.scrollTo({
       top: scrollTop,
       behavior: 'smooth',
     });
   }, [containerRef, pageStates, getEstimatedHeight]);
-  
+
   // Expose scrollToPage via ref
   useEffect(() => {
     if (containerRef.current) {
       (containerRef.current as any).__scrollToPage = scrollToPage;
     }
   }, [containerRef, scrollToPage]);
-  
+
   // Initialize page states
   useEffect(() => {
     const initialStates = new Map<number, VirtualizedPageState>();
@@ -400,7 +400,7 @@ function VirtualizedLongStrip({
     });
     setPageStates(initialStates);
   }, [pageUrls.length, getEstimatedHeight]);
-  
+
   return (
     <div className="flex flex-col items-center py-16">
       {pageUrls.map((url, index) => {
@@ -411,7 +411,7 @@ function VirtualizedLongStrip({
           actualHeight: null,
           estimatedHeight: getEstimatedHeight(index),
         };
-        
+
         return (
           <VirtualizedPage
             key={index}
@@ -487,7 +487,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isMangaPlusChapter, setIsMangaPlusChapter] = useState(false);
-  
+
   // Comments panel state - restore from localStorage
   const [showComments, setShowComments] = useState(() => {
     try {
@@ -496,7 +496,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       return false;
     }
   });
-  
+
   // Persist comments panel state to localStorage
   useEffect(() => {
     try {
@@ -513,11 +513,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const blobUrlsRef = useRef<string[]>([]);
 
   // Current chapter info
-  const currentChapter = useMemo(() => 
+  const currentChapter = useMemo(() =>
     chapters.find(c => c.id === chapterId), [chapters, chapterId]
   );
 
-  const currentChapterIndex = useMemo(() => 
+  const currentChapterIndex = useMemo(() =>
     chapters.findIndex(c => c.id === chapterId), [chapters, chapterId]
   );
 
@@ -633,7 +633,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         const urls = await getOfflineChapterPageUrls(chapterId);
         console.log('[Reader] Loaded from offline:', urls.length, 'pages');
         blobUrlsRef.current = urls; // Track for cleanup
-        
+
         if (urls.length === 0) {
           throw new Error('No offline pages found');
         }
@@ -647,15 +647,15 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
         // Use the unified helper to get chapter page URLs
         const result = await manga.getChapterPageUrls(chapterId, provider);
-        
+
         if (result.isExternal) {
           throw new Error(result.externalMessage || 'This chapter is only available on an external website');
         }
-        
+
         if (result.urls.length === 0) {
           throw new Error('No pages found for this chapter');
         }
-        
+
         setIsMangaPlusChapter(result.isMangaPlus);
         setPageUrls(result.urls);
       }
@@ -690,7 +690,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
   const goToNextPage = useCallback(() => {
     const pageIncrement = readerSettings.readingMode === 'doublePage' ? 2 : 1;
-    
+
     if (currentPage < pageUrls.length - pageIncrement) {
       setCurrentPage(p => p + pageIncrement);
     } else if (nextChapter) {
@@ -706,7 +706,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     setCurrentPage(targetPage);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    
+
     // In Long Strip mode, scroll to the page using the virtualized container's method
     if (readerSettings.readingMode === 'longStrip' && containerRef.current) {
       const scrollToPage = (containerRef.current as any).__scrollToPage;
@@ -838,7 +838,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   if (loading) {
     // Check if loading a MangaPlus chapter (based on current chapter info)
     const loadingMangaPlus = currentChapter?.externalUrl && isMangaPlusUrl(currentChapter.externalUrl);
-    
+
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center gap-4">
         <div className="w-10 h-10 border-2 border-neutral-800 border-t-orange-500 rounded-full animate-spin" />
@@ -849,7 +849,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           <>
             {/* Progress bar for MangaPlus loading */}
             <div className="w-48 h-1 bg-neutral-800 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-orange-500 transition-all duration-200"
                 style={{ width: `${loadingProgress}%` }}
               />
@@ -945,7 +945,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   </svg>
                 </button>
               )}
-              
+
               <button
                 onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }}
                 className={`p-2 hover:bg-white/20 rounded transition-colors ${showComments ? 'text-yellow-400' : 'text-white'}`}
@@ -955,7 +955,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </button>
-              
+
               <button
                 onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
                 className="p-2 text-white hover:bg-white/20 rounded"
@@ -965,7 +965,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
-              
+
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
                 className="p-2 text-white hover:bg-white/20 rounded"
@@ -1012,11 +1012,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              
+
               <span className="text-sm font-mono">
                 {currentPage + 1} / {pageUrls.length}
               </span>
-              
+
               <button
                 onClick={(e) => { e.stopPropagation(); goToNextPage(); }}
                 className="p-2 hover:bg-white/20 rounded"
@@ -1201,7 +1201,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               </svg>
             </button>
           </div>
-          
+
           {/* Comments Content */}
           <div className="flex-1 overflow-y-auto">
             {showComments && (

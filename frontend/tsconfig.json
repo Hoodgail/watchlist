@@ -18,18 +18,31 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./src/*",
-        "./*"
+        "./src/*"
       ],
       "@shared/*": [
         "../shared/*"
+      ],
+      "ipaddr.js": [
+        "./node_modules/ipaddr.js"
+      ],
+      "undici": [
+        "./node_modules/undici"
       ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["**/*", "src/**/*", "../shared/**/*"]
+  "include": [
+    "**/*",
+    "src/**/*",
+    "../shared/**/*",
+    "../server/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

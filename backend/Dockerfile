@@ -1,63 +1,25 @@
-# Build stage
-FROM node:20-alpine AS builder
-
+FROM node:24-alpine AS builder
 WORKDIR /app
-
-# Copy shared module first
 COPY shared ./shared
-
-# Copy backend package files
+COPY server ./server
 COPY backend/package*.json ./backend/
 COPY backend/prisma ./backend/prisma/
-
-# Install dependencies
+COPY backend/prisma.config.ts ./backend/
 WORKDIR /app/backend
-RUN npm ci
-
-# Generate Prisma client
-RUN npx prisma generate
-
-# Copy backend source code and tsconfig
+RUN npm ci && npx prisma generate
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
+RUN npm run build && npm prune --omit=dev
 
-# Build TypeScript
-RUN npm run build
-
-# Production stage
-FROM node:20-alpine AS production
-
-WORKDIR /app
-
-# Copy shared module (needed at runtime for compiled imports)
-COPY shared ./shared
-
-# Copy backend package files
-COPY backend/package*.json ./backend/
-COPY backend/prisma ./backend/prisma/
-
-# Install production dependencies only
+FROM node:24-alpine AS production
+ENV NODE_ENV=production
 WORKDIR /app/backend
-RUN npm ci --omit=dev
-
-# Generate Prisma client for production
-RUN npx prisma generate
-
-# Copy built files from builder
-COPY --from=builder /app/backend/dist ./dist
-
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-USER nodejs
-
-# Expose port
+COPY --from=builder --chown=node:node /app/backend/package*.json ./
+COPY --from=builder --chown=node:node /app/backend/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/backend/prisma ./prisma
+COPY --from=builder --chown=node:node /app/backend/prisma.config.ts ./
+COPY --from=builder --chown=node:node /app/backend/dist ./dist
+USER node
 EXPOSE 3201
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3201/api/health || exit 1
-
-# Start the application
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 CMD wget -q --spider http://127.0.0.1:3201/api/health || exit 1
 CMD ["node", "dist/backend/src/index.js"]

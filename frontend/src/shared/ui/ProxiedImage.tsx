@@ -1,6 +1,6 @@
 /**
  * ProxiedImage Component
- * 
+ *
  * A reusable image component that:
  * - Proxies images through our server to bypass hotlink protection
  * - Shows a loading skeleton while image loads
@@ -8,7 +8,7 @@
  * - Handles CORS and referer requirements automatically
  */
 import React, { useState, useCallback, useEffect } from 'react';
-import { getProxiedImageUrl } from '@/shared/media';
+import { getProxiedImageUrl } from '../media/index';
 
 type ImageLoadingState = 'loading' | 'loaded' | 'error';
 
@@ -94,7 +94,7 @@ const ErrorPlaceholder: React.FC<{ className?: string }> = ({ className }) => (
 /**
  * ProxiedImage component that handles CLS (Cumulative Layout Shift) issues
  * by maintaining consistent dimensions across loading, loaded, and error states.
- * 
+ *
  * Features:
  * - Automatic URL proxying with referer support
  * - Skeleton placeholder with exact same dimensions as final image
@@ -118,7 +118,7 @@ export const ProxiedImage: React.FC<ProxiedImageProps> = ({
 }) => {
   const [loadingState, setLoadingState] = useState<ImageLoadingState>(src ? 'loading' : 'error');
   const [retryCount, setRetryCount] = useState(0);
-  
+
   // Get the proxied URL
   const finalUrl = getProxiedImageUrl(src, referer, skipProxy);
 
@@ -137,7 +137,7 @@ export const ProxiedImage: React.FC<ProxiedImageProps> = ({
       // Force reload by updating the URL with a cache-buster
       return;
     }
-    
+
     setLoadingState('error');
     onError?.();
   }, [retryCount, finalUrl, onError]);
@@ -163,12 +163,12 @@ export const ProxiedImage: React.FC<ProxiedImageProps> = ({
   `.trim().replace(/\s+/g, ' ');
 
   // Add cache buster for retry
-  const imageUrl = retryCount > 0 && finalUrl 
-    ? `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}_retry=${retryCount}` 
+  const imageUrl = retryCount > 0 && finalUrl
+    ? `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}_retry=${retryCount}`
     : finalUrl;
 
   return (
-    <div 
+    <div
       className={containerClasses}
       style={{
         // Fallback for browsers without aspect-ratio support
@@ -241,7 +241,7 @@ export const ProxiedThumbnail: React.FC<Omit<ProxiedImageProps, 'widthClass'> & 
   ...props
 }) => {
   const [loadingState, setLoadingState] = useState<ImageLoadingState>(props.src ? 'loading' : 'error');
-  
+
   const finalUrl = getProxiedImageUrl(props.src, props.referer, props.skipProxy);
 
   const handleLoad = useCallback(() => {

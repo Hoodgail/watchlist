@@ -9,7 +9,7 @@ import {
 describe('image proxy helpers', () => {
   it('proxies remote images and preserves referer', () => {
     expect(getProxiedImageUrl('https://cdn.example.com/poster.jpg', 'https://provider.example')).toBe(
-      'http://localhost:3001/api/proxy/image?url=https%3A%2F%2Fcdn.example.com%2Fposter.jpg&referer=https%3A%2F%2Fprovider.example',
+      '/api/proxy/image?url=https%3A%2F%2Fcdn.example.com%2Fposter.jpg&referer=https%3A%2F%2Fprovider.example',
     );
   });
 
@@ -21,7 +21,7 @@ describe('image proxy helpers', () => {
 
   it('builds mangaplus proxy urls through the shared api boundary', () => {
     expect(getMangaPlusImageProxyUrl('https://img.example/page.jpg', 'secret-key')).toBe(
-      'http://localhost:3001/api/manga/external/mangaplus/image?url=https%3A%2F%2Fimg.example%2Fpage.jpg&key=secret-key',
+      'http://localhost:3201/api/manga/external/mangaplus/image?url=https%3A%2F%2Fimg.example%2Fpage.jpg&key=secret-key',
     );
   });
 

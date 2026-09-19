@@ -47,7 +47,8 @@ export interface ExternalCommentsGateway {
       };
     },
   ): Promise<ImportResult>;
-  fetchCommentsWithResolution(params: CommentFetchWithResolutionParams): Promise<AggregatedComments>;
+  fetchCommentsWithResolution(
+    params: CommentFetchWithResolutionParams,
+  ): Promise<AggregatedComments>;
   previewResolution(params: CommentFetchWithResolutionParams): Promise<ResolutionPreviewResult>;
-  refreshExternalCommentsForPopularMedia(): Promise<{ mediaProcessed: number; totalImported: number }>;
 }

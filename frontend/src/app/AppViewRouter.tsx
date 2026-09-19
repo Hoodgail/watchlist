@@ -1,19 +1,18 @@
 import React from 'react';
-import { MediaList } from '@/features/library/components/MediaList';
-import { SearchMedia } from '@/features/library/components/SearchMedia';
-import { TrendingPage } from '@/features/discovery/components/TrendingPage';
-import { FriendList } from '@/features/social/components/FriendList';
-import { SuggestionList } from '@/features/social/components/SuggestionList';
-import { Settings } from '@/features/profile/components/Settings';
-import { UnifiedDownloadManager } from '@/features/offline/components/UnifiedDownloadManager';
-import Collections from '@/features/collections/components/Collections';
-import CollectionView from '@/features/collections/components/CollectionView';
-import type { GroupedListResponse } from '@/features/library/api';
-import type { GroupedFriendListResponse } from '@/features/social/api';
-import { OfflineVideoProvider } from '@/context/OfflineVideoContext';
-import type { Collection, FriendActivityFilter, MediaItem, MediaStatus, SortBy, User, VideoProviderName, View } from '@/types';
-import { parseMangaRefId } from '@/services/manga';
-import { DEFAULT_ANIME_PROVIDER, DEFAULT_MOVIE_PROVIDER, parseVideoRefId } from '@/services/video';
+import { MediaList } from '../features/library/components/MediaList';
+import { SearchMedia } from '../features/library/components/SearchMedia';
+import { TrendingPage } from '../features/discovery/components/TrendingPage';
+import { FriendList } from '../features/social/components/FriendList';
+import { SuggestionList } from '../features/social/components/SuggestionList';
+import { Settings } from '../features/profile/components/Settings';
+import { UnifiedDownloadManager } from '../features/offline/components/UnifiedDownloadManager';
+import Collections from '../features/collections/components/Collections';
+import CollectionView from '../features/collections/components/CollectionView';
+import type { GroupedListResponse } from '../features/library/api';
+import type { GroupedFriendListResponse } from '../features/social/api';
+import type { Collection, FriendActivityFilter, MediaItem, MediaStatus, SortBy, User, VideoProviderName, View } from '../types';
+import { parseMangaRefId } from '../services/manga';
+import { DEFAULT_ANIME_PROVIDER, DEFAULT_MOVIE_PROVIDER, parseVideoRefId } from '../services/video';
 
 export interface AppViewRouterProps {
   currentView: View;
@@ -436,7 +435,6 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
         );
       case 'DOWNLOADS':
         return (
-          <OfflineVideoProvider>
             <UnifiedDownloadManager
               onMangaClick={handleOpenManga}
               onVideoClick={(mediaId, provider, title) => {
@@ -444,7 +442,6 @@ export const AppViewRouter: React.FC<AppViewRouterProps> = ({
                 handleOpenMedia(mediaId, provider, title, 'anime');
               }}
             />
-          </OfflineVideoProvider>
         );
       case 'COLLECTIONS':
         return (

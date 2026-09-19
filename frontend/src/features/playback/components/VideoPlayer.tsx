@@ -1,17 +1,17 @@
 // VideoPlayer Component - Full-screen HLS video player with controls, subtitles, and episode navigation
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Hls from 'hls.js';
-import { createOfflineHLSConfig, getOfflineM3U8Url, isHLSEpisodeOffline } from '@/features/offline/video/hls';
-import { getOfflineEpisode } from '@/features/offline/video/storage';
-import { VideoEpisode, StreamingSources, StreamingSubtitle, VideoProviderName } from '@/types';
-import * as video from '@/services/video';
-import { getProxyUrl } from '@/services/video';
-import { useOfflineVideo } from '@/context/OfflineVideoContext';
+import { createOfflineHLSConfig, getOfflineM3U8Url, isHLSEpisodeOffline } from '../../offline/video/hls';
+import { getOfflineEpisode } from '../../offline/video/storage';
+import { VideoEpisode, StreamingSources, StreamingSubtitle, VideoProviderName } from '../../../types';
+import * as video from '../../../services/video';
+import { getProxyUrl } from '../../../services/video';
+import { useOfflineVideo } from '../../../context/OfflineVideoContext';
 import {
   getWorkingProviders,
   getProviderDisplayName,
   isProviderWorking,
-} from '@/services/providerConfig';
+} from '../../../services/providerConfig';
 
 interface VideoPlayerProps {
   mediaId: string;
@@ -114,11 +114,11 @@ function formatOffset(offset: number): string {
 // Format time as "H:MM:SS" or "MM:SS"
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
-  
+
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  
+
   if (h > 0) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
@@ -127,12 +127,12 @@ function formatTime(seconds: number): string {
 
 /**
  * Calculate the absolute episode position (current/total) from season and episode numbers.
- * 
+ *
  * For example, if House has 8 seasons with episode counts [22, 24, 24, 16, 24, 21, 23, 22]
  * and we're watching S2E20, the absolute position would be:
  * - current: 22 (S1) + 20 (S2) = 42
  * - total: sum of all episodes = 176
- * 
+ *
  * @param episodes - The full episodes array from VideoPlayer props
  * @param seasonNumber - Current season number (1-indexed)
  * @param episodeNumber - Current episode number within the season (1-indexed)
@@ -144,12 +144,12 @@ function calculateAbsoluteEpisode(
   episodeNumber: number | undefined
 ): { current: number; total: number } {
   const total = episodes.length;
-  
+
   // If no episode number provided, return defaults
   if (!episodeNumber) {
     return { current: 1, total };
   }
-  
+
   // If no season info, the episodes array is likely flat (single-season or no seasons)
   // In this case, episodeNumber directly represents the absolute position
   if (!seasonNumber) {
@@ -157,7 +157,7 @@ function calculateAbsoluteEpisode(
     const idx = episodes.findIndex(e => e.number === episodeNumber);
     return { current: idx >= 0 ? idx + 1 : episodeNumber, total };
   }
-  
+
   // Group episodes by season to count episodes per season
   const episodesBySeason = new Map<number, VideoEpisode[]>();
   for (const ep of episodes) {
@@ -165,10 +165,10 @@ function calculateAbsoluteEpisode(
     if (!episodesBySeason.has(s)) episodesBySeason.set(s, []);
     episodesBySeason.get(s)!.push(ep);
   }
-  
+
   // Sort seasons to ensure correct order
   const sortedSeasons = Array.from(episodesBySeason.keys()).sort((a, b) => a - b);
-  
+
   // Count episodes in all prior seasons
   let current = 0;
   for (const s of sortedSeasons) {
@@ -176,10 +176,10 @@ function calculateAbsoluteEpisode(
       current += episodesBySeason.get(s)!.length;
     }
   }
-  
+
   // Add the current episode number within the season
   current += episodeNumber;
-  
+
   return { current, total };
 }
 
@@ -221,7 +221,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // UI state
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
@@ -229,15 +229,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showAutoPlayCountdown, setShowAutoPlayCountdown] = useState(false);
   const [autoPlayCountdown, setAutoPlayCountdown] = useState(10);
-  
+
   // Subtitle settings
   const [subtitleOffset, setSubtitleOffset] = useState(() => loadSubtitleOffset(mediaId, episodeId));
   const [subtitleEncoding, setSubtitleEncoding] = useState<EncodingOption>(() => loadSubtitleEncoding(mediaId, episodeId));
-  
+
   // Store original subtitle URLs for re-fetching with different encoding
   const [originalSubtitleUrls, setOriginalSubtitleUrls] = useState<{ url: string; lang: string }[]>([]);
   const [subtitleReferer, setSubtitleReferer] = useState<string | undefined>(undefined);
-  
+
   // HLS quality levels
   const [hlsLevels, setHlsLevels] = useState<{ height: number; bitrate: number }[]>([]);
   const [currentHlsLevel, setCurrentHlsLevel] = useState(-1); // -1 = auto
@@ -265,33 +265,33 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const seekBarRef = useRef<HTMLDivElement>(null);
 
   // ============ Derived State ============
-  const currentEpisode = useMemo(() => 
+  const currentEpisode = useMemo(() =>
     episodes.find(e => e.id === episodeId), [episodes, episodeId]
   );
 
   // Episode/season number for progress tracking - use prop if provided, else derive from episode
-  const currentEpisodeNumber = useMemo(() => 
+  const currentEpisodeNumber = useMemo(() =>
     initialEpisodeNumber ?? currentEpisode?.number, [initialEpisodeNumber, currentEpisode]
   );
-  const currentSeasonNumber = useMemo(() => 
+  const currentSeasonNumber = useMemo(() =>
     initialSeasonNumber ?? currentEpisode?.season, [initialSeasonNumber, currentEpisode]
   );
 
   // Calculate absolute episode position for backend progress tracking
-  const { current: absoluteEpisodeNumber, total: totalEpisodes } = useMemo(() => 
-    calculateAbsoluteEpisode(episodes, currentSeasonNumber, currentEpisodeNumber), 
+  const { current: absoluteEpisodeNumber, total: totalEpisodes } = useMemo(() =>
+    calculateAbsoluteEpisode(episodes, currentSeasonNumber, currentEpisodeNumber),
     [episodes, currentSeasonNumber, currentEpisodeNumber]
   );
 
-  const currentEpisodeIndex = useMemo(() => 
+  const currentEpisodeIndex = useMemo(() =>
     episodes.findIndex(e => e.id === episodeId), [episodes, episodeId]
   );
 
-  const prevEpisode = useMemo(() => 
+  const prevEpisode = useMemo(() =>
     video.getPreviousEpisode(episodes, episodeId), [episodes, episodeId]
   );
 
-  const nextEpisode = useMemo(() => 
+  const nextEpisode = useMemo(() =>
     video.getNextEpisode(episodes, episodeId), [episodes, episodeId]
   );
 
@@ -299,14 +299,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     // Pass current props to avoid stale closure issues
     loadEpisodeSources(episodeId, mediaId, provider);
-    
+
     return () => {
       // Cleanup HLS instance
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      
+
       // Clear intervals
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -332,28 +332,28 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
-    
+
     // Reset video element source to stop any pending loads
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.removeAttribute('src');
       videoRef.current.load();
     }
-    
+
     setLoading(true);
     setError(null);
     setSources(null);
     setCurrentSourceIndex(0);
     setHlsLevels([]);
     setCurrentHlsLevel(-1);
-    
+
     // Reset playback state for new episode
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
     setIsPlaying(false);
     setShowAutoPlayCountdown(false);
-    
+
     // Load saved subtitle preferences for this episode
     setSubtitleOffset(loadSubtitleOffset(currentMediaId, currentEpisodeId));
     setSubtitleEncoding(loadSubtitleEncoding(currentMediaId, currentEpisodeId));
@@ -361,21 +361,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     try {
       // Check for offline version first
       const isDownloaded = isEpisodeDownloaded(currentEpisodeId);
-      
+
       if (isDownloaded) {
         // Check if this is an HLS download
         const offlineEpisode = await getOfflineEpisode(currentEpisodeId);
-        
+
         if (offlineEpisode?.isHLS) {
           // Check if HLS segments are available
           const hlsReady = await isHLSEpisodeOffline(currentEpisodeId);
-          
+
           if (hlsReady) {
             console.log('[VideoPlayer] Playing offline HLS content');
-            
+
             // Get virtual M3U8 URL pointing to offline segments
             const offlineM3U8Url = await getOfflineM3U8Url(currentEpisodeId);
-            
+
             // Create sources object for HLS playback
             const offlineSources: StreamingSources = {
               sources: [{ url: offlineM3U8Url, quality: 'offline', isM3U8: true }],
@@ -383,7 +383,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             };
             setSources(offlineSources);
             setSubtitles([]);
-            
+
             // Initialize player with HLS using custom offline loader
             await initializePlayer(offlineM3U8Url, true, currentEpisodeId, currentMediaId, true);
             setLoading(false);
@@ -413,14 +413,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
 
       const streamingSources = await video.getEpisodeSources(currentProvider, currentEpisodeId, currentMediaId);
-      
+
       if (!streamingSources.sources || streamingSources.sources.length === 0) {
         throw new Error('No streaming sources found');
       }
 
       // Get referer header for proxy (if sources need it)
       const referer = streamingSources.headers?.Referer;
-      
+
       // Store original subtitle URLs and referer for encoding changes
       if (streamingSources.subtitles && streamingSources.subtitles.length > 0) {
         setOriginalSubtitleUrls(streamingSources.subtitles.map(sub => ({ url: sub.url, lang: sub.lang })));
@@ -429,10 +429,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         setOriginalSubtitleUrls([]);
         setSubtitleReferer(undefined);
       }
-      
+
       // Load saved encoding for this episode
       const savedEncoding = loadSubtitleEncoding(currentMediaId, currentEpisodeId);
-      
+
       // Convert source URLs to proxy URLs if needed
       const proxiedSources: StreamingSources = {
         ...streamingSources,
@@ -445,7 +445,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           url: getSubtitleProxyUrl(sub.url, referer, savedEncoding),
         })),
       };
-      
+
       if (referer) {
         console.log('[VideoPlayer] Using proxy with referer:', referer);
       }
@@ -456,7 +456,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       // Initialize player with first source
       const firstSource = proxiedSources.sources[0];
       await initializePlayer(firstSource.url, firstSource.isM3U8 || false, currentEpisodeId, currentMediaId);
-      
+
     } catch (err) {
       console.error('[VideoPlayer] Failed to load sources:', err);
       setError(err instanceof Error ? err.message : 'Failed to load video');
@@ -468,7 +468,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const initializePlayer = async (url: string, isHLS: boolean, episodeIdForProgress: string, mediaIdForProgress: string, isOfflineHLS: boolean = false) => {
     const videoElement = videoRef.current;
     console.log('[VideoPlayer] initializePlayer called:', { url: url.substring(0, 50), isHLS, isOfflineHLS, hasVideoElement: !!videoElement });
-    
+
     if (!videoElement) {
       console.error('[VideoPlayer] Video element not found!');
       return;
@@ -493,12 +493,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     if (isHLS && Hls.isSupported()) {
       console.log('[VideoPlayer] Setting up HLS.js', isOfflineHLS ? '(offline mode)' : '');
-      
+
       // Use custom offline config if playing offline HLS content
-      const hlsConfig = isOfflineHLS 
+      const hlsConfig = isOfflineHLS
         ? { ...createOfflineHLSConfig(), enableWorker: true, lowLatencyMode: false }
         : { enableWorker: true, lowLatencyMode: false };
-      
+
       const hls = new Hls(hlsConfig);
 
       hls.loadSource(url);
@@ -528,10 +528,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       hls.on(Hls.Events.ERROR, (_, data) => {
         console.log('[VideoPlayer] HLS error:', data.type, data.details, data.fatal);
-        
+
         // Categorize error type
         let detectedErrorType: StreamErrorType = 'unknown';
-        
+
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           // Check if we're offline
           if (!navigator.onLine) {
@@ -562,7 +562,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
           detectedErrorType = 'source';
         }
-        
+
         if (data.fatal) {
           console.error('[VideoPlayer] Fatal HLS error:', data);
           setErrorType(detectedErrorType);
@@ -590,7 +590,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleSourceError = useCallback(() => {
     if (!sources) return;
-    
+
     const nextIndex = currentSourceIndex + 1;
     if (nextIndex < sources.sources.length) {
       console.log('[VideoPlayer] Trying next source:', nextIndex);
@@ -722,7 +722,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleTimeUpdate = useCallback(() => {
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
-      
+
       // Update buffered
       const bufferedRanges = videoRef.current.buffered;
       if (bufferedRanges.length > 0) {
@@ -757,12 +757,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
-    
+
     // Auto-play next episode
     if (nextEpisode) {
       setShowAutoPlayCountdown(true);
       setAutoPlayCountdown(10);
-      
+
       const countdownInterval = setInterval(() => {
         setAutoPlayCountdown(prev => {
           if (prev <= 1) {
@@ -773,7 +773,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           return prev - 1;
         });
       }, 1000);
-      
+
       autoPlayTimeoutRef.current = countdownInterval as unknown as NodeJS.Timeout;
     }
   }, [nextEpisode, onEpisodeChange]);
@@ -783,7 +783,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!sources || loading) {
       return;
     }
-    
+
     handleSourceError();
   }, [handleSourceError, sources, loading]);
 
@@ -876,7 +876,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const changeSubtitle = useCallback((index: number) => {
     setCurrentSubtitleIndex(index);
     setShowSubtitleMenu(false);
-    
+
     // Handle subtitle tracks on video element
     if (videoRef.current) {
       const tracks = videoRef.current.textTracks;
@@ -899,10 +899,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const clampedOffset = Math.max(SUBTITLE_OFFSET_MIN, Math.min(SUBTITLE_OFFSET_MAX, newOffset));
     // Round to nearest step
     const roundedOffset = Math.round(clampedOffset / SUBTITLE_OFFSET_STEP) * SUBTITLE_OFFSET_STEP;
-    
+
     setSubtitleOffset(roundedOffset);
     saveSubtitleOffset(mediaId, episodeId, roundedOffset);
-    
+
     // Apply offset to all text tracks in real-time
     if (videoRef.current) {
       const tracks = videoRef.current.textTracks;
@@ -930,10 +930,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleEncodingChange = useCallback((newEncoding: EncodingOption) => {
     if (newEncoding === subtitleEncoding) return;
-    
+
     setSubtitleEncoding(newEncoding);
     saveSubtitleEncoding(mediaId, episodeId, newEncoding);
-    
+
     // Re-fetch subtitles with new encoding
     if (originalSubtitleUrls.length > 0 && subtitleReferer) {
       const newSubtitles = originalSubtitleUrls.map(sub => ({
@@ -941,13 +941,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         url: getSubtitleProxyUrl(sub.url, subtitleReferer, newEncoding),
       }));
       setSubtitles(newSubtitles);
-      
+
       // Force video to reload subtitle tracks
       // The track elements will be re-rendered with new URLs
       // We need to preserve the current subtitle selection
       const currentIndex = currentSubtitleIndex;
       setCurrentSubtitleIndex(-1);
-      
+
       // Use setTimeout to allow React to update the DOM
       setTimeout(() => {
         if (currentIndex >= 0 && currentIndex < newSubtitles.length) {
@@ -994,12 +994,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleDoubleTap = useCallback((e: React.TouchEvent) => {
     const touch = e.changedTouches[0];
     const now = Date.now();
-    
+
     if (lastTapRef.current && now - lastTapRef.current.time < 300) {
       // Double tap detected
       const screenWidth = window.innerWidth;
       const tapX = touch.clientX;
-      
+
       if (tapX < screenWidth * 0.4) {
         // Left side - rewind
         seek(-10);
@@ -1016,7 +1016,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // ============ Seek Bar Handlers ============
   const handleSeekBarClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!seekBarRef.current || !duration) return;
-    
+
     const rect = seekBarRef.current.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     seekTo(percent * duration);
@@ -1024,7 +1024,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // ============ Render ============
   // Always render video element so ref is available, show overlays for loading/error states
-  
+
   // Helper to get error icon based on error type
   const getErrorIcon = () => {
     switch (errorType) {
@@ -1104,7 +1104,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {availableProviders.length > 0 && errorType !== 'offline' && onProviderChange && (
               <div style={styles.providerSection}>
                 <div style={styles.providerLabel}>Try a different provider:</div>
-                
+
                 {/* Quick provider buttons */}
                 <div style={styles.providerButtons}>
                   {availableProviders.slice(0, 3).map((p) => (
@@ -1150,13 +1150,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
             {/* Action Buttons */}
             <div style={styles.errorActions}>
-              <button 
+              <button
                 onClick={() => {
                   setError(null);
                   setErrorType('unknown');
                   setFailedSegments(0);
                   loadEpisodeSources(episodeId, mediaId, provider);
-                }} 
+                }}
                 style={styles.retryButtonLarge}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
@@ -1387,7 +1387,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 {showSettingsMenu && (
                   <div style={styles.settingsMenu}>
                     <div style={styles.settingsTitle}>Subtitle Settings</div>
-                    
+
                     {/* Subtitle Offset */}
                     <div style={styles.settingsSection}>
                       <div style={styles.settingsLabel}>Timing Offset</div>
@@ -1421,7 +1421,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                         {subtitleOffset < 0 ? 'Earlier' : subtitleOffset > 0 ? 'Later' : 'Synced'}
                       </div>
                     </div>
-                    
+
                     {/* Character Encoding */}
                     <div style={styles.settingsSection}>
                       <div style={styles.settingsLabel}>Character Encoding</div>
@@ -1444,7 +1444,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                         Try different encodings if text appears garbled
                       </div>
                     </div>
-                    
+
                     {/* Reset Button */}
                     <button
                       onClick={() => {
