@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { MediaItem, MediaType } from '@/types';
-import { useToast } from '@/context/ToastContext';
-import { extractProviderFromRefId, getProviderDisplayName, getProviderImageUrl, resolveMediaImageUrl } from '@/shared/media';
+import { MediaItem, MediaType } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
+import { extractProviderFromRefId, getProviderDisplayName, getProviderImageUrl, resolveMediaImageUrl } from '../../../shared/media/index';
 
 /**
  * Extract source name from refId (e.g., "tmdb:12345" -> "tmdb")
@@ -98,7 +98,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
   // Handle escape key
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !loadingAction) {
         onClose();

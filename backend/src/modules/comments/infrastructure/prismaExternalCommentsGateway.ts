@@ -1,10 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { MediaType } from '@prisma/client';
-import {
-  calculateSimilarity,
-  findBestMatch,
-  type MatchableItem,
-} from '@shared/matching.js';
+import { calculateSimilarity, findBestMatch, type MatchableItem } from '@shared/matching.js';
 import {
   searchAnilistAnime,
   searchAnilistManga,
@@ -29,103 +25,6 @@ import type { ExternalCommentsGateway } from '../application/ports/ExternalComme
 const SUPPORTED_COMMENT_PROVIDER_PREFIXES = ['mal:', 'anilist:', 'hianime:'];
 const MATCH_THRESHOLD = 0.8;
 
-class RedditCommentProvider implements ExternalCommentProvider {
-  name = 'reddit';
-  displayName = 'Reddit';
-  supportedMediaTypes: SupportedCommentMediaType[] = ['TV', 'MOVIE', 'ANIME', 'MANGA'];
-
-  private readonly subredditMap: Record<SupportedCommentMediaType, string[]> = {
-    TV: ['television', 'TrueFilm', 'NetflixBestOf'],
-    MOVIE: ['movies', 'TrueFilm', 'MovieDetails'],
-    ANIME: ['anime', 'AnimeSuggest', 'AnimeDiscussion'],
-    MANGA: ['manga', 'MangaCollectors'],
-  };
-
-  async fetchComments(params: FetchCommentsParams): Promise<ExternalComment[]> {
-    const subreddits = this.subredditMap[params.mediaType] || [];
-    console.log(
-      `[Reddit] Would fetch comments for: "${params.title}" from subreddits: ${subreddits.join(', ')}`,
-    );
-
-    if (params.seasonNumber !== undefined) {
-      console.log(`[Reddit] Season ${params.seasonNumber}, Episode ${params.episodeNumber ?? 'all'}`);
-    }
-
-    return [];
-  }
-
-  isConfigured(): boolean {
-    return true;
-  }
-}
-
-class MALCommentProvider implements ExternalCommentProvider {
-  name = 'mal';
-  displayName = 'MyAnimeList';
-  supportedMediaTypes: SupportedCommentMediaType[] = ['ANIME', 'MANGA'];
-
-  async fetchComments(params: FetchCommentsParams): Promise<ExternalComment[]> {
-    console.log(`[MAL] Would fetch comments for: "${params.title}" (${params.mediaType})`);
-
-    if (params.mediaType !== 'ANIME' && params.mediaType !== 'MANGA') {
-      console.log('[MAL] Skipping - not an anime/manga media type');
-      return [];
-    }
-
-    return [];
-  }
-
-  isConfigured(): boolean {
-    return true;
-  }
-}
-
-class AniListCommentProvider implements ExternalCommentProvider {
-  name = 'anilist';
-  displayName = 'AniList';
-  supportedMediaTypes: SupportedCommentMediaType[] = ['ANIME', 'MANGA'];
-
-  async fetchComments(params: FetchCommentsParams): Promise<ExternalComment[]> {
-    console.log(`[AniList] Would fetch comments for: "${params.title}" (${params.mediaType})`);
-
-    if (params.mediaType !== 'ANIME' && params.mediaType !== 'MANGA') {
-      console.log('[AniList] Skipping - not an anime/manga media type');
-      return [];
-    }
-
-    return [];
-  }
-
-  isConfigured(): boolean {
-    return true;
-  }
-}
-
-class LetterboxdCommentProvider implements ExternalCommentProvider {
-  name = 'letterboxd';
-  displayName = 'Letterboxd';
-  supportedMediaTypes: SupportedCommentMediaType[] = ['MOVIE'];
-
-  async fetchComments(params: FetchCommentsParams): Promise<ExternalComment[]> {
-    console.log(`[Letterboxd] Would fetch comments for: "${params.title}" (${params.mediaType})`);
-
-    if (params.mediaType !== 'MOVIE') {
-      console.log('[Letterboxd] Skipping - not a movie');
-      return [];
-    }
-
-    if (params.year) {
-      console.log(`[Letterboxd] Year: ${params.year}`);
-    }
-
-    return [];
-  }
-
-  isConfigured(): boolean {
-    return true;
-  }
-}
-
 class HiAnimeCommentProvider implements ExternalCommentProvider {
   name = 'hianime';
   displayName = 'HiAnime';
@@ -148,10 +47,12 @@ class HiAnimeCommentProvider implements ExternalCommentProvider {
     console.log(`[HiAnime] Fetching comments for episode ID: ${episodeId}`);
 
     try {
-      const apiUrl = `${this.baseUrl}/ajax/comment/list/${episodeId}?sort=newest`;
+      const apiUrl = `${this.baseUrl}/ajax/comment/list/${encodeURIComponent(episodeId)}?sort=newest`;
       const response = await fetch(apiUrl, {
+        signal: AbortSignal.timeout(15000),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           Referer: `${this.baseUrl}/watch/anime?ep=${episodeId}`,
           'X-Requested-With': 'XMLHttpRequest',
           Accept: 'application/json, text/javascript, */*; q=0.01',
@@ -162,7 +63,7 @@ class HiAnimeCommentProvider implements ExternalCommentProvider {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json() as { status?: boolean; html?: string };
+      const data = (await response.json()) as { status?: boolean; html?: string };
       if (!data.html) {
         console.log('[HiAnime] No HTML content in response');
         return [];
@@ -216,7 +117,7 @@ class HiAnimeCommentProvider implements ExternalCommentProvider {
   }
 
   isConfigured(): boolean {
-    return true;
+    return false;
   }
 
   private parseTimestamp(timestamp: string): Date {
@@ -264,7 +165,9 @@ function mapToPrismaMediaType(mediaType: SupportedCommentMediaType): MediaType {
 }
 
 function isRefIdFromSupportedProvider(refId: string): boolean {
-  return SUPPORTED_COMMENT_PROVIDER_PREFIXES.some((prefix) => refId.toLowerCase().startsWith(prefix));
+  return SUPPORTED_COMMENT_PROVIDER_PREFIXES.some((prefix) =>
+    refId.toLowerCase().startsWith(prefix),
+  );
 }
 
 function parseRefId(refId: string): { provider: string; id: string } | null {
@@ -295,12 +198,16 @@ function getTitleBasedProviders(mediaType: SupportedCommentMediaType): string[] 
   return providers;
 }
 
-export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGateway): ExternalCommentsGateway {
+export function createPrismaExternalCommentsGateway(
+  commentsGateway: CommentsGateway,
+): ExternalCommentsGateway {
   const providerRegistry = new Map<string, ExternalCommentProvider>();
 
   function registerProvider(provider: ExternalCommentProvider): void {
     if (providerRegistry.has(provider.name)) {
-      console.warn(`[ExternalComments] Provider "${provider.name}" already registered, overwriting`);
+      console.warn(
+        `[ExternalComments] Provider "${provider.name}" already registered, overwriting`,
+      );
     }
 
     providerRegistry.set(provider.name, provider);
@@ -314,7 +221,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
     return Array.from(providerRegistry.values());
   }
 
-  function getProvidersForMediaType(mediaType: SupportedCommentMediaType): ExternalCommentProvider[] {
+  function getProvidersForMediaType(
+    mediaType: SupportedCommentMediaType,
+  ): ExternalCommentProvider[] {
     return getAllProviders().filter(
       (provider) => provider.supportedMediaTypes.includes(mediaType) && provider.isConfigured(),
     );
@@ -341,7 +250,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
         (async () => {
           try {
             const results = await searchFn(title, { page: 1, perPage: 10 });
-            console.log(`[Resolution] Anilist returned ${results.results.length} results for "${title}"`);
+            console.log(
+              `[Resolution] Anilist returned ${results.results.length} results for "${title}"`,
+            );
 
             const matchableResults = results.results.map((result) => ({
               original: result,
@@ -388,7 +299,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
         (async () => {
           try {
             const results = await searchMAL(title, { page: 1 });
-            console.log(`[Resolution] MAL returned ${results.results.length} results for "${title}"`);
+            console.log(
+              `[Resolution] MAL returned ${results.results.length} results for "${title}"`,
+            );
 
             const matchableResults = results.results.map((result) => ({
               original: result,
@@ -411,7 +324,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
             }
 
             const similarity = calculateSimilarity(bestMatch, target);
-            console.log(`[Resolution] MAL match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`);
+            console.log(
+              `[Resolution] MAL match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`,
+            );
 
             resolvedMatches.push({
               provider: 'myanimelist',
@@ -433,7 +348,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
         (async () => {
           try {
             const results = await searchTMDB(title, { page: 1 });
-            console.log(`[Resolution] TMDB returned ${results.results.length} results for "${title}"`);
+            console.log(
+              `[Resolution] TMDB returned ${results.results.length} results for "${title}"`,
+            );
 
             const matchableResults = results.results.map((result) => ({
               original: result,
@@ -456,7 +373,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
             }
 
             const similarity = calculateSimilarity(bestMatch, target);
-            console.log(`[Resolution] TMDB match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`);
+            console.log(
+              `[Resolution] TMDB match: "${matchedResult.original.title}" (score: ${similarity.score.toFixed(2)})`,
+            );
 
             resolvedMatches.push({
               provider: 'tmdb',
@@ -478,10 +397,6 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
     return resolvedMatches;
   }
 
-  registerProvider(new RedditCommentProvider());
-  registerProvider(new MALCommentProvider());
-  registerProvider(new AniListCommentProvider());
-  registerProvider(new LetterboxdCommentProvider());
   registerProvider(new HiAnimeCommentProvider());
 
   return {
@@ -506,7 +421,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
         return result;
       }
 
-      console.log(`[ExternalComments] Fetching comments for "${title}" from ${providers.length} providers`);
+      console.log(
+        `[ExternalComments] Fetching comments for "${title}" from ${providers.length} providers`,
+      );
 
       const fetchParams: FetchCommentsParams = {
         title,
@@ -564,12 +481,16 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
             result.imported += 1;
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`[ExternalComments] Failed to import comment ${comment.externalId}: ${errorMessage}`);
+            console.error(
+              `[ExternalComments] Failed to import comment ${comment.externalId}: ${errorMessage}`,
+            );
           }
         }
       }
 
-      console.log(`[ExternalComments] Imported ${result.imported} comments from ${result.providers.length} providers`);
+      console.log(
+        `[ExternalComments] Imported ${result.imported} comments from ${result.providers.length} providers`,
+      );
       return result;
     },
 
@@ -580,15 +501,21 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
       });
     },
 
-    async previewResolution(params: CommentFetchWithResolutionParams): Promise<ResolutionPreviewResult> {
+    async previewResolution(
+      params: CommentFetchWithResolutionParams,
+    ): Promise<ResolutionPreviewResult> {
       const { title, mediaType, year, refId } = params;
-      console.log(`[Resolution] Preview for "${title}" (${mediaType}), year: ${year ?? 'unknown'}, refId: ${refId ?? 'none'}`);
+      console.log(
+        `[Resolution] Preview for "${title}" (${mediaType}), year: ${year ?? 'unknown'}, refId: ${refId ?? 'none'}`,
+      );
 
       let resolvedMatches: ResolvedProviderMatch[] = [];
       if (refId && isRefIdFromSupportedProvider(refId)) {
         const parsed = parseRefId(refId);
         if (parsed) {
-          console.log(`[Resolution] RefId "${refId}" is from supported provider: ${parsed.provider}`);
+          console.log(
+            `[Resolution] RefId "${refId}" is from supported provider: ${parsed.provider}`,
+          );
           resolvedMatches.push({
             provider: parsed.provider,
             providerId: parsed.id,
@@ -599,7 +526,10 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
         }
       }
 
-      resolvedMatches = [...resolvedMatches, ...(await searchAndMatchProviders(title, mediaType, year))];
+      resolvedMatches = [
+        ...resolvedMatches,
+        ...(await searchAndMatchProviders(title, mediaType, year)),
+      ];
 
       const providerMap = new Map<string, ResolvedProviderMatch>();
       for (const match of resolvedMatches) {
@@ -613,7 +543,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
       const titleBasedProviders = getTitleBasedProviders(mediaType);
       const maxScore = resolvedMatches.reduce((max, match) => Math.max(max, match.matchScore), 0);
       const confidence =
-        resolvedMatches.length > 0 ? Math.min(1, (maxScore + resolvedMatches.length * 0.1) / 1.5) : 0;
+        resolvedMatches.length > 0
+          ? Math.min(1, (maxScore + resolvedMatches.length * 0.1) / 1.5)
+          : 0;
 
       return {
         resolvedMatches,
@@ -622,9 +554,22 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
       };
     },
 
-    async fetchCommentsWithResolution(params: CommentFetchWithResolutionParams): Promise<AggregatedComments> {
-      const { title, mediaType, year, refId, seasonNumber, episodeNumber, providerIds, limit = 50 } = params;
-      console.log(`[Resolution] Fetching comments for "${title}" (${mediaType}), year: ${year ?? 'unknown'}`);
+    async fetchCommentsWithResolution(
+      params: CommentFetchWithResolutionParams,
+    ): Promise<AggregatedComments> {
+      const {
+        title,
+        mediaType,
+        year,
+        refId,
+        seasonNumber,
+        episodeNumber,
+        providerIds,
+        limit = 50,
+      } = params;
+      console.log(
+        `[Resolution] Fetching comments for "${title}" (${mediaType}), year: ${year ?? 'unknown'}`,
+      );
 
       const result: AggregatedComments = {
         comments: [],
@@ -634,12 +579,18 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
         usedDirectFetch: false,
       };
 
-      const commentPromises: Promise<{ provider: string; comments: ExternalComment[]; error: string | null }>[] = [];
+      const commentPromises: Promise<{
+        provider: string;
+        comments: ExternalComment[];
+        error: string | null;
+      }>[] = [];
 
       if (refId && isRefIdFromSupportedProvider(refId)) {
         const parsed = parseRefId(refId);
         if (parsed) {
-          console.log(`[Resolution] Using direct fetch with provider: ${parsed.provider}, id: ${parsed.id}`);
+          console.log(
+            `[Resolution] Using direct fetch with provider: ${parsed.provider}, id: ${parsed.id}`,
+          );
           result.usedDirectFetch = true;
           result.resolvedMatches.push({
             provider: parsed.provider,
@@ -693,7 +644,9 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
           continue;
         }
 
-        console.log(`[Resolution] Fetching from ${match.provider} with resolved ID: ${match.providerId}`);
+        console.log(
+          `[Resolution] Fetching from ${match.provider} with resolved ID: ${match.providerId}`,
+        );
         commentPromises.push(
           (async () => {
             try {
@@ -778,7 +731,10 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
       });
 
       result.comments = result.comments.slice(0, limit);
-      const maxScore = result.resolvedMatches.reduce((max, match) => Math.max(max, match.matchScore), 0);
+      const maxScore = result.resolvedMatches.reduce(
+        (max, match) => Math.max(max, match.matchScore),
+        0,
+      );
       result.confidence = result.usedDirectFetch
         ? 1
         : result.resolvedMatches.length > 0
@@ -790,16 +746,6 @@ export function createPrismaExternalCommentsGateway(commentsGateway: CommentsGat
       );
 
       return result;
-    },
-
-    async refreshExternalCommentsForPopularMedia() {
-      console.log('[ExternalComments] Starting refresh for popular media...');
-      console.log('[ExternalComments] Refresh complete (stub implementation)');
-
-      return {
-        mediaProcessed: 0,
-        totalImported: 0,
-      };
     },
   };
 }

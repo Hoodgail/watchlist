@@ -1,4 +1,4 @@
-import { buildApiUrl } from '@/shared/api/client';
+import { buildApiUrl } from '../api/client';
 
 export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 
@@ -44,7 +44,7 @@ export function getProxiedImageUrl(
     params.set('referer', referer);
   }
 
-  return `${buildApiUrl('/proxy/image')}?${params.toString()}`;
+  return `/api/proxy/image?${params.toString()}`;
 }
 
 export function getProviderImageUrl(

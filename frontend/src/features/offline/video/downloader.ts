@@ -1,7 +1,7 @@
 /**
  * HLS Downloader Service
  * Downloads HLS streams for offline playback
- * 
+ *
  * Features:
  * - M3U8 playlist parsing (master + media playlists)
  * - Quality selection for master playlists
@@ -102,6 +102,8 @@ export interface HLSSegment {
   index: number;
   uri: string;
   duration: number;
+  sequence: number;
+  byteRange?: { offset: number; length: number };
   key?: EncryptionKeyInfo;
 }
 
@@ -126,20 +128,20 @@ function resolveUrl(baseUrl: string, relativeUrl: string): string {
   if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
     return relativeUrl;
   }
-  
+
   // Use URL constructor for proper resolution
   try {
     return new URL(relativeUrl, baseUrl).href;
   } catch {
     // Fallback: manual resolution
     const baseDir = baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
-    
+
     if (relativeUrl.startsWith('/')) {
       // Absolute path - get origin from base
       const origin = new URL(baseUrl).origin;
       return origin + relativeUrl;
     }
-    
+
     return baseDir + relativeUrl;
   }
 }
@@ -171,34 +173,36 @@ function getProxyUrl(url: string, referer: string | undefined, isM3U8: boolean, 
  */
 export async function parseM3U8(
   url: string,
-  referer?: string
+  referer?: string,
+  signal?: AbortSignal
 ): Promise<ParsedHLSInfo> {
   // Use raw=1 to get unmodified M3U8 content (no URL rewriting by proxy)
   // This allows us to properly resolve relative URLs against the original base URL
   const proxyUrl = getProxyUrl(url, referer, true, true);
-  
-  const response = await fetch(proxyUrl);
+
+  const response = await fetch(proxyUrl, { signal });
   if (!response.ok) {
     throw new Error(`Failed to fetch M3U8: ${response.status}`);
   }
-  
+
   const content = await response.text();
-  
+  if (!content.trimStart().startsWith('#EXTM3U')) throw new Error('Invalid HLS playlist');
+
   const parser = new Parser();
   parser.push(content);
   parser.end();
-  
+
   const manifest: Manifest = parser.manifest;
-  
+
   // Check if this is a master playlist (has playlists array)
   if (manifest.playlists && manifest.playlists.length > 0) {
     const qualities: QualityOption[] = manifest.playlists.map((playlist) => {
       const attrs = playlist.attributes || {};
       const resolution = attrs.RESOLUTION;
-      
+
       return {
-        label: resolution 
-          ? `${resolution.height}p` 
+        label: resolution
+          ? `${resolution.height}p`
           : (attrs.BANDWIDTH ? `${Math.round(attrs.BANDWIDTH / 1000)}kbps` : 'Unknown'),
         bandwidth: attrs.BANDWIDTH || 0,
         width: resolution?.width,
@@ -206,15 +210,15 @@ export async function parseM3U8(
         url: resolveUrl(url, playlist.uri),
       };
     });
-    
+
     // Sort by bandwidth (highest first)
     qualities.sort((a, b) => b.bandwidth - a.bandwidth);
-    
+
     // Extract audio and subtitle tracks from EXT-X-MEDIA tags
     // The m3u8-parser stores these in manifest.mediaGroups
     const audioTracks: AudioTrack[] = [];
     const subtitleTracks: SubtitleTrack[] = [];
-    
+
     const mediaGroups = manifest.mediaGroups;
     if (mediaGroups) {
       // Parse AUDIO groups
@@ -234,7 +238,7 @@ export async function parseM3U8(
           }
         }
       }
-      
+
       // Parse SUBTITLES groups
       const subtitleGroups = mediaGroups.SUBTITLES;
       if (subtitleGroups) {
@@ -255,7 +259,7 @@ export async function parseM3U8(
         }
       }
     }
-    
+
     return {
       isMaster: true,
       qualities,
@@ -263,7 +267,7 @@ export async function parseM3U8(
       subtitleTracks: subtitleTracks.length > 0 ? subtitleTracks : undefined,
     };
   }
-  
+
   // This is a media playlist with segments
   return parseMediaPlaylist(manifest, url, referer);
 }
@@ -272,7 +276,7 @@ export async function parseM3U8(
  * Parse a media playlist (segment list)
  */
 function parseMediaPlaylist(
-  manifest: Manifest, 
+  manifest: Manifest,
   baseUrl: string,
   referer?: string
 ): ParsedHLSInfo {
@@ -280,15 +284,19 @@ function parseMediaPlaylist(
   let totalDuration = 0;
   let currentKey: EncryptionKeyInfo | undefined;
   let initSegment: InitSegmentInfo | undefined;
-  
+
   // The parser stores segments in manifest.segments
   const rawSegments: Segment[] = manifest.segments || [];
-  
+  if (!manifest.endList) throw new Error('Offline downloads require a finished VOD playlist');
+
   for (let i = 0; i < rawSegments.length; i++) {
     const seg = rawSegments[i];
-    
+
     // Handle EXT-X-MAP (initialization segment for fMP4)
     // The m3u8-parser stores this in seg.map
+    if (seg.map && initSegment && resolveUrl(baseUrl, seg.map.uri) !== initSegment.uri) {
+      throw new Error('Offline downloads do not support changing initialization segments');
+    }
     if (seg.map && seg.map.uri && !initSegment) {
       initSegment = {
         uri: resolveUrl(baseUrl, seg.map.uri),
@@ -301,28 +309,33 @@ function parseMediaPlaylist(
         };
       }
     }
-    
+
     // Handle encryption key changes
+    currentKey = undefined;
     if (seg.key && seg.key.method !== 'NONE') {
+      if (seg.key.method !== 'AES-128') throw new Error(`Unsupported encryption: ${seg.key.method}`);
+      if (seg.map) throw new Error('Encrypted initialization segments are not supported offline');
       currentKey = {
         method: seg.key.method as 'AES-128' | 'SAMPLE-AES',
         uri: resolveUrl(baseUrl, seg.key.uri),
-        iv: seg.key.iv ? hexToUint8Array(seg.key.iv) : undefined,
+        iv: seg.key.iv ? wordsToIV(seg.key.iv) : undefined,
       };
     }
-    
+
     const duration = seg.duration || 0;
-    
+
     segments.push({
       index: i,
+      sequence: (manifest.mediaSequence || 0) + i,
+      byteRange: seg.byterange ? { offset: seg.byterange.offset || 0, length: seg.byterange.length } : undefined,
       uri: resolveUrl(baseUrl, seg.uri),
       duration,
       key: currentKey,
     });
-    
+
     totalDuration += duration;
   }
-  
+
   return {
     isMaster: false,
     segments,
@@ -337,13 +350,10 @@ function parseMediaPlaylist(
 /**
  * Convert hex string to Uint8Array (for IV)
  */
-function hexToUint8Array(hex: string): Uint8Array {
-  // Remove 0x prefix if present
-  const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
-  const bytes = new Uint8Array(cleanHex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(cleanHex.substr(i * 2, 2), 16);
-  }
+function wordsToIV(words: Uint32Array): Uint8Array {
+  const bytes = new Uint8Array(16);
+  const view = new DataView(bytes.buffer);
+  words.forEach((word, index) => view.setUint32(index * 4, word, false));
   return bytes;
 }
 
@@ -354,33 +364,36 @@ function generateIVFromIndex(index: number): Uint8Array {
   const iv = new Uint8Array(16);
   // IV is segment index as big-endian 128-bit number
   const view = new DataView(iv.buffer);
-  view.setUint32(12, index, false); // Big-endian
+  view.setUint32(8, Math.floor(index / 0x100000000), false);
+  view.setUint32(12, index >>> 0, false); // Big-endian
   return iv;
 }
 
 /**
  * Fetch and cache decryption key
  */
-const keyCache = new Map<string, CryptoKey>();
+
 
 async function getDecryptionKey(
   keyUri: string,
-  referer?: string
+  keyCache: Map<string, CryptoKey>,
+  referer?: string,
+  signal?: AbortSignal
 ): Promise<CryptoKey> {
   // Check cache first
   const cached = keyCache.get(keyUri);
   if (cached) return cached;
-  
+
   // Fetch the key
   const proxyUrl = getProxyUrl(keyUri, referer, false);
-  const response = await fetch(proxyUrl);
-  
+  const response = await fetch(proxyUrl, { signal });
+
   if (!response.ok) {
     throw new Error(`Failed to fetch decryption key: ${response.status}`);
   }
-  
+
   const keyData = await response.arrayBuffer();
-  
+
   // Import key for AES-CBC decryption
   const cryptoKey = await crypto.subtle.importKey(
     'raw',
@@ -389,10 +402,10 @@ async function getDecryptionKey(
     false,
     ['decrypt']
   );
-  
+
   // Cache the key
   keyCache.set(keyUri, cryptoKey);
-  
+
   return cryptoKey;
 }
 
@@ -405,7 +418,7 @@ async function decryptSegment(
   iv: Uint8Array
 ): Promise<ArrayBuffer> {
   return crypto.subtle.decrypt(
-    { name: 'AES-CBC', iv },
+    { name: 'AES-CBC', iv: new Uint8Array(iv) },
     key,
     encryptedData
   );
@@ -427,7 +440,7 @@ export async function estimateTotalSize(
   sampleCount: number = 3
 ): Promise<number> {
   if (segments.length === 0) return 0;
-  
+
   // Sample segments evenly distributed
   const indices: number[] = [];
   if (segments.length <= sampleCount) {
@@ -438,25 +451,25 @@ export async function estimateTotalSize(
       indices.push(Math.min(i * step, segments.length - 1));
     }
   }
-  
+
   let totalSampleSize = 0;
   let totalSampleDuration = 0;
-  
+
   // Use Promise.allSettled with timeout to avoid hanging
   const samplePromises = indices.map(async (index) => {
     const seg = segments[index];
     const proxyUrl = getProxyUrl(seg.uri, referer, false);
-    
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SIZE_ESTIMATION_TIMEOUT);
-    
+
     try {
-      const response = await fetch(proxyUrl, { 
+      const response = await fetch(proxyUrl, {
         method: 'HEAD',
         signal: controller.signal,
       });
       const contentLength = response.headers.get('content-length');
-      
+
       if (contentLength) {
         return {
           size: parseInt(contentLength, 10),
@@ -470,26 +483,26 @@ export async function estimateTotalSize(
     }
     return null;
   });
-  
+
   const results = await Promise.allSettled(samplePromises);
-  
+
   for (const result of results) {
     if (result.status === 'fulfilled' && result.value) {
       totalSampleSize += result.value.size;
       totalSampleDuration += result.value.duration;
     }
   }
-  
+
   if (totalSampleDuration === 0) {
     // Fallback: assume 1MB per 10 seconds
     const totalDuration = segments.reduce((sum, s) => sum + s.duration, 0);
     return totalDuration * 100 * 1024; // 100KB/s average
   }
-  
+
   // Calculate bytes per second and extrapolate
   const bytesPerSecond = totalSampleSize / totalSampleDuration;
   const totalDuration = segments.reduce((sum, s) => sum + s.duration, 0);
-  
+
   return Math.round(bytesPerSecond * totalDuration);
 }
 
@@ -507,32 +520,33 @@ async function downloadInitSegment(
   signal?: AbortSignal
 ): Promise<Uint8Array> {
   const proxyUrl = getProxyUrl(initSegment.uri, referer, false);
-  
+
   const timeoutController = new AbortController();
   const timeout = setTimeout(() => timeoutController.abort(), SEGMENT_DOWNLOAD_TIMEOUT);
-  
-  const combinedSignal = signal 
+
+  const combinedSignal = signal
     ? AbortSignal.any([signal, timeoutController.signal])
     : timeoutController.signal;
-  
+
   try {
     const headers: HeadersInit = {};
-    
+
     // Add byte range header if specified
     if (initSegment.byteRange) {
       const { offset, length } = initSegment.byteRange;
       headers['Range'] = `bytes=${offset}-${offset + length - 1}`;
     }
-    
-    const response = await fetch(proxyUrl, { 
+
+    const response = await fetch(proxyUrl, {
       signal: combinedSignal,
       headers,
     });
-    
+
+    if (initSegment.byteRange && response.status !== 206) throw new Error('Upstream did not honor initialization byte range');
     if (!response.ok && response.status !== 206) { // 206 = Partial Content (for byte range)
       throw new Error(`Failed to download init segment: ${response.status}`);
     }
-    
+
     return new Uint8Array(await response.arrayBuffer());
   } catch (error) {
     if (timeoutController.signal.aborted && !signal?.aborted) {
@@ -549,38 +563,43 @@ async function downloadInitSegment(
  */
 async function downloadSegment(
   segment: HLSSegment,
+  keyCache: Map<string, CryptoKey>,
   referer?: string,
   signal?: AbortSignal
 ): Promise<Uint8Array> {
   const proxyUrl = getProxyUrl(segment.uri, referer, false);
-  
+
   // Create a timeout abort controller
   const timeoutController = new AbortController();
   const timeout = setTimeout(() => timeoutController.abort(), SEGMENT_DOWNLOAD_TIMEOUT);
-  
+
   // Combine with user signal if provided
-  const combinedSignal = signal 
+  const combinedSignal = signal
     ? AbortSignal.any([signal, timeoutController.signal])
     : timeoutController.signal;
-  
+
   try {
-    const response = await fetch(proxyUrl, { signal: combinedSignal });
-    
+    const headers: HeadersInit = segment.byteRange
+      ? { Range: `bytes=${segment.byteRange.offset}-${segment.byteRange.offset + segment.byteRange.length - 1}` }
+      : {};
+    const response = await fetch(proxyUrl, { signal: combinedSignal, headers });
+    if (segment.byteRange && response.status !== 206) throw new Error('Upstream did not honor segment byte range');
+
     if (!response.ok) {
       throw new Error(`Failed to download segment ${segment.index}: ${response.status}`);
     }
-    
+
     let data = new Uint8Array(await response.arrayBuffer());
-    
+
     // Decrypt if needed
     if (segment.key && segment.key.method === 'AES-128') {
-      const cryptoKey = await getDecryptionKey(segment.key.uri, referer);
-      const iv = segment.key.iv || generateIVFromIndex(segment.index);
-      
+      const cryptoKey = await getDecryptionKey(segment.key.uri, keyCache, referer, combinedSignal);
+      const iv = segment.key.iv || generateIVFromIndex(segment.sequence);
+
       const decrypted = await decryptSegment(data.buffer, cryptoKey, iv);
       data = new Uint8Array(decrypted);
     }
-    
+
     return data;
   } catch (error) {
     if (timeoutController.signal.aborted && !signal?.aborted) {
@@ -594,7 +613,7 @@ async function downloadSegment(
 
 /**
  * Download an entire HLS stream
- * 
+ *
  * @param mediaPlaylistUrl - URL to the media playlist (not master)
  * @param options - Download options
  * @returns Final download progress
@@ -603,89 +622,90 @@ export async function downloadHLSStream(
   mediaPlaylistUrl: string,
   options: HLSDownloadOptions = {}
 ): Promise<HLSDownloadProgress> {
-  const { 
-    signal, 
-    referer, 
-    downloadedSegments = new Set(), 
+  const {
+    signal,
+    referer,
+    downloadedSegments = new Set(),
     initSegmentDownloaded = false,
-    onSegmentDownloaded, 
+    onSegmentDownloaded,
     onInitSegmentDownloaded,
-    onProgress 
+    onProgress
   } = options;
-  
+
   // Parse the media playlist
-  const parsed = await parseM3U8(mediaPlaylistUrl, referer);
-  
+  const parsed = await parseM3U8(mediaPlaylistUrl, referer, signal);
+
   if (parsed.isMaster) {
     throw new Error('Cannot download master playlist directly. Select a quality first.');
   }
-  
+
   if (!parsed.segments || parsed.segments.length === 0) {
     throw new Error('No segments found in playlist');
   }
-  
+
   const segments = parsed.segments;
+  const keyCache = new Map<string, CryptoKey>();
   const totalSegments = segments.length;
   const totalDuration = parsed.totalDuration || 0;
   const hasInitSegment = !!parsed.initSegment;
-  
+
   // Estimate total size
   const estimatedTotalBytes = await estimateTotalSize(segments, referer);
-  
+
   let bytesDownloaded = 0;
   let downloadedDuration = 0;
-  
+
   console.log(`[HLS] Starting download: ${totalSegments} segments, ~${Math.round(estimatedTotalBytes / 1024 / 1024)} MB estimated${hasInitSegment ? ', has init segment (fMP4)' : ''}`);
-  
+
   // Download init segment first if present (required for fMP4)
   if (parsed.initSegment && !initSegmentDownloaded) {
     console.log('[HLS] Downloading init segment...');
-    
+
     if (signal?.aborted) {
       throw new Error('Download cancelled');
     }
-    
+
     try {
       const initData = await downloadInitSegment(parsed.initSegment, referer, signal);
       bytesDownloaded += initData.length;
-      
+
       if (onInitSegmentDownloaded) {
         await onInitSegmentDownloaded(initData);
       }
-      
+
       console.log(`[HLS] Init segment downloaded (${initData.length} bytes)`);
     } catch (error) {
       console.error('[HLS] Failed to download init segment:', error);
       throw error;
     }
   }
-  
+
   // Download segments sequentially
   for (let i = 0; i < totalSegments; i++) {
     // Check for cancellation
     if (signal?.aborted) {
       throw new Error('Download cancelled');
     }
-    
+
     const segment = segments[i];
-    
+
     // Skip already downloaded segments (for resuming)
     if (downloadedSegments.has(i)) {
       downloadedDuration += segment.duration;
       continue;
     }
-    
+
     // Download the segment
     try {
-      const data = await downloadSegment(segment, referer, signal);
+      const data = await downloadSegment(segment, keyCache, referer, signal);
       bytesDownloaded += data.length;
       downloadedDuration += segment.duration;
-      
+
       // Store the segment
       if (onSegmentDownloaded) {
         await onSegmentDownloaded(i, data, segment.duration, totalSegments);
       }
-      
+
       // Log progress every 10 segments
       if ((i + 1) % 10 === 0 || i === totalSegments - 1) {
         console.log(`[HLS] Downloaded segment ${i + 1}/${totalSegments} (${Math.round(bytesDownloaded / 1024 / 1024 * 10) / 10} MB)`);
@@ -694,7 +714,7 @@ export async function downloadHLSStream(
       console.error(`[HLS] Failed to download segment ${i}:`, error);
       throw error;
     }
-    
+
     // Update progress
     const progress: HLSDownloadProgress = {
       currentSegment: i,
@@ -706,12 +726,12 @@ export async function downloadHLSStream(
       downloadedDuration,
       hasInitSegment,
     };
-    
+
     if (onProgress) {
       onProgress(progress);
     }
   }
-  
+
   return {
     currentSegment: totalSegments - 1,
     totalSegments,
@@ -732,7 +752,7 @@ export async function getQualityOptions(
   referer?: string
 ): Promise<QualityOption[]> {
   const parsed = await parseM3U8(m3u8Url, referer);
-  
+
   if (!parsed.isMaster || !parsed.qualities) {
     // Not a master playlist - return a single option representing the stream
     return [{
@@ -741,7 +761,7 @@ export async function getQualityOptions(
       url: m3u8Url,
     }];
   }
-  
+
   return parsed.qualities;
 }
 
@@ -787,45 +807,46 @@ export async function downloadAudioTrack(
     // Audio is muxed with video, no separate download needed
     return { bytesDownloaded: 0, segmentCount: 0 };
   }
-  
+
   const { signal, referer, onAudioSegmentDownloaded } = options;
-  
+
   // Parse the audio playlist
-  const parsed = await parseM3U8(track.uri, referer);
-  
+  const parsed = await parseM3U8(track.uri, referer, signal);
+
   if (!parsed.segments || parsed.segments.length === 0) {
     return { bytesDownloaded: 0, segmentCount: 0 };
   }
-  
+
   const segments = parsed.segments;
+  const keyCache = new Map<string, CryptoKey>();
   let bytesDownloaded = 0;
-  
+
   console.log(`[HLS] Downloading audio track "${track.name}" (${track.language}): ${segments.length} segments`);
-  
+
   // Download init segment if present
   if (parsed.initSegment) {
     const initData = await downloadInitSegment(parsed.initSegment, referer, signal);
     bytesDownloaded += initData.length;
-    
+
     if (onAudioSegmentDownloaded) {
       await onAudioSegmentDownloaded(-1, initData, 0, segments.length, track.language);
     }
   }
-  
+
   // Download audio segments
   for (let i = 0; i < segments.length; i++) {
     if (signal?.aborted) {
       throw new Error('Download cancelled');
     }
-    
+
     const segment = segments[i];
-    const data = await downloadSegment(segment, referer, signal);
+    const data = await downloadSegment(segment, keyCache, referer, signal);
     bytesDownloaded += data.length;
-    
+
     if (onAudioSegmentDownloaded) {
       await onAudioSegmentDownloaded(i, data, segment.duration, segments.length, track.language);
     }
   }
-  
+
   return { bytesDownloaded, segmentCount: segments.length };
 }

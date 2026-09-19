@@ -1,1 +1,1 @@
-export * from '../../services/offlineStorage';
+export * from '../features/offline/manga/storage';

@@ -10,8 +10,8 @@ import {
   ReadingProgress,
   DownloadProgress,
   ReaderSettings,
-} from '@/services/mangadexTypes';
-import { mangaOfflineStorageContract } from '@/shared/contracts/storage';
+} from '../../../services/mangadexTypes';
+import { mangaOfflineStorageContract } from '../../../shared/contracts/storage';
 
 const DB_NAME = mangaOfflineStorageContract.dbName;
 const DB_VERSION = mangaOfflineStorageContract.dbVersion;
@@ -99,7 +99,8 @@ async function putToStore<T>(storeName: string, data: T): Promise<void> {
     const store = transaction.objectStore(storeName);
     const request = store.put(data);
 
-    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
     request.onerror = () => reject(new Error(`Failed to put to ${storeName}`));
   });
 }
@@ -111,7 +112,8 @@ async function deleteFromStore(storeName: string, key: string): Promise<void> {
     const store = transaction.objectStore(storeName);
     const request = store.delete(key);
 
-    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error ?? new Error('Storage transaction aborted'));
     request.onerror = () => reject(new Error(`Failed to delete ${key} from ${storeName}`));
   });
 }
@@ -208,14 +210,14 @@ export async function updateMangaChapterCount(mangaId: string): Promise<void> {
   // Count chapters that actually have downloaded pages
   const chapters = await getByIndex<OfflineChapter>(STORES.CHAPTERS, 'mangaId', mangaId);
   let downloadedCount = 0;
-  
+
   for (const chapter of chapters) {
     const pageCount = await countByIndex(STORES.PAGES, 'chapterId', chapter.id);
-    if (pageCount > 0) {
+    if (chapter.data.pages > 0 && pageCount === chapter.data.pages) {
       downloadedCount++;
     }
   }
-  
+
   manga.chaptersDownloaded = downloadedCount;
   await putToStore(STORES.MANGA, manga);
 }
@@ -226,6 +228,8 @@ export async function saveChapterOffline(
   mangaId: string,
   chapter: ChapterInfo
 ): Promise<void> {
+  const existing = await getOfflineChapter(chapter.id);
+  if (existing && existing.mangaId !== mangaId) throw new Error('Chapter ID belongs to another title');
   const offlineChapter: OfflineChapter = {
     id: chapter.id,
     mangaId,
@@ -284,10 +288,10 @@ export async function isChapterDownloaded(chapterId: string): Promise<boolean> {
   // and either we have the expected count OR the expected count was unknown (0)
   const pages = await getByIndex<OfflinePage>(STORES.PAGES, 'chapterId', chapterId);
   if (pages.length === 0) return false;
-  
+
   // If we have pages and either no expected count or matches expected count
   const expectedPages = chapter.data.pages || 0;
-  return expectedPages === 0 || pages.length >= expectedPages;
+  return expectedPages > 0 && pages.length === expectedPages;
 }
 
 export async function getDownloadedPageCount(chapterId: string): Promise<number> {
@@ -362,18 +366,6 @@ export async function saveReadingProgress(
 
 export async function getReadingProgress(mangaId: string): Promise<ReadingProgress | null> {
   return getFromStore<ReadingProgress>(STORES.READING_PROGRESS, mangaId);
-}
-
-export async function getUnsyncedProgress(): Promise<ReadingProgress[]> {
-  return getByIndex<ReadingProgress>(STORES.READING_PROGRESS, 'synced', 0);
-}
-
-export async function markProgressSynced(mangaId: string): Promise<void> {
-  const progress = await getReadingProgress(mangaId);
-  if (progress) {
-    progress.synced = true;
-    await putToStore(STORES.READING_PROGRESS, progress);
-  }
 }
 
 // ============ Settings Operations ============
@@ -469,18 +461,10 @@ export async function clearAllOfflineData(): Promise<void> {
     'readwrite'
   );
 
-  await Promise.all([
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.MANGA).clear().onsuccess = () => resolve();
-    }),
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.CHAPTERS).clear().onsuccess = () => resolve();
-    }),
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.PAGES).clear().onsuccess = () => resolve();
-    }),
-    new Promise<void>((resolve) => {
-      transaction.objectStore(STORES.READING_PROGRESS).clear().onsuccess = () => resolve();
-    }),
-  ]);
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('Failed to clear manga storage'));
+    transaction.onabort = () => reject(transaction.error || new Error('Manga storage transaction aborted'));
+    for (const name of [STORES.MANGA, STORES.CHAPTERS, STORES.PAGES, STORES.READING_PROGRESS]) transaction.objectStore(name).clear();
+  });
 }

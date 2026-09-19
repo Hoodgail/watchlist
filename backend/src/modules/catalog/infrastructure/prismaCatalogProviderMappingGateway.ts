@@ -1,5 +1,5 @@
 import { prisma } from '../../../config/database.js';
-import { NotFoundError } from '../../../utils/errors.js';
+import { ForbiddenError, NotFoundError } from '../../../utils/errors.js';
 import type { CatalogProviderMappingGateway } from '../application/ports/CatalogProviderMappingGateway.js';
 
 const mappingSelect = {
@@ -16,86 +16,45 @@ const mappingSelect = {
 
 export function createPrismaCatalogProviderMappingGateway(): CatalogProviderMappingGateway {
   return {
-    getMapping(refId, provider) {
+    async getMapping(refId, provider, userId) {
+      if (!userId) return null;
       return prisma.providerMapping.findUnique({
-        where: { refId_provider: { refId, provider } },
+        where: { userId_refId_provider: { userId, refId, provider } },
         select: mappingSelect,
       });
     },
-
-    getMappingsForRefId(refId) {
+    async getMappingsForRefId(refId, userId) {
+      if (!userId) return [];
       return prisma.providerMapping.findMany({
-        where: { refId },
+        where: { userId, refId },
         select: mappingSelect,
         orderBy: { confidence: 'desc' },
       });
     },
-
     upsertMapping(input, userId) {
-      const { refId, provider, providerId, providerTitle, confidence = 1.0 } = input;
+      if (!userId) throw new ForbiddenError('Mapping author is required');
+      const { refId, provider, providerId, providerTitle } = input;
       return prisma.providerMapping.upsert({
-        where: { refId_provider: { refId, provider } },
-        update: {
-          providerId,
-          providerTitle,
-          confidence,
-          verifiedBy: userId || null,
-          updatedAt: new Date(),
-        },
+        where: { userId_refId_provider: { userId, refId, provider } },
+        update: { providerId, providerTitle, confidence: 1, verifiedBy: userId },
         create: {
+          userId,
           refId,
           provider,
           providerId,
           providerTitle,
-          confidence,
-          verifiedBy: userId || null,
+          confidence: 1,
+          verifiedBy: userId,
         },
         select: mappingSelect,
       });
     },
-
-    async createAutoMapping(input) {
-      const { refId, provider, providerId, providerTitle, confidence = 0.5 } = input;
-      const existing = await prisma.providerMapping.findUnique({
-        where: { refId_provider: { refId, provider } },
+    async deleteMapping(refId, provider, userId) {
+      if (!userId) throw new ForbiddenError('Mapping author is required');
+      const deleted = await prisma.providerMapping.deleteMany({
+        where: { userId, refId, provider },
       });
-
-      if (existing && (existing.verifiedBy || existing.confidence >= confidence)) {
-        return null;
-      }
-
-      return prisma.providerMapping.upsert({
-        where: { refId_provider: { refId, provider } },
-        update: {
-          providerId,
-          providerTitle,
-          confidence,
-          updatedAt: new Date(),
-        },
-        create: {
-          refId,
-          provider,
-          providerId,
-          providerTitle,
-          confidence,
-          verifiedBy: null,
-        },
-        select: mappingSelect,
-      });
-    },
-
-    async deleteMapping(refId, provider) {
-      const existing = await prisma.providerMapping.findUnique({
-        where: { refId_provider: { refId, provider } },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Mapping not found');
-      }
-
-      await prisma.providerMapping.delete({
-        where: { refId_provider: { refId, provider } },
-      });
+      if (!deleted.count) throw new NotFoundError('Mapping not found');
     },
   };
 }

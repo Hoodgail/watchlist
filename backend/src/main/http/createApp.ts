@@ -9,15 +9,6 @@ interface CreateAppOptions {
   env?: typeof defaultEnv;
 }
 
-function getClientIp(req: Request): string {
-  return (req.headers['cf-connecting-ip'] as string)
-    || req.ip
-    || req.connection.remoteAddress
-    || req.socket.remoteAddress
-    || (req.headers['x-forwarded-for'] as string)
-    || 'x';
-}
-
 export function createApp(options: CreateAppOptions = {}) {
   const env = options.env ?? defaultEnv;
   const app = express();
@@ -28,14 +19,13 @@ export function createApp(options: CreateAppOptions = {}) {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
-  app.use(cors());
+  app.use(cors({ credentials: true, origin: env.CORS_ORIGIN.split(',').map(origin => origin.trim()) }));
 
   if (env.NODE_ENV !== 'test') {
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
       max: 500,
       message: { error: 'Too many requests, please try again later.' },
-      keyGenerator: getClientIp,
     });
     app.use(limiter);
 
@@ -43,10 +33,12 @@ export function createApp(options: CreateAppOptions = {}) {
       windowMs: 15 * 60 * 1000,
       max: 10,
       message: { error: 'Too many authentication attempts, please try again later.' },
-      keyGenerator: getClientIp,
     });
     app.use('/api/auth/login', authLimiter);
     app.use('/api/auth/register', authLimiter);
+    app.use('/api/auth/recovery', authLimiter);
+    app.use('/api/auth/recovery-email', authLimiter);
+    app.use('/api/auth/oauth', authLimiter);
   }
 
   app.use(express.json({ limit: '10kb' }));

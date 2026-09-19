@@ -170,6 +170,9 @@ export function createPrismaLibraryListGateway(): LibraryListGateway {
 
       try {
         const source = await getOrCreateCatalogMediaSource(input.refId, input.type);
+        if (await prisma.mediaItem.findUnique({ where: { userId_refId: { userId, refId: source.refId } } })) {
+          throw new ConflictError('This item is already in your list');
+        }
         const item = await prisma.mediaItem.create({
           data: {
             userId,
@@ -181,7 +184,7 @@ export function createPrismaLibraryListGateway(): LibraryListGateway {
             notes: input.notes,
             rating: input.rating ?? null,
             imageUrl: null,
-            refId: input.refId,
+            refId: source.refId,
             sourceId: source.id,
             platforms: input.platforms ?? [],
             metacritic: input.metacritic ?? null,

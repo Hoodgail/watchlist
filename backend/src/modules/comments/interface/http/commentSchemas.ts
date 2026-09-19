@@ -4,7 +4,10 @@ import { mediaTypeEnum } from '../../../../utils/schemas.js';
 export const reactionTypeEnum = z.enum(['LIKE', 'HELPFUL', 'FUNNY', 'SPOILER']);
 
 export const createCommentSchema = z.object({
-  content: z.string().min(1, 'Comment content is required').max(2000, 'Comment must be at most 2000 characters'),
+  content: z
+    .string()
+    .min(1, 'Comment content is required')
+    .max(2000, 'Comment must be at most 2000 characters'),
   refId: z.string().min(1, 'Media reference ID is required'),
   mediaType: mediaTypeEnum,
   seasonNumber: z.number().int().min(1).optional(),
@@ -16,7 +19,11 @@ export const createCommentSchema = z.object({
 });
 
 export const updateCommentSchema = z.object({
-  content: z.string().min(1, 'Comment content is required').max(2000, 'Comment must be at most 2000 characters').optional(),
+  content: z
+    .string()
+    .min(1, 'Comment content is required')
+    .max(2000, 'Comment must be at most 2000 characters')
+    .optional(),
   isPublic: z.boolean().optional(),
   isSpoiler: z.boolean().optional(),
 });
@@ -27,7 +34,14 @@ export const getMediaCommentsSchema = z.object({
   episodeNumber: z.coerce.number().int().min(1).optional(),
   chapterNumber: z.coerce.number().int().min(1).optional(),
   volumeNumber: z.coerce.number().int().min(1).optional(),
-  includeExternal: z.string().transform((value) => value === 'true').optional(),
+  friendsOnly: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
+  includeExternal: z
+    .string()
+    .transform((value) => value === 'true')
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   cursor: z.string().optional(),
 });
@@ -43,7 +57,10 @@ export const reactionSchema = z.object({
 });
 
 export const importExternalCommentSchema = z.object({
-  content: z.string().min(1, 'Comment content is required').max(2000, 'Comment must be at most 2000 characters'),
+  content: z
+    .string()
+    .min(1, 'Comment content is required')
+    .max(2000, 'Comment must be at most 2000 characters'),
   refId: z.string().min(1, 'Media reference ID is required'),
   mediaType: mediaTypeEnum,
   externalSource: z.string().min(1, 'External source is required'),

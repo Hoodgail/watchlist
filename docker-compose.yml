@@ -15,6 +15,14 @@ services:
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
       - TMDB_API_KEY=${TMDB_API_KEY}
       - RAWG_API_KEY=${RAWG_API_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://watchlist.hoodgail.me}
+      - FRONTEND_URL=${VITE_FRONTEND_URL:-https://watchlist.hoodgail.me}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
+      - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-}
+      - SMTP_URL=${SMTP_URL:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - CATALOG_EDITOR_IDS=${CATALOG_EDITOR_IDS:-}
 
     networks:
       - dokploy-network
@@ -55,7 +63,6 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL:-https://watchlist-api.hoodgail.me/api}
-        - VITE_TMDB_API_KEY=${VITE_TMDB_API_KEY}
         - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-https://watchlist.hoodgail.me}
     container_name: watchlist-frontend
     restart: unless-stopped
@@ -64,7 +71,7 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - PORT=80
+      - PORT=8080
       - VITE_API_URL=${VITE_API_URL:-https://watchlist-api.hoodgail.me/api}
       - VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-https://watchlist.hoodgail.me}
     networks:
@@ -81,7 +88,7 @@ services:
       - "traefik.http.routers.watchlist-secure.tls=true"
       - "traefik.http.routers.watchlist-secure.tls.certresolver=letsencrypt"
       - "traefik.http.routers.watchlist-secure.service=watchlist"
-      - "traefik.http.services.watchlist.loadbalancer.server.port=80"
+      - "traefik.http.services.watchlist.loadbalancer.server.port=8080"
     healthcheck:
       test:
         [
@@ -90,7 +97,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:80/",
+          "http://localhost:8080/",
         ]
       interval: 30s
       timeout: 10s

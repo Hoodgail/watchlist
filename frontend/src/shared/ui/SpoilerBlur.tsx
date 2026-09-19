@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSpoilerProtection } from '@/context/SpoilerContext';
+import { useSpoilerProtection } from '../../context/SpoilerContext';
 
 interface SpoilerBlurProps {
   itemId: string;

@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MediaItem, SearchResult, MediaStatus } from '@/types';
-import { getStatusesByRefIds, type BulkStatusItem } from '@/features/library/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { 
-  getAllTrendingCategories, 
-  TrendingCategory, 
-  searchResultToMediaItem 
-} from '@/services/mediaSearch';
-import { SuggestToFriendModal } from '@/features/social/components/SuggestToFriendModal';
-import { QuickAddModal } from '@/features/collections/components/QuickAddModal';
-import PublicCommentsFeed from '@/features/comments/components/PublicCommentsFeed';
+import { MediaItem, SearchResult, MediaStatus } from '../../../types';
+import { getStatusesByRefIds, type BulkStatusItem } from '../../library/api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import {
+  getAllTrendingCategories,
+  TrendingCategory,
+  searchResultToMediaItem
+} from '../../../services/mediaSearch';
+import { SuggestToFriendModal } from '../../social/components/SuggestToFriendModal';
+import { QuickAddModal } from '../../collections/components/QuickAddModal';
+import PublicCommentsFeed from '../../comments/components/PublicCommentsFeed';
 
 interface TrendingPageProps {
   onAdd: (item: Omit<MediaItem, 'id'>) => Promise<void> | void;
@@ -57,7 +57,7 @@ const TrendingRow: React.FC<{
       <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest px-1">
         {category.title}
       </h3>
-      
+
       <div className="relative group">
         {/* Left Arrow */}
         {showLeftArrow && (
@@ -119,9 +119,9 @@ const formatStatusBadge = (status: BulkStatusItem): { text: string; color: strin
     DROPPED: { label: 'Dropped', color: 'bg-red-600' },
     PAUSED: { label: 'Paused', color: 'bg-yellow-600' },
   };
-  
+
   const { label, color } = statusMap[status.status] || { label: status.status, color: 'bg-neutral-600' };
-  
+
   // Show progress for active statuses
   if ((status.status === 'WATCHING' || status.status === 'READING') && status.current > 0) {
     if (status.total) {
@@ -129,12 +129,12 @@ const formatStatusBadge = (status: BulkStatusItem): { text: string; color: strin
     }
     return { text: `EP ${status.current}`, color };
   }
-  
+
   // Show hours for playing games
   if (status.status === 'PLAYING' && status.current > 0) {
     return { text: `${status.current} HRS`, color };
   }
-  
+
   return { text: label, color };
 };
 
@@ -151,7 +151,7 @@ const TrendingCard: React.FC<{
   const [imageError, setImageError] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const imageUrl = resolveMediaImageUrl(item.imageUrl);
-  
+
   // Check if user already has this in their list
   const isInList = !!userStatus;
   const statusBadge = userStatus ? formatStatusBadge(userStatus) : null;
@@ -307,9 +307,9 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }
   const fetchUserStatuses = async () => {
     // Collect all refIds from all categories
     const allRefIds = categories.flatMap(cat => cat.items.map(item => item.id));
-    
+
     if (allRefIds.length === 0) return;
-    
+
     try {
       const statuses = await getStatusesByRefIds(allRefIds);
       setUserStatuses(statuses);
@@ -365,7 +365,7 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }
   // Handle add from modal
   const handleModalAdd = async (mediaItem: Omit<MediaItem, 'id'>) => {
     if (!quickAddItem) return;
-    
+
     setAddingItems(prev => new Set(prev).add(quickAddItem.id));
     try {
       await onAdd(mediaItem);
@@ -416,7 +416,7 @@ export const TrendingPage: React.FC<TrendingPageProps> = ({ onAdd, onViewMedia }
       </h2>
 
       {/* Public Comments Feed - Hot Discussions */}
-      <PublicCommentsFeed 
+      <PublicCommentsFeed
         onViewMedia={onViewMedia}
         title="HOT DISCUSSIONS"
       />

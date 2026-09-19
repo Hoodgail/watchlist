@@ -1,3 +1,4 @@
+import { canonicalMediaRefId } from '@shared/mediaIdentity.js';
 import { prisma } from '../../../config/database.js';
 import { parseRefId } from '@shared/refId.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../../utils/errors.js';
@@ -31,8 +32,10 @@ async function refreshMediaSource(source: MediaSource): Promise<MediaSource> {
 }
 
 export async function getOrCreateCatalogMediaSource(refId: string, type: MediaType) {
+  refId = canonicalMediaRefId(refId, type);
   const existing = await prisma.mediaSource.findUnique({ where: { refId } });
   if (existing) {
+    if (existing.type !== type) throw new ConflictError('Reference belongs to a different media type');
     const age = Date.now() - existing.updatedAt.getTime();
     if (age > STALE_THRESHOLD_MS) return refreshMediaSource(existing);
     return existing;
@@ -44,14 +47,17 @@ export async function getOrCreateCatalogMediaSource(refId: string, type: MediaTy
   });
 
   if (alias) {
+    if (alias.mediaSource.type !== type) throw new ConflictError('Alias belongs to a different media type');
     const age = Date.now() - alias.mediaSource.updatedAt.getTime();
     if (age > STALE_THRESHOLD_MS) return refreshMediaSource(alias.mediaSource);
     return alias.mediaSource;
   }
 
   const metadata = await fetchMediaMetadata(refId, type);
-  return prisma.mediaSource.create({
-    data: {
+  return prisma.mediaSource.upsert({
+    where: { refId },
+    update: {},
+    create: {
       refId,
       title: metadata.title,
       imageUrl: metadata.imageUrl,

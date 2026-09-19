@@ -16,7 +16,7 @@ async function seedMediaSource(input: {
 
   return prisma.mediaSource.create({
     data: {
-      refId: `${input.refId}-${sourceCounter}`,
+      refId: `fixture:${input.refId.replace(':', '-')}-${sourceCounter}`,
       title: input.title,
       type: input.type,
       imageUrl: input.imageUrl ?? null,

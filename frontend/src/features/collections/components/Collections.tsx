@@ -3,9 +3,9 @@ import {
   getMyCollections,
   getPublicCollections,
   getStarredCollections,
-} from '@/features/collections/api';
-import { Collection, CollectionRole } from '@/types';
-import { useToast } from '@/context/ToastContext';
+} from '../api';
+import { Collection, CollectionRole } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 interface CollectionsProps {
   onSelectCollection: (id: string) => void;
@@ -34,7 +34,7 @@ export const Collections: React.FC<CollectionsProps> = ({
   // Debounced search for public tab
   useEffect(() => {
     if (activeTab !== 'public') return;
-    
+
     const timer = setTimeout(() => {
       setPage(1);
       loadCollections();
@@ -285,7 +285,7 @@ const CollectionCard: React.FC<CollectionCardProps> = ({
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900" />
         )}
-        
+
         {/* Overlay badges */}
         <div className="absolute top-2 left-2 flex gap-1.5">
           {showVisibilityBadge && (

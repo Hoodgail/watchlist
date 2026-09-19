@@ -1,3 +1,4 @@
+import { InvalidMediaReferenceError } from '@shared/mediaIdentity.js';
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors.js';
 import { env } from '../config/env.js';
@@ -8,6 +9,10 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if (err instanceof InvalidMediaReferenceError) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       error: err.message,
@@ -19,8 +24,8 @@ export function errorHandler(
   console.error('Unexpected error:', err);
 
   // Don't expose internal errors in production
-  const message = env.NODE_ENV === 'production' 
-    ? 'Internal server error' 
+  const message = env.NODE_ENV === 'production'
+    ? 'Internal server error'
     : err.message;
 
   res.status(500).json({

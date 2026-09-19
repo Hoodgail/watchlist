@@ -82,6 +82,7 @@ export interface GetMediaCommentsOptions {
   chapterNumber?: number;
   volumeNumber?: number;
   includeExternal?: boolean;
+  friendsOnly?: boolean;
   limit?: number;
   cursor?: string;
 }

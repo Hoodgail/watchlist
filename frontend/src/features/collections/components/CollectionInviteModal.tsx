@@ -3,11 +3,11 @@ import {
   createCollectionInvite,
   getCollectionInvites,
   revokeCollectionInvite,
-} from '@/features/collections/api';
-import { ModalFrame } from '@/shared/ui';
-import { formatExpiryTime } from '@/shared/utils/time';
-import { CollectionInvite, CollectionRole } from '@/types';
-import { useToast } from '@/context/ToastContext';
+} from '../api';
+import { ModalFrame } from '../../../shared/ui/index';
+import { formatExpiryTime } from '../../../shared/utils/time';
+import { CollectionInvite, CollectionRole } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 // Copy icon
 const CopyIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -59,7 +59,7 @@ export const CollectionInviteModal: React.FC<CollectionInviteModalProps> = ({
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  
+
   // New invite form
   const [showForm, setShowForm] = useState(false);
   const [role, setRole] = useState<'EDITOR' | 'VIEWER'>('VIEWER');

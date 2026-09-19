@@ -1,1 +1,1 @@
-export * from '../../../services/api/collections';
+export * from '../../features/collections/api';

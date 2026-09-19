@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { VideoProviderName, SearchResult } from '@/types';
-import { searchWithProvider, PaginatedSearchResults } from '@/services/mediaSearch';
-import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '@/services/providerConfig';
-import { getProxiedImageUrl } from '@/shared/media';
+import { VideoProviderName, SearchResult } from '../../../types';
+import { searchWithProvider, PaginatedSearchResults } from '../../../services/mediaSearch';
+import { getWorkingProviders, getProviderDisplayName, VIDEO_PROVIDER_BASE_URLS } from '../../../services/providerConfig';
+import { getProxiedImageUrl } from '../../../shared/media/index';
 
 interface MediaSelectionModalProps {
   /** Title being searched */

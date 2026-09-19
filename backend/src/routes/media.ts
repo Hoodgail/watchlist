@@ -1,3 +1,4 @@
+import { requireCatalogEditor } from '../middleware/catalogEditor.js';
 import { Router } from 'express';
 import * as mediaSearchController from '../controllers/mediaSearchController.js';
 import * as mediaSourceController from '../controllers/mediaSourceController.js';
@@ -33,9 +34,9 @@ router.get('/trending/games', mediaSearchController.getTrendingGames);
 router.get('/trending/games/popular', mediaSearchController.getPopularGames);
 
 // MediaSource routes
-router.post('/link', authenticate, mediaSourceController.linkSource);
-router.delete('/alias/:id', authenticate, mediaSourceController.removeAlias);
+router.post('/link', authenticate, requireCatalogEditor, mediaSourceController.linkSource);
+router.delete('/alias/:id', authenticate, requireCatalogEditor, mediaSourceController.removeAlias);
 router.get('/source/:id', mediaSourceController.getSourceWithAliases);
-router.get('/source/by-ref/:refId(*)', mediaSourceController.findSourceByRefId);
+router.get('/source/by-ref/:refId', mediaSourceController.findSourceByRefId);
 
 export default router;

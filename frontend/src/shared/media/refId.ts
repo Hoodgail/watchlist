@@ -1,6 +1,6 @@
 import { createRefId, isSourceRefId, parseRefId } from '@shared/refId';
 import { ALL_MANGA_PROVIDERS, ALL_VIDEO_PROVIDERS, type MangaProviderName } from './providerMetadata';
-import type { ProviderName, VideoProviderName } from '../../../types';
+import type { ProviderName, VideoProviderName } from '../../types';
 
 export function extractProviderFromRefId(refId: string): ProviderName | null {
   return parseRefId(refId)?.source as ProviderName | null;

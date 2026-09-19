@@ -4,6 +4,9 @@ import path from 'path';
 const defaultDatabaseUrl = 'postgresql://postgres:password@127.0.0.1:54329/watchlist_test?schema=public';
 const hasExternalTestDatabase = Boolean(process.env.DATABASE_URL);
 
+if (process.env.DATABASE_URL && !new URL(process.env.DATABASE_URL).pathname.endsWith('_test')) {
+  throw new Error('Database tests require a dedicated database ending in _test');
+}
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET ??= 'test-jwt-secret-key-minimum-32-characters-long';
 process.env.JWT_REFRESH_SECRET ??= 'test-jwt-refresh-secret-key-minimum-32-characters-long';
@@ -13,7 +16,7 @@ process.env.WATCHLIST_TEST_DB_MODE ??= hasExternalTestDatabase ? 'external' : 'e
 export default defineConfig({
   resolve: {
     alias: {
-      '@shared': path.resolve(__dirname, '../shared'),
+      '@shared': path.resolve(import.meta.dirname, '../shared'),
     },
   },
   test: {
@@ -30,10 +33,6 @@ export default defineConfig({
     fileParallelism: false,
     // Run tests within a file sequentially
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
   },
 });

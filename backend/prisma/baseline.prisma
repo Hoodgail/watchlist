@@ -1,0 +1,459 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MediaType {
+  TV
+  MOVIE
+  ANIME
+  MANGA
+  BOOK
+  LIGHT_NOVEL
+  COMIC
+  GAME
+}
+
+enum MediaStatus {
+  WATCHING
+  READING
+  PLAYING
+  COMPLETED
+  PLAN_TO_WATCH
+  DROPPED
+  PAUSED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id                     String    @id @default(uuid())
+  username               String    @unique @db.VarChar(32)
+  email                  String    @unique @db.VarChar(255)
+  passwordHash           String?   @map("password_hash") @db.VarChar(255)
+  displayName            String?   @map("display_name") @db.VarChar(64)
+  avatarUrl              String?   @map("avatar_url") @db.VarChar(500)
+  isPublic               Boolean   @default(false) @map("is_public")
+  recoveryEmail          String?   @map("recovery_email") @db.VarChar(255)
+  recoveryEmailVerified  Boolean   @default(false) @map("recovery_email_verified")
+  recoveryEmailToken     String?   @map("recovery_email_token") @db.VarChar(255)
+  recoveryEmailTokenExp  DateTime? @map("recovery_email_token_exp")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  mediaItems             MediaItem[]
+  following              Friendship[]    @relation("UserFollowing")
+  followers              Friendship[]    @relation("UserFollowers")
+  sentFriendRequests     FriendRequest[] @relation("SentRequests")
+  receivedFriendRequests FriendRequest[] @relation("ReceivedRequests")
+  refreshTokens          RefreshToken[]
+  oauthAccounts          OAuthAccount[]
+  sentSuggestions        Suggestion[]       @relation("SentSuggestions")
+  receivedSuggestions    Suggestion[]       @relation("ReceivedSuggestions")
+  watchProgress          WatchProgress[]
+  comments               Comment[]
+  commentReactions       CommentReaction[]
+  ownedCollections       Collection[]          @relation("OwnedCollections")
+  collectionMemberships  CollectionMember[]
+  collectionStars        CollectionStar[]
+  collectionComments     CollectionComment[]
+
+  @@map("users")
+}
+
+model MediaItem {
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  title     String?     @db.VarChar(255)
+  type      MediaType
+  status    MediaStatus
+  current   Int         @default(0)
+  total     Int?
+  notes     String?     @db.Text
+  rating    Int?        @db.SmallInt // Personal rating 0-10
+  imageUrl  String?     @map("image_url") @db.VarChar(500)
+  refId     String      @map("ref_id") @db.VarChar(100) // External API ref as "source:id" (e.g., "tmdb:12345", "mangadex:abc123")
+  sourceId  String?     @map("source_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Game-specific fields (from RAWG API)
+  platforms     String[] @default([])  // Platform names (e.g., ["PC", "PlayStation 5", "Xbox One"])
+  metacritic    Int?     @db.SmallInt  // Metacritic score 0-100
+  genres        String[] @default([])  // Genre names (e.g., ["Action", "RPG"])
+  playtimeHours Int?     @map("playtime_hours") @db.SmallInt  // Average playtime in hours
+
+  // Relations
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source MediaSource? @relation(fields: [sourceId], references: [id])
+
+  @@unique([userId, refId])
+  @@index([userId])
+  @@index([userId, type])
+  @@index([sourceId])
+  @@map("media_items")
+}
+
+model MediaSource {
+  id          String    @id @default(uuid())
+  refId       String    @unique @map("ref_id") @db.VarChar(100)
+  title       String    @db.VarChar(255)
+  imageUrl    String?   @map("image_url") @db.VarChar(500)
+  total       Int?
+  type        MediaType
+  year        Int?      @db.SmallInt
+  releaseDate String?   @map("release_date") @db.VarChar(50)
+  description String?   @db.Text
+  genres      String[]  @default([])
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Game-specific fields
+  platforms     String[] @default([])
+  playtimeHours Int?     @map("playtime_hours") @db.SmallInt
+
+  // Relations
+  mediaItems      MediaItem[]
+  suggestions     Suggestion[]
+  aliases         MediaSourceAlias[]
+  collectionItems CollectionItem[]
+
+  @@map("media_sources")
+}
+
+model MediaSourceAlias {
+  id            String   @id @default(uuid())
+  mediaSourceId String   @map("media_source_id")
+  refId         String   @unique @map("ref_id") @db.VarChar(200)
+  provider      String   @db.VarChar(50) // "tmdb", "hianime", "anilist", etc.
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  mediaSource MediaSource @relation(fields: [mediaSourceId], references: [id], onDelete: Cascade)
+
+  @@index([mediaSourceId])
+  @@map("media_source_aliases")
+}
+
+model Friendship {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("friendships")
+}
+
+model FriendRequest {
+  id         String              @id @default(uuid())
+  fromUserId String              @map("from_user_id")
+  toUserId   String              @map("to_user_id")
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  fromUser User @relation("SentRequests", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("ReceivedRequests", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@map("friend_requests")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
+}
+
+model Suggestion {
+  id         String           @id @default(uuid())
+  fromUserId String           @map("from_user_id")
+  toUserId   String           @map("to_user_id")
+  title      String?          @db.VarChar(255)
+  type       MediaType
+  refId      String           @map("ref_id")
+  imageUrl   String?          @map("image_url")
+  message    String?          @db.Text
+  status     SuggestionStatus @default(PENDING)
+  sourceId   String?          @map("source_id")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  fromUser User         @relation("SentSuggestions", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User         @relation("ReceivedSuggestions", fields: [toUserId], references: [id], onDelete: Cascade)
+  source   MediaSource? @relation(fields: [sourceId], references: [id])
+
+  @@unique([fromUserId, toUserId, refId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([toUserId, status])
+  @@index([sourceId])
+  @@map("suggestions")
+}
+
+model OAuthAccount {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  provider     String    @db.VarChar(32) // "discord", "google", etc.
+  providerId   String    @map("provider_id") // User ID from provider
+  accessToken  String?   @map("access_token") @db.Text
+  refreshToken String?   @map("refresh_token") @db.Text
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model WatchProgress {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  mediaId       String   @map("media_id") @db.VarChar(100) // The provider:id ref (e.g., "tmdb:12345")
+  episodeId     String   @map("episode_id") @db.VarChar(100) // Episode identifier (empty string for movies)
+  episodeNumber Int?     @map("episode_number") // Semantic episode number (provider-agnostic)
+  seasonNumber  Int?     @map("season_number") // Semantic season number (provider-agnostic)
+  currentTime   Float    @map("current_time") // Current playback position in seconds
+  duration      Float // Total duration in seconds
+  provider      String   @db.VarChar(50) // Provider name (e.g., "tmdb", "anilist")
+  completed     Boolean  @default(false) // Whether the media/episode has been completed
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mediaId, episodeId])
+  @@index([userId])
+  @@index([userId, mediaId])
+  @@map("watch_progress")
+}
+
+// Provider mapping for resolving external IDs (TMDB, AniList) to video provider-specific IDs
+// This stores user-verified mappings to avoid fuzzy match errors
+model ProviderMapping {
+  id            String   @id @default(uuid())
+  refId         String   @map("ref_id") @db.VarChar(100) // External ID (e.g., "tmdb:12345", "anilist:456")
+  provider      String   @db.VarChar(50) // Video provider (e.g., "hianime", "flixhq")
+  providerId    String   @map("provider_id") @db.VarChar(255) // Provider-specific ID
+  providerTitle String   @map("provider_title") @db.VarChar(255) // Title from provider (for display)
+  confidence    Float    @default(1.0) // Match confidence score (1.0 = user verified)
+  verifiedBy    String?  @map("verified_by") // User ID who verified (null = auto-matched)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([refId, provider])
+  @@index([refId])
+  @@index([provider])
+  @@map("provider_mappings")
+}
+
+enum ReactionType {
+  LIKE
+  HELPFUL
+  FUNNY
+  INSIGHTFUL
+  SPOILER
+}
+
+enum CollectionRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+model Comment {
+  id                   String      @id @default(uuid())
+  userId               String?     @map("user_id") // Nullable for external comments
+  content              String      @db.VarChar(2000)
+  refId                String      @map("ref_id") @db.VarChar(100) // Media reference (e.g., "tmdb:12345", "anilist:98765")
+  mediaType            MediaType   @map("media_type")
+  seasonNumber         Int?        @map("season_number") // For season-level comments
+  episodeNumber        Int?        @map("episode_number") // For episode-level comments
+  chapterNumber        Int?        @map("chapter_number") // For manga chapter comments
+  volumeNumber         Int?        @map("volume_number") // For manga volume comments
+  externalSource       String?     @map("external_source") @db.VarChar(50) // e.g., "reddit", "mal", "anilist", "letterboxd"
+  externalId           String?     @map("external_id") @db.VarChar(255) // ID from external source
+  externalAuthor       String?     @map("external_author") @db.VarChar(100) // Username from external source
+  externalAuthorAvatar String?     @map("external_author_avatar") @db.VarChar(500) // Avatar URL from external
+  externalUrl          String?     @map("external_url") @db.VarChar(500) // Link to original comment
+  isPublic             Boolean     @default(true) @map("is_public") // Inherits from user's isPublic by default
+  isSpoiler            Boolean     @default(false) @map("is_spoiler") // Marks comment as containing spoilers
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions CommentReaction[]
+
+  @@index([refId, mediaType])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([externalSource, externalId])
+  @@map("comments")
+}
+
+model CommentReaction {
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  commentId    String       @map("comment_id")
+  reactionType ReactionType @map("reaction_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId, reactionType])
+  @@index([commentId])
+  @@index([userId])
+  @@map("comment_reactions")
+}
+
+// ============================================
+// Collection Models - Custom curated lists
+// ============================================
+
+model Collection {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  coverUrl    String?  @map("cover_url") @db.VarChar(500)
+  isPublic    Boolean  @default(false) @map("is_public")
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner    User                 @relation("OwnedCollections", fields: [ownerId], references: [id], onDelete: Cascade)
+  items    CollectionItem[]
+  members  CollectionMember[]
+  stars    CollectionStar[]
+  invites  CollectionInvite[]
+  comments CollectionComment[]
+
+  @@index([ownerId])
+  @@index([isPublic])
+  @@map("collections")
+}
+
+model CollectionItem {
+  id           String    @id @default(uuid())
+  collectionId String    @map("collection_id")
+  refId        String    @map("ref_id") @db.VarChar(100)
+  title        String?   @db.VarChar(255)
+  imageUrl     String?   @map("image_url") @db.VarChar(500)
+  type         MediaType
+  orderIndex   Int       @map("order_index")
+  note         String?   @db.Text // Optional note for this item (e.g., "Watch after Episode 12")
+  sourceId     String?   @map("source_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  collection Collection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  source     MediaSource? @relation(fields: [sourceId], references: [id])
+
+  @@unique([collectionId, refId])
+  @@index([collectionId])
+  @@index([sourceId])
+  @@map("collection_items")
+}
+
+model CollectionMember {
+  id           String         @id @default(uuid())
+  collectionId String         @map("collection_id")
+  userId       String         @map("user_id")
+  role         CollectionRole @default(VIEWER)
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, userId])
+  @@index([userId])
+  @@map("collection_members")
+}
+
+model CollectionStar {
+  id           String   @id @default(uuid())
+  collectionId String   @map("collection_id")
+  userId       String   @map("user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, userId])
+  @@index([userId])
+  @@map("collection_stars")
+}
+
+model CollectionInvite {
+  id           String         @id @default(uuid())
+  collectionId String         @map("collection_id")
+  token        String         @unique @db.VarChar(64)
+  role         CollectionRole @default(VIEWER)
+  maxUses      Int?           @map("max_uses")
+  useCount     Int            @default(0) @map("use_count")
+  expiresAt    DateTime       @map("expires_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([token])
+  @@map("collection_invites")
+}
+
+model CollectionComment {
+  id           String   @id @default(uuid())
+  collectionId String   @map("collection_id")
+  userId       String   @map("user_id")
+  content      String   @db.VarChar(2000)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([userId])
+  @@map("collection_comments")
+}

@@ -1,12 +1,12 @@
 // MangaDetail Component - Shows manga details and chapter list
 import React, { useState, useEffect, useCallback } from 'react';
-import { MangaDetails, ChapterInfo, VolumeWithChapters } from '@/services/mangadexTypes';
-import * as mangaService from '@/services/manga';
-import { MangaProviderName, MangaChapter, MANGA_PROVIDER_BASE_URLS, proxyImageUrl as proxyImageUrlBase } from '@/services/manga';
-import { isMangaPlusUrl } from '@/services/mangaplus';
-import { useOffline } from '@/context/OfflineContext';
-import { useToast } from '@/context/ToastContext';
-import { getProviderImageUrl } from '@/shared/media';
+import { MangaDetails, ChapterInfo, VolumeWithChapters } from '../../../services/mangadexTypes';
+import * as mangaService from '../../../services/manga';
+import { MangaProviderName, MangaChapter, MANGA_PROVIDER_BASE_URLS, proxyImageUrl as proxyImageUrlBase } from '../../../services/manga';
+import { isMangaPlusUrl } from '../../../services/mangaplus';
+import { useOffline } from '../../../context/OfflineContext';
+import { useToast } from '../../../context/ToastContext';
+import { getProviderImageUrl } from '../../../shared/media/index';
 
 interface MangaDetailProps {
   mangaId: string;
@@ -16,6 +16,7 @@ interface MangaDetailProps {
 }
 
 function getMangaImageUrl(url: string | null, provider: MangaProviderName = 'mangadex'): string | null {
+  if (!url) return null;
   const referer = MANGA_PROVIDER_BASE_URLS[provider];
   return getProviderImageUrl(url, provider) ?? proxyImageUrlBase(url, referer);
 }
@@ -52,7 +53,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
   const [selectedChapters, setSelectedChapters] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  
+
   // Pagination state for providers that support it (e.g., comick)
   const [chapterPage, setChapterPage] = useState(1);
   const [hasMoreChapters, setHasMoreChapters] = useState(false);
@@ -82,7 +83,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     try {
       // Try to load from offline storage first
       const offlineManga = downloadedManga.find(m => m.id === mangaId);
-      
+
       if (offlineManga) {
         setManga(offlineManga.data);
         // Load offline cover if available
@@ -97,7 +98,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
       if (isOnline) {
         // Use unified manga service for all providers
         const mangaInfo = await mangaService.getMangaInfo(mangaId, provider);
-        
+
         // Convert to MangaDetails format for UI compatibility
         const mangaData: MangaDetails = {
           id: mangaInfo.id,
@@ -121,7 +122,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
         };
 
         setManga(mangaData);
-        
+
         // Load chapters
         loadChapters();
       } else if (!offlineManga) {
@@ -144,7 +145,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
 
     try {
       let chaptersData: ChapterInfo[] = [];
-      
+
       // For providers that support pagination (like comick), use paginated API
       if (supportsPagination) {
         const result = await mangaService.getChaptersPaginated(mangaId, provider, page);
@@ -168,7 +169,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
         // For other providers, fetch all chapters from manga info
         const mangaInfo = await mangaService.getMangaInfo(mangaId, provider);
         const chapters = mangaInfo.chapters || [];
-        
+
         chaptersData = chapters.map(ch => ({
           id: ch.id,
           title: ch.title || null,
@@ -182,10 +183,10 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
         }));
         setHasMoreChapters(false);
       }
-      
+
       // Merge with existing chapters if appending
-      const allChaptersData = append 
-        ? [...allChapters, ...chaptersData] 
+      const allChaptersData = append
+        ? [...allChapters, ...chaptersData]
         : chaptersData;
 
       // Group chapters by volume (or "No Volume" if none)
@@ -220,7 +221,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
       setLoadingMoreChapters(false);
     }
   };
-  
+
   const loadMoreChapters = () => {
     if (hasMoreChapters && !loadingMoreChapters) {
       loadChapters(chapterPage + 1, true);
@@ -282,7 +283,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
     if (!manga || selectedChapters.size === 0) return;
 
     const chaptersToDownload = allChapters.filter(ch => selectedChapters.has(ch.id));
-    
+
     try {
       await downloadChapters(mangaId, manga.title, chaptersToDownload, provider);
       showToast(`Downloading ${chaptersToDownload.length} chapters...`, 'success');
@@ -372,7 +373,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
             </svg>
             <span className="text-xs uppercase tracking-wider">Back</span>
           </button>
-          
+
           {!isOnline && (
             <div className="flex items-center gap-2 text-red-500 text-xs uppercase tracking-wider">
               <div className="w-2 h-2 bg-red-500 rounded-full" />
@@ -423,19 +424,19 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
               }`}>
                 {manga.status}
               </span>
-              
+
               {manga.year && (
                 <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500">
                   {manga.year}
                 </span>
               )}
-              
+
               {manga.demographic && (
                 <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500 uppercase">
                   {manga.demographic}
                 </span>
               )}
-              
+
               {provider && (
                 <span className="px-2 py-0.5 text-xs border border-neutral-700 text-neutral-400 uppercase">
                   {mangaService.getProviderDisplayName(provider)}
@@ -503,7 +504,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
               Save Offline
             </button>
           )}
-          
+
           {isOnline && allChapters.length > 0 && (
             <button
               onClick={handleDownloadAll}
@@ -536,7 +537,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
               {activeDownload.progress.filter(p => p.status === 'completed').length} / {activeDownload.chapterIds.length}
             </span>
           </div>
-          
+
           {/* Overall progress bar */}
           <div className="w-full h-2 bg-neutral-800 mb-3">
             <div
@@ -546,11 +547,11 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
               }}
             />
           </div>
-          
+
           {/* Current chapter progress */}
           {activeDownload.progress.map((prog, idx) => {
             if (prog.status !== 'downloading') return null;
-            const percent = prog.totalPages > 0 
+            const percent = prog.totalPages > 0
               ? Math.round((prog.currentPage / prog.totalPages) * 100)
               : 0;
             return (
@@ -568,7 +569,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
           <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">
             Chapters {allChapters.length > 0 && `(${allChapters.length}${totalChapters ? ` / ${totalChapters}` : ''})`}
           </h2>
-          
+
           {allChapters.length > 0 && (
             <button
               onClick={() => {
@@ -608,7 +609,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
               const isExpanded = expandedVolumes.has(volume.volume);
               const allDownloaded = volume.chapters.every(ch => isChapterDownloaded(ch.id));
               const someDownloaded = volume.chapters.some(ch => isChapterDownloaded(ch.id));
-              
+
               return (
                 <div key={volume.volume} className="border border-neutral-800">
                   {/* Volume Header */}
@@ -659,7 +660,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                           </button>
                         </div>
                       )}
-                      
+
                       {volume.chapters.map(chapter => {
                         const downloaded = isChapterDownloaded(chapter.id);
                         const fullChapter = allChapters.find(c => c.id === chapter.id);
@@ -668,16 +669,16 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                         const isMangaPlus = isMangaPlusUrl(fullChapter?.externalUrl || null);
                         const isUnavailable = fullChapter?.isUnavailable && !hasExternalUrl;
                         const canRead = !isUnavailable || downloaded;
-                        
+
                         // Check if this chapter is currently downloading
-                        const downloadProgress = activeDownload?.mangaId === mangaId 
+                        const downloadProgress = activeDownload?.mangaId === mangaId
                           ? activeDownload.progress.find(p => p.chapterId === chapter.id)
                           : null;
                         const isDownloading = downloadProgress?.status === 'downloading';
                         const downloadPercent = downloadProgress && downloadProgress.totalPages > 0
                           ? Math.round((downloadProgress.currentPage / downloadProgress.totalPages) * 100)
                           : 0;
-                        
+
                         return (
                           <div
                             key={chapter.id}
@@ -695,7 +696,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                   disabled={isUnavailable}
                                 />
                               )}
-                              
+
                               <button
                                 onClick={() => {
                                   if (isSelectionMode) {
@@ -760,7 +761,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
                                   {isMangaPlus ? 'M+' : 'EXT'}
                                 </span>
                               )}
-                              
+
                               {!isSelectionMode && (
                                 downloaded && !isDownloading ? (
                                   <button
@@ -795,7 +796,7 @@ export const MangaDetail: React.FC<MangaDetailProps> = ({
             })}
           </div>
         )}
-        
+
         {/* Load More Button for paginated providers */}
         {hasMoreChapters && !chaptersLoading && (
           <div className="mt-4 flex justify-center">

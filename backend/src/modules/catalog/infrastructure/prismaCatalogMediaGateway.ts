@@ -1,3 +1,4 @@
+import { canonicalMediaRefId } from '@shared/mediaIdentity.js';
 import * as tmdbService from '../../../services/tmdbService.js';
 import * as consumetService from '../../../services/consumetService.js';
 import * as mangadexService from '../../../services/mangadexService.js';
@@ -18,7 +19,7 @@ const createPrefixedId = createRefId;
 
 function tmdbMovieToSearchResult(item: tmdbService.TMDBSearchResult): SearchResult {
   return {
-    id: createPrefixedId('tmdb', item.id),
+    id: canonicalMediaRefId(`tmdb:${item.id}`, 'MOVIE'),
     title: item.title || 'Unknown Title',
     type: 'MOVIE',
     total: 1,
@@ -32,7 +33,7 @@ function tmdbMovieToSearchResult(item: tmdbService.TMDBSearchResult): SearchResu
 function tmdbTVToSearchResult(item: tmdbService.TMDBSearchResult, details?: tmdbService.TMDBTVDetails | null): SearchResult {
   const isAnime = tmdbService.isAnime(item);
   return {
-    id: createPrefixedId('tmdb', item.id),
+    id: canonicalMediaRefId(`tmdb:${item.id}`, 'TV'),
     title: item.name || 'Unknown Title',
     type: isAnime ? 'ANIME' : 'TV',
     total: details?.number_of_episodes || null,
@@ -286,7 +287,7 @@ async function getTrendingMovies(timeWindow: 'day' | 'week' = 'week'): Promise<S
 async function getTrendingTV(timeWindow: 'day' | 'week' = 'week'): Promise<SearchResult[]> {
   const results = await tmdbService.getTrendingTMDB('tv', timeWindow);
   return results.slice(0, 20).map((item) => ({
-    id: createPrefixedId('tmdb', item.id),
+    id: canonicalMediaRefId(`tmdb:${item.id}`, 'TV'),
     title: item.name || 'Unknown Title',
     type: tmdbService.isAnime(item) ? 'ANIME' : 'TV',
     total: null,
@@ -343,7 +344,7 @@ async function getAllTrending(): Promise<TrendingCategory[]> {
       .map(async (item) => item.media_type === 'movie'
         ? tmdbMovieToSearchResult(item)
         : {
-            id: createPrefixedId('tmdb', item.id),
+            id: canonicalMediaRefId(`tmdb:${item.id}`, 'TV'),
             title: item.name || 'Unknown Title',
             type: tmdbService.isAnime(item) ? 'ANIME' : 'TV',
             total: null,

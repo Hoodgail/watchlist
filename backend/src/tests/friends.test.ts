@@ -174,7 +174,7 @@ describeDb('Friends Endpoints', () => {
       const user2 = await createTestUser();
 
       // User2 adds items to their list
-      const showSource = await seedMediaSource({ refId: 'tmdb:friend-show', title: 'Show 1', type: 'TV', total: 10 });
+      const showSource = await seedMediaSource({ refId: 'fixture:friend-show', title: 'Show 1', type: 'TV', total: 10 });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
@@ -278,13 +278,13 @@ describeDb('Friends Endpoints', () => {
       const user2 = await createTestUser();
 
       // User2 adds items
-      const activeShowSource = await seedMediaSource({ refId: 'tmdb:active-show', title: 'Active Show', type: 'TV' });
+      const activeShowSource = await seedMediaSource({ refId: 'fixture:active-show', title: 'Active Show', type: 'TV' });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))
         .send({ refId: activeShowSource.refId, type: 'TV', status: 'WATCHING', current: 5 });
 
-      const completedShowSource = await seedMediaSource({ refId: 'tmdb:completed-show', title: 'Completed Show', type: 'TV', total: 10 });
+      const completedShowSource = await seedMediaSource({ refId: 'fixture:completed-show', title: 'Completed Show', type: 'TV', total: 10 });
       await request(app)
         .post('/api/list')
         .set(authHeader(user2.accessToken))

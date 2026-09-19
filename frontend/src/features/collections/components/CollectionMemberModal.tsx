@@ -4,11 +4,11 @@ import {
   getCollectionMembers,
   removeCollectionMember,
   updateMemberRole,
-} from '@/features/collections/api';
-import { ModalFrame, UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
-import { CollectionMember, CollectionRole } from '@/types';
-import { useToast } from '@/context/ToastContext';
+} from '../api';
+import { ModalFrame, UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
+import { CollectionMember, CollectionRole } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 // Role badge component
 const RoleBadge: React.FC<{ role: CollectionRole }> = ({ role }) => {
@@ -47,7 +47,7 @@ export const CollectionMemberModal: React.FC<CollectionMemberModalProps> = ({
   const [members, setMembers] = useState<CollectionMember[]>(initialMembers);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  
+
   // Add member form
   const [showAddForm, setShowAddForm] = useState(false);
   const [username, setUsername] = useState('');

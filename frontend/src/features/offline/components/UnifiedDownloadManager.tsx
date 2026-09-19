@@ -1,16 +1,17 @@
+import { parseVideoRefId } from '@/shared/media';
 // UnifiedDownloadManager Component - Shows both video and manga downloads
 // Allows users to access their downloaded content without WiFi
 import React, { useState, useEffect, useCallback } from 'react';
-import { type QualityOption } from '@/features/offline/video/hls';
-import { formatBytes, type StorageInfo } from '@/features/offline/manga/storage';
+import { type QualityOption } from '../video/hls';
+import { formatBytes, type StorageInfo } from '../manga/storage';
 import {
   formatBytes as formatVideoBytes,
   type VideoStorageInfo,
-} from '@/features/offline/video/storage';
-import { useOffline } from '@/context/OfflineContext';
-import { useOfflineVideo } from '@/context/OfflineVideoContext';
-import { getProviderDisplayName, MangaProviderName } from '@/services/manga';
-import { VideoProviderName } from '@/types';
+} from '../video/storage';
+import { useOffline } from '../../../context/OfflineContext';
+import { useOfflineVideo } from '../../../context/OfflineVideoContext';
+import { getProviderDisplayName, MangaProviderName } from '../../../services/manga';
+import { VideoProviderName } from '../../../types';
 
 // Tab type for filtering content
 type ContentTab = 'all' | 'video' | 'manga';
@@ -82,16 +83,15 @@ export const UnifiedDownloadManager: React.FC<UnifiedDownloadManagerProps> = ({
   // Calculate combined storage stats
   const totalStorageUsed = (mangaStorageInfo?.estimatedSize || 0) + (videoStorageInfo?.estimatedSize || 0);
   const storageQuota = mangaStorageInfo?.quota || videoStorageInfo?.quota || null;
-  
+
   // Count active downloads
-  const totalQueuedDownloads = 
+  const totalQueuedDownloads =
     (mangaDownloadQueue.length + (mangaActiveDownload ? 1 : 0)) +
     (videoDownloadQueue.length + (videoActiveDownload ? 1 : 0));
 
   // Get default provider for video (we'll need to track this better)
   const getVideoProvider = (mediaId: string): VideoProviderName => {
-    // For now, default to hianime - in a real implementation, store the provider with the media
-    return 'hianime';
+    return parseVideoRefId(mediaId)?.provider ?? 'hianime';
   };
 
   const isPaused = mangaActiveDownload?.status === 'paused';
@@ -207,7 +207,7 @@ export const UnifiedDownloadManager: React.FC<UnifiedDownloadManagerProps> = ({
       {showQueue && totalQueuedDownloads > 0 && (
         <div className="space-y-4 border-b border-neutral-800 pb-6 mb-2">
           <h3 className="text-xs uppercase tracking-wider text-neutral-600">Active Downloads</h3>
-          
+
           {/* Video Active Download */}
           {videoActiveDownload && (
             <div className="bg-neutral-950 border border-neutral-800 p-4">
@@ -262,7 +262,7 @@ export const UnifiedDownloadManager: React.FC<UnifiedDownloadManagerProps> = ({
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-neutral-500">
-                      {videoActiveDownload.isHLS 
+                      {videoActiveDownload.isHLS
                         ? `Segment ${videoActiveDownload.segmentsDownloaded || 0}/${videoActiveDownload.totalSegments || '?'}`
                         : 'Downloading...'}
                     </span>
@@ -333,7 +333,7 @@ export const UnifiedDownloadManager: React.FC<UnifiedDownloadManagerProps> = ({
               {/* Chapter progress bars */}
               <div className="space-y-2">
                 {mangaActiveDownload.progress.map((prog, idx) => {
-                  const percent = prog.totalPages > 0 
+                  const percent = prog.totalPages > 0
                     ? Math.round((prog.currentPage / prog.totalPages) * 100)
                     : 0;
                   return (
@@ -564,7 +564,7 @@ export const UnifiedDownloadManager: React.FC<UnifiedDownloadManagerProps> = ({
             </svg>
             <p className="uppercase tracking-wider text-sm">No downloaded content</p>
             <p className="text-xs mt-2 text-neutral-700">
-              {isOnline 
+              {isOnline
                 ? 'Download episodes or chapters from detail pages for offline viewing'
                 : 'Go online to download content for offline viewing'
               }

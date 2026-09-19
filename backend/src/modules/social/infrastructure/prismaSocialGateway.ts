@@ -387,14 +387,14 @@ export function createPrismaSocialGateway(): SocialGateway {
 
       if (videoRefIds.length > 0) {
         const providerMappings = await prisma.providerMapping.findMany({
-          where: { refId: { in: videoRefIds } },
-          select: { refId: true, providerId: true },
+          where: { userId: friendId, refId: { in: videoRefIds } },
+          select: { refId: true, providerId: true, provider: true },
         });
 
         const refIdToProviderIds = new Map<string, string[]>();
         for (const mapping of providerMappings) {
           const existing = refIdToProviderIds.get(mapping.refId) ?? [];
-          existing.push(mapping.providerId);
+          existing.push(`${mapping.provider}:${mapping.providerId}`);
           refIdToProviderIds.set(mapping.refId, existing);
         }
 
@@ -649,11 +649,12 @@ export function createPrismaSocialGateway(): SocialGateway {
         throw new ForbiddenError('You must follow this user to send them suggestions');
       }
 
+      const source = await getOrCreateCatalogMediaSource(input.refId, input.type);
       const existingSuggestion = await prisma.suggestion.findFirst({
         where: {
           fromUserId,
           toUserId,
-          refId: input.refId,
+          refId: source.refId,
         },
       });
 
@@ -665,13 +666,12 @@ export function createPrismaSocialGateway(): SocialGateway {
         await prisma.suggestion.delete({ where: { id: existingSuggestion.id } });
       }
 
-      const source = await getOrCreateCatalogMediaSource(input.refId, input.type);
       const suggestion = await prisma.suggestion.create({
         data: {
           fromUserId,
           toUserId,
           type: input.type,
-          refId: input.refId,
+          refId: source.refId,
           sourceId: source.id,
           message: input.message,
         },

@@ -8,6 +8,7 @@ import { AuthForm } from '@/features/auth/components/AuthForm';
 import { OAuthCallback } from '@/features/auth/components/OAuthCallback';
 import { PublicProfile } from '@/features/profile/components/PublicProfile';
 import { PublicCollectionView } from '@/features/collections/components/PublicCollectionView';
+import { verifyRecoveryEmail } from '@/features/auth/api';
 import { AccountRecovery } from '@/features/auth/components/AccountRecovery';
 import * as libraryApi from '@/features/library/api';
 import * as socialApi from '@/features/social/api';
@@ -31,12 +32,21 @@ const isOAuthCallbackPath = (path: string, search: string): boolean => {
 
 // Main App component that handles the authenticated app
 const MainApp: React.FC = () => {
-  const { user, isLoading: authLoading, logout, isOfflineAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, logout, isOfflineAuthenticated, refreshUser } = useAuth();
   const { showToast } = useToast();
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.hash.slice(1)).get('verifyRecoveryToken');
+    if (!token) return;
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+    void verifyRecoveryEmail(token).then(async () => {
+      await refreshUser();
+      showToast('Recovery email verified', 'success');
+    }).catch(error => showToast(error instanceof Error ? error.message : 'Email verification failed', 'error'));
+  }, [refreshUser, showToast]);
   const { isOnline, isChapterDownloaded, getOfflineChapters, downloadedManga } = useOffline();
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Determine initial view based on offline status
   const getInitialView = (): View => {
     // If offline and we have downloaded content, show downloads
@@ -45,7 +55,7 @@ const MainApp: React.FC = () => {
     }
     return 'WATCHLIST';
   };
-  
+
   const [currentView, setCurrentView] = useState<View>(getInitialView());
   const [isOAuthCallback, setIsOAuthCallback] = useState(isOAuthCallbackPath(location.pathname, location.search));
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
@@ -245,7 +255,7 @@ const MainApp: React.FC = () => {
 
   const loadWatchlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!watchlistGrouped || watchlistLoadingStatuses.has(status)) return;
-    
+
     setWatchlistLoadingStatuses(prev => new Set(prev).add(status));
     try {
       // Build statusPages with this status at the requested page
@@ -254,9 +264,9 @@ const MainApp: React.FC = () => {
       for (const s of Object.keys(watchlistGrouped.groups) as MediaStatus[]) {
         statusPages[s] = s === status ? page : watchlistGrouped.groups[s].page;
       }
-      
+
       const result = await libraryApi.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'video' });
-      
+
       // Replace the items for this status with the new page
       setWatchlistGrouped(prev => {
         if (!prev) return result;
@@ -281,7 +291,7 @@ const MainApp: React.FC = () => {
 
   const loadReadlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!readlistGrouped || readlistLoadingStatuses.has(status)) return;
-    
+
     setReadlistLoadingStatuses(prev => new Set(prev).add(status));
     try {
       // Build statusPages with this status at the requested page
@@ -290,9 +300,9 @@ const MainApp: React.FC = () => {
       for (const s of Object.keys(readlistGrouped.groups) as MediaStatus[]) {
         statusPages[s] = s === status ? page : readlistGrouped.groups[s].page;
       }
-      
+
       const result = await libraryApi.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'manga' });
-      
+
       // Replace the items for this status with the new page
       setReadlistGrouped(prev => {
         if (!prev) return result;
@@ -317,7 +327,7 @@ const MainApp: React.FC = () => {
 
   const loadPlaylistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!playlistGrouped || playlistLoadingStatuses.has(status)) return;
-    
+
     setPlaylistLoadingStatuses(prev => new Set(prev).add(status));
     try {
       // Build statusPages with this status at the requested page
@@ -326,9 +336,9 @@ const MainApp: React.FC = () => {
       for (const s of Object.keys(playlistGrouped.groups) as MediaStatus[]) {
         statusPages[s] = s === status ? page : playlistGrouped.groups[s].page;
       }
-      
+
       const result = await libraryApi.getMyGroupedList({ limit: 50, statusPages, mediaTypeFilter: 'game' });
-      
+
       // Replace the items for this status with the new page
       setPlaylistGrouped(prev => {
         if (!prev) return result;
@@ -353,7 +363,7 @@ const MainApp: React.FC = () => {
 
   const loadFriendWatchlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!friendWatchlistGrouped || !selectedFriend || friendWatchlistLoadingStatuses.has(status)) return;
-    
+
     setFriendWatchlistLoadingStatuses(prev => new Set(prev).add(status));
     try {
       // Build statusPages with this status at the requested page
@@ -362,9 +372,9 @@ const MainApp: React.FC = () => {
       for (const s of Object.keys(friendWatchlistGrouped.groups) as MediaStatus[]) {
         statusPages[s] = s === status ? page : friendWatchlistGrouped.groups[s].page;
       }
-      
+
       const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'video', sortBy: friendWatchlistSort });
-      
+
       // Replace the items for this status with the new page
       setFriendWatchlistGrouped(prev => {
         if (!prev) return result;
@@ -389,7 +399,7 @@ const MainApp: React.FC = () => {
 
   const loadFriendReadlistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!friendReadlistGrouped || !selectedFriend || friendReadlistLoadingStatuses.has(status)) return;
-    
+
     setFriendReadlistLoadingStatuses(prev => new Set(prev).add(status));
     try {
       // Build statusPages with this status at the requested page
@@ -398,9 +408,9 @@ const MainApp: React.FC = () => {
       for (const s of Object.keys(friendReadlistGrouped.groups) as MediaStatus[]) {
         statusPages[s] = s === status ? page : friendReadlistGrouped.groups[s].page;
       }
-      
+
       const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'manga', sortBy: friendReadlistSort });
-      
+
       // Replace the items for this status with the new page
       setFriendReadlistGrouped(prev => {
         if (!prev) return result;
@@ -425,7 +435,7 @@ const MainApp: React.FC = () => {
 
   const loadFriendPlaylistPageForStatus = useCallback(async (status: MediaStatus, page: number) => {
     if (!friendPlaylistGrouped || !selectedFriend || friendPlaylistLoadingStatuses.has(status)) return;
-    
+
     setFriendPlaylistLoadingStatuses(prev => new Set(prev).add(status));
     try {
       // Build statusPages with this status at the requested page
@@ -434,9 +444,9 @@ const MainApp: React.FC = () => {
       for (const s of Object.keys(friendPlaylistGrouped.groups) as MediaStatus[]) {
         statusPages[s] = s === status ? page : friendPlaylistGrouped.groups[s].page;
       }
-      
+
       const result = await socialApi.getFriendGroupedList(selectedFriend.id, { limit: 50, statusPages, mediaTypeFilter: 'game', sortBy: friendPlaylistSort });
-      
+
       // Replace the items for this status with the new page
       setFriendPlaylistGrouped(prev => {
         if (!prev) return result;
@@ -614,7 +624,7 @@ const MainApp: React.FC = () => {
       const status = created.status;
       const isManga = created.type === 'MANGA';
       const isGame = created.type === 'GAME';
-      
+
       // Add to the appropriate list based on type
       if (isManga) {
         setReadlistGrouped(prev => {
@@ -677,31 +687,31 @@ const MainApp: React.FC = () => {
   // Conflict resolution handlers
   const handleConflictMerge = async (existingItemId: string, newRefId: string) => {
     if (!conflictData) return;
-    
+
     // Find the existing item to get its source ID
     const existingItem = conflictData.existingItem;
-    
+
     // Call API to link the new refId as an alias to the existing source
     await libraryApi.linkSource(existingItem.refId, newRefId);
-    
+
     // Refresh list to get updated aliases
     await loadMyList();
   };
 
   const handleConflictReplace = async (existingItemId: string, newItemData: NewItemData) => {
     if (!conflictData) return;
-    
+
     // Remove old item
     await libraryApi.deleteListItem(existingItemId);
-    
+
     // Add new item
     const created = await libraryApi.addToList(conflictData.newItem);
-    
+
     // Update local state
     const status = created.status;
     const isManga = created.type === 'MANGA';
     const isGame = created.type === 'GAME';
-    
+
     if (isManga) {
       setReadlistGrouped(prev => {
         if (!prev) return prev;
@@ -752,14 +762,14 @@ const MainApp: React.FC = () => {
 
   const handleConflictKeepBoth = async (newItemData: NewItemData) => {
     if (!conflictData) return;
-    
+
     // Just add the new item normally
       const created = await libraryApi.addToList(conflictData.newItem);
-    
+
     const status = created.status;
     const isManga = created.type === 'MANGA';
     const isGame = created.type === 'GAME';
-    
+
     if (isManga) {
       setReadlistGrouped(prev => {
         if (!prev) return prev;
@@ -827,13 +837,13 @@ const MainApp: React.FC = () => {
       imageUrl: item.imageUrl,
       refId: item.refId,
     };
-    
+
     try {
       const created = await libraryApi.addToList(newItem);
       const isManga = created.type === 'MANGA';
       const isGame = created.type === 'GAME';
       const setGrouped = isManga ? setReadlistGrouped : isGame ? setPlaylistGrouped : setWatchlistGrouped;
-      
+
       setGrouped(prev => {
         if (!prev) return prev;
         return {
@@ -862,7 +872,7 @@ const MainApp: React.FC = () => {
     let oldStatus: MediaStatus | null = null;
     let foundItem: MediaItem | null = null;
     let listType: 'watchlist' | 'readlist' | 'playlist' = 'watchlist';
-    
+
     // Check watchlist first
     if (watchlistGrouped) {
       for (const status of Object.keys(watchlistGrouped.groups) as MediaStatus[]) {
@@ -875,7 +885,7 @@ const MainApp: React.FC = () => {
         }
       }
     }
-    
+
     // Check readlist if not found
     if (!foundItem && readlistGrouped) {
       for (const status of Object.keys(readlistGrouped.groups) as MediaStatus[]) {
@@ -888,7 +898,7 @@ const MainApp: React.FC = () => {
         }
       }
     }
-    
+
     // Check playlist if not found
     if (!foundItem && playlistGrouped) {
       for (const status of Object.keys(playlistGrouped.groups) as MediaStatus[]) {
@@ -901,17 +911,17 @@ const MainApp: React.FC = () => {
         }
       }
     }
-    
+
     if (!foundItem || !oldStatus) return;
-    
+
     const newStatus = updates.status || oldStatus;
     const updatedItem = { ...foundItem, ...updates };
     const setGrouped = listType === 'readlist' ? setReadlistGrouped : listType === 'playlist' ? setPlaylistGrouped : setWatchlistGrouped;
-    
+
     // Optimistic update
     setGrouped(prev => {
       if (!prev) return prev;
-      
+
       // If status changed, move item between groups
       if (newStatus !== oldStatus) {
         return {
@@ -931,7 +941,7 @@ const MainApp: React.FC = () => {
           },
         };
       }
-      
+
       // Same status, just update in place
       return {
         ...prev,
@@ -959,7 +969,7 @@ const MainApp: React.FC = () => {
     // Find which group and list contains this item
     let itemStatus: MediaStatus | null = null;
     let listType: 'watchlist' | 'readlist' | 'playlist' = 'watchlist';
-    
+
     // Check watchlist first
     if (watchlistGrouped) {
       for (const status of Object.keys(watchlistGrouped.groups) as MediaStatus[]) {
@@ -970,7 +980,7 @@ const MainApp: React.FC = () => {
         }
       }
     }
-    
+
     // Check readlist if not found
     if (!itemStatus && readlistGrouped) {
       for (const status of Object.keys(readlistGrouped.groups) as MediaStatus[]) {
@@ -981,7 +991,7 @@ const MainApp: React.FC = () => {
         }
       }
     }
-    
+
     // Check playlist if not found
     if (!itemStatus && playlistGrouped) {
       for (const status of Object.keys(playlistGrouped.groups) as MediaStatus[]) {
@@ -992,9 +1002,9 @@ const MainApp: React.FC = () => {
         }
       }
     }
-    
+
     const setGrouped = listType === 'readlist' ? setReadlistGrouped : listType === 'playlist' ? setPlaylistGrouped : setWatchlistGrouped;
-    
+
     // Optimistic update
     if (itemStatus) {
       setGrouped(prev => {
@@ -1029,7 +1039,7 @@ const MainApp: React.FC = () => {
     setSelectedFriend(friend);
     setCurrentView('FRIEND_VIEW');
     setFriendListLoading(true);
-    
+
     try {
       // Load friend's grouped lists for video, manga, and game in parallel
       const [watchlistResult, readlistResult, playlistResult] = await Promise.all([
@@ -1108,7 +1118,7 @@ const MainApp: React.FC = () => {
     const provider = selectedManga?.provider || 'mangadex';
     try {
       let chapters: ChapterInfo[];
-      
+
       // If offline or chapter is downloaded, try to load chapters from offline storage first
       if (!isOnline || isChapterDownloaded(chapterId)) {
         const offlineChapters = await getOfflineChapters(mangaId);
@@ -1124,7 +1134,7 @@ const MainApp: React.FC = () => {
         // Online and chapter not downloaded - fetch from API
         chapters = await manga.getAllChapters(mangaId, provider);
       }
-      
+
       setReaderState({ mangaId, chapterId, chapters, provider });
     } catch (error) {
       console.error('Failed to load chapters:', error);
@@ -1208,10 +1218,10 @@ const MainApp: React.FC = () => {
   const handleVideoItemClick = useCallback((item: MediaItem) => {
     if ((item.type === 'TV' || item.type === 'MOVIE' || item.type === 'ANIME') && item.refId) {
       // Determine media type for resolution
-      const mediaType: 'movie' | 'tv' | 'anime' = 
-        item.type === 'ANIME' ? 'anime' : 
+      const mediaType: 'movie' | 'tv' | 'anime' =
+        item.type === 'ANIME' ? 'anime' :
         item.type === 'MOVIE' ? 'movie' : 'tv';
-      
+
       const parsed = parseVideoRefId(item.refId);
       if (parsed) {
         // Already a video provider ID - pass title for fallback
@@ -1252,12 +1262,12 @@ const MainApp: React.FC = () => {
     if (showRecovery) {
       return (
         <Layout currentView={currentView} onViewChange={setCurrentView} user={null}>
-          <AccountRecovery 
+          <AccountRecovery
             onSuccess={() => {
               setShowRecovery(false);
               showToast('Account recovered! You are now logged in.', 'success');
-            }} 
-            onBack={() => setShowRecovery(false)} 
+            }}
+            onBack={() => setShowRecovery(false)}
           />
         </Layout>
       );
@@ -1265,8 +1275,8 @@ const MainApp: React.FC = () => {
 
     return (
       <Layout currentView={currentView} onViewChange={setCurrentView} user={null}>
-        <AuthForm 
-          isLogin={isLoginMode} 
+        <AuthForm
+          isLogin={isLoginMode}
           onToggleMode={() => setIsLoginMode(!isLoginMode)}
           onRecovery={() => setShowRecovery(true)}
         />
@@ -1415,13 +1425,13 @@ const App: React.FC = () => {
     <Routes>
       {/* Public profile route - accessible without auth */}
       <Route path="/u/:username" element={<PublicProfile />} />
-      
+
       {/* Public collection route - accessible without auth */}
       <Route path="/c/:collectionId" element={<PublicCollectionView />} />
-      
+
       {/* OAuth callback route */}
       <Route path="/auth/callback" element={<MainApp />} />
-      
+
       {/* Main app - all other routes */}
       <Route path="/*" element={<MainApp />} />
     </Routes>

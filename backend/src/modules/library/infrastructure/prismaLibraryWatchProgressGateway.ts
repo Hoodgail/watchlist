@@ -1,3 +1,4 @@
+import { parseRefId } from '@shared/refId.js';
 import { prisma } from '../../../config/database.js';
 import { NotFoundError } from '../../../utils/errors.js';
 import type { LibraryWatchProgressGateway } from '../application/ports/LibraryWatchProgressGateway.js';
@@ -24,19 +25,13 @@ async function syncMediaItemProgress(
       },
     });
 
-    if (!mediaItem && mediaId.includes(':')) {
-      const [provider] = mediaId.split(':');
-      const providerItems = await prisma.mediaItem.findMany({
-        where: {
-          userId,
-          refId: { startsWith: `${provider}:` },
-          type: { in: VIDEO_MEDIA_TYPES },
-        },
-      });
-
-      if (providerItems.length === 1) {
-        mediaItem = providerItems[0];
-      }
+    if (!mediaItem) {
+      const parsed = parseRefId(mediaId);
+      const mappings = parsed ? await prisma.providerMapping.findMany({ where: { userId, provider: parsed.source, providerId: parsed.id }, select: { refId: true } }) : [];
+      const alias = await prisma.mediaSourceAlias.findUnique({ where: { refId: mediaId }, include: { mediaSource: true } });
+      const refs = [...mappings.map(mapping => mapping.refId), ...(alias ? [alias.mediaSource.refId] : [])];
+      const candidates = refs.length ? await prisma.mediaItem.findMany({ where: { userId, refId: { in: refs } }, take: 2 }) : [];
+      if (candidates.length === 1) mediaItem = candidates[0];
     }
 
     if (!mediaItem || mediaItem.type === 'MANGA') {

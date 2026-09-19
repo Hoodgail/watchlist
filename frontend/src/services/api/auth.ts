@@ -1,1 +1,1 @@
-export * from '../../../services/api/auth';
+export * from '../../features/auth/api';

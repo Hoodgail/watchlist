@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getPublicCommentsFeed, type Comment } from '@/features/social/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
+import { getPublicCommentsFeed, type Comment } from '../../social/api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
 
 // ==================== Types ====================
 
@@ -64,10 +64,10 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onClick }) => {
       ) : (
         <div className="absolute inset-0 bg-neutral-800" />
       )}
-      
+
       {/* Dark Gradient Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30" />
-      
+
       {/* Spoiler Badge */}
       {comment.isSpoiler && (
         <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[9px] font-bold uppercase px-1.5 py-0.5 tracking-wider rounded">
@@ -88,7 +88,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onClick }) => {
       {/* Content Overlay */}
       <div className="absolute inset-x-0 bottom-0 p-3 flex flex-col gap-1.5">
         {/* Media Title */}
-        <h4 
+        <h4
           className="text-xs font-bold uppercase tracking-tight text-white line-clamp-1 drop-shadow-lg"
           title={comment.media?.title}
         >
@@ -97,19 +97,19 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onClick }) => {
 
         {/* Comment snippet with spoiler handling */}
         <div className="relative">
-          <p 
+          <p
             className={`text-[11px] leading-tight line-clamp-2 drop-shadow ${
-              isSpoilerHidden 
-                ? 'text-neutral-400 blur-sm select-none' 
+              isSpoilerHidden
+                ? 'text-neutral-400 blur-sm select-none'
                 : 'text-neutral-200'
             }`}
           >
             "{truncateText(comment.content)}"
           </p>
-          
+
           {/* Reveal Spoiler Button Overlay */}
           {isSpoilerHidden && (
-            <div 
+            <div
               className="absolute inset-0 flex items-center justify-center"
               onClick={handleRevealSpoiler}
             >
@@ -163,7 +163,7 @@ export const PublicCommentsFeed: React.FC<PublicCommentsFeedProps> = ({
     const fetchComments = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const data = await getPublicCommentsFeed({ limit });
         setComments(data.comments);

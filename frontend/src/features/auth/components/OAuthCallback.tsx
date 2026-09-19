@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { storeTokens } from '@/shared/api/client';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useRef, useState } from 'react';
+import { storeTokens } from '../../../shared/api/client';
+import { useAuth } from '../../../context/AuthContext';
 
 interface OAuthCallbackProps {
   onComplete: (isNewUser?: boolean) => void;
@@ -13,11 +13,14 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isNewUser, setIsNewUser] = useState(false);
 
+  const handled = useRef(false);
   useEffect(() => {
+    if (handled.current) return;
+    handled.current = true;
     const handleCallback = async () => {
       try {
         // Parse URL parameters
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search);
         const accessToken = params.get('accessToken');
         const refreshToken = params.get('refreshToken');
         const error = params.get('error');
@@ -33,6 +36,12 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
           return;
         }
 
+        if (params.get('linked') === 'true') {
+          await refreshUser();
+          onComplete(false);
+          return;
+        }
+
         if (!accessToken || !refreshToken) {
           setStatus('error');
           setErrorMessage('Missing authentication tokens');
@@ -42,14 +51,14 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({ onComplete, onErro
 
         // Store tokens
         storeTokens(accessToken, refreshToken);
-        
+
         // Refresh user data
         await refreshUser();
-        
+
         const isNew = newUserParam === 'true';
         setIsNewUser(isNew);
         setStatus('success');
-        
+
         // Small delay to show success state, then redirect
         setTimeout(() => {
           onComplete(isNew);

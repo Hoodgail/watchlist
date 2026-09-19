@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { MediaItem, MediaStatus, MediaType, SearchResult } from '@/types';
-import { STATUS_OPTIONS } from '@/constants';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { MediaItem, MediaStatus, MediaType, SearchResult } from '../../../types';
+import { STATUS_OPTIONS } from '../../../constants';
 
 // Star icon component
 function StarIcon({ filled }: { filled: boolean }) {
@@ -60,7 +60,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         imageUrl: item.imageUrl,
         refId: item.id,
       };
-      
+
       // Add game-specific fields if present
       if (item.type === 'GAME') {
         if (item.platforms) mediaItem.platforms = item.platforms;
@@ -68,7 +68,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         if (item.genres) mediaItem.genres = item.genres;
         if (item.playtimeHours !== undefined) mediaItem.playtimeHours = item.playtimeHours;
       }
-      
+
       await onAdd(mediaItem);
       onClose();
     } catch (error) {

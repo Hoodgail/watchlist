@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { addCollectionItem, getMyCollections } from '@/features/collections/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { Collection, MediaType, SearchResult, MediaItem } from '@/types';
-import { useToast } from '@/context/ToastContext';
-import { useAuth } from '@/context/AuthContext';
+import { addCollectionItem, getMyCollections } from '../api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { Collection, MediaType, SearchResult, MediaItem } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
+import { useAuth } from '../../../context/AuthContext';
 import { createRefId } from '@shared/refId';
 
 // Data that can be added to a collection (works for both SearchResult and MediaItem)

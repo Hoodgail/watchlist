@@ -1,14 +1,16 @@
+import { OfflineVideoProvider } from './context/OfflineVideoContext';
 import React from 'react';
+import './styles.css';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import App from '../App';
-import { AuthProvider } from '../context/AuthContext';
-import { ToastProvider } from '../context/ToastContext';
-import { OfflineProvider } from '../context/OfflineContext';
-import { SpoilerProvider } from '../context/SpoilerContext';
+import App from './app/App';
+import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import { OfflineProvider } from './context/OfflineContext';
+import { SpoilerProvider } from './context/SpoilerContext';
 
-if ('serviceWorker' in navigator) {
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
@@ -40,7 +42,7 @@ root.render(
           <OfflineProvider>
             <SpoilerProvider>
               <AuthProvider>
-                <App />
+                <OfflineVideoProvider><App /></OfflineVideoProvider>
               </AuthProvider>
             </SpoilerProvider>
           </OfflineProvider>

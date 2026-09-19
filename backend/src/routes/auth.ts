@@ -2,10 +2,10 @@ import { Router } from 'express';
 import * as authController from '../controllers/authController.js';
 import * as oauthController from '../controllers/oauthController.js';
 import { validate } from '../middleware/validate.js';
-import { authenticate } from '../middleware/auth.js';
-import { 
-  registerSchema, 
-  loginSchema, 
+import { authenticate, optionalAuth } from '../middleware/auth.js';
+import {
+  registerSchema,
+  loginSchema,
   refreshTokenSchema,
   setRecoveryEmailSchema,
   verifyRecoveryEmailSchema,
@@ -42,7 +42,7 @@ router.put('/password', authenticate, validate(changePasswordSchema), authContro
 
 // OAuth routes
 router.get('/oauth/providers', authenticate, oauthController.getLinkedProviders);
-router.get('/oauth/:provider', oauthController.getAuthorizationUrl);
+router.get('/oauth/:provider', optionalAuth, oauthController.getAuthorizationUrl);
 router.get('/oauth/:provider/callback', oauthController.handleCallback);
 router.post('/oauth/:provider/link', authenticate, oauthController.linkAccount);
 router.delete('/oauth/:provider/link', authenticate, oauthController.unlinkAccount);

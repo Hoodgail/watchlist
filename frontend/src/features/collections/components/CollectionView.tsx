@@ -6,20 +6,20 @@ import {
   removeCollectionMember,
   starCollection,
   unstarCollection,
-} from '@/features/collections/api';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
+} from '../api';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
 import {
   Collection,
   CollectionWithDetails,
   CollectionRole,
-} from '@/types';
-import { useToast } from '@/context/ToastContext';
-import CollectionItemList from '@/features/collections/components/CollectionItemList';
-import CollectionComments from '@/features/comments/components/CollectionComments';
-import { CollectionAddItemModal } from '@/features/collections/components/CollectionAddItemModal';
-import { CollectionInviteModal } from '@/features/collections/components/CollectionInviteModal';
-import { CollectionMemberModal } from '@/features/collections/components/CollectionMemberModal';
+} from '../../../types';
+import { useToast } from '../../../context/ToastContext';
+import CollectionItemList from './CollectionItemList';
+import CollectionComments from '../../comments/components/CollectionComments';
+import { CollectionAddItemModal } from './CollectionAddItemModal';
+import { CollectionInviteModal } from './CollectionInviteModal';
+import { CollectionMemberModal } from './CollectionMemberModal';
 
 // Role badge component
 const RoleBadge: React.FC<{ role: CollectionRole }> = ({ role }) => {
@@ -179,13 +179,13 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
 
   const handleCopyLink = async () => {
     if (!collection) return;
-    
+
     // If collection is private and we haven't shown the warning yet, show it first
     if (!collection.isPublic && !showPrivateLinkWarning) {
       setShowPrivateLinkWarning(true);
       return;
     }
-    
+
     const publicUrl = `${window.location.origin}/c/${collectionId}`;
     try {
       await navigator.clipboard.writeText(publicUrl);

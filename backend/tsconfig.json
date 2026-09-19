@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "outDir": "./dist",
     "rootDir": "..",
     "strict": true,
@@ -15,10 +17,25 @@
     "declarationMap": true,
     "sourceMap": true,
     "paths": {
-      "@shared/*": ["../shared/*"]
-    },
-    "baseUrl": "."
+      "@shared/*": [
+        "../shared/*"
+      ],
+      "ipaddr.js": [
+        "./node_modules/ipaddr.js/lib/ipaddr.d.ts"
+      ],
+      "undici": [
+        "./node_modules/undici/index.d.ts"
+      ]
+    }
   },
-  "include": ["src/**/*", "../shared/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "../shared/**/*",
+    "../server/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/tests"
+  ]
 }

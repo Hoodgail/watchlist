@@ -29,6 +29,7 @@ export async function startEmbeddedDatabase(): Promise<string> {
       user: EMBEDDED_DB_USER,
       password: EMBEDDED_DB_PASSWORD,
       persistent: false,
+      createPostgresUser: process.getuid?.() === 0,
       onLog: () => {},
       onError: (message) => {
         console.error('[embedded-postgres]', message);
@@ -46,7 +47,7 @@ export async function startEmbeddedDatabase(): Promise<string> {
 export async function pushPrismaSchema(databaseUrl: string): Promise<void> {
   const prismaBinary = path.resolve(process.cwd(), 'node_modules/.bin/prisma');
 
-  await execFileAsync(prismaBinary, ['db', 'push', '--skip-generate'], {
+  await execFileAsync(prismaBinary, ['db', 'push'], {
     cwd: process.cwd(),
     env: {
       ...process.env,

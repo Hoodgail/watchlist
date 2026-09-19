@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../config/database.js';
 import { authHeader, createTestUser, request, app } from './helpers.js';
 import { describeDb } from './testSuites.js';
 
+afterEach(() => vi.unstubAllEnvs());
 let sourceCounter = 0;
 
 async function seedSource(refId: string, title: string) {
@@ -22,12 +23,17 @@ describeDb('Comments Endpoints', () => {
   describe('POST /api/comments and GET /api/comments/media/:refId', () => {
     it('creates a comment and returns it in media comments', async () => {
       const user = await createTestUser();
-      const source = await seedSource('tmdb:1396', 'Breaking Bad');
+      const source = await seedSource('fixture:1396', 'Breaking Bad');
 
       const createResponse = await request(app)
         .post('/api/comments')
         .set(authHeader(user.accessToken))
-        .send({ content: 'Great pilot episode', refId: source.refId, mediaType: 'TV', isPublic: true })
+        .send({
+          content: 'Great pilot episode',
+          refId: source.refId,
+          mediaType: 'TV',
+          isPublic: true,
+        })
         .expect(201);
 
       expect(createResponse.body.content).toBe('Great pilot episode');
@@ -45,7 +51,7 @@ describeDb('Comments Endpoints', () => {
     it('hides private comments from unrelated viewers', async () => {
       const author = await createTestUser();
       const viewer = await createTestUser();
-      const source = await seedSource('tmdb:1396', 'Breaking Bad');
+      const source = await seedSource('fixture:1396', 'Breaking Bad');
 
       await request(app)
         .post('/api/comments')
@@ -64,7 +70,7 @@ describeDb('Comments Endpoints', () => {
     it('shows followed user comments in media comments and friend feed', async () => {
       const author = await createTestUser();
       const viewer = await createTestUser();
-      const source = await seedSource('tmdb:1396', 'Breaking Bad');
+      const source = await seedSource('fixture:1396', 'Breaking Bad');
 
       await request(app)
         .post(`/api/friends/${author.id}`)
@@ -99,7 +105,7 @@ describeDb('Comments Endpoints', () => {
     it('returns reaction counts for a comment', async () => {
       const author = await createTestUser();
       const reactor = await createTestUser();
-      const source = await seedSource('tmdb:1396', 'Breaking Bad');
+      const source = await seedSource('fixture:1396', 'Breaking Bad');
 
       const createResponse = await request(app)
         .post('/api/comments')
@@ -123,7 +129,7 @@ describeDb('Comments Endpoints', () => {
 
     it('returns public feed entries with media metadata', async () => {
       const author = await createTestUser();
-      const source = await seedSource('tmdb:1396', 'Breaking Bad');
+      const source = await seedSource('fixture:1396', 'Breaking Bad');
 
       await request(app)
         .patch('/api/profile/settings/privacy')
@@ -137,9 +143,7 @@ describeDb('Comments Endpoints', () => {
         .send({ content: 'Hot take', refId: source.refId, mediaType: 'TV', isPublic: true })
         .expect(201);
 
-      const response = await request(app)
-        .get('/api/comments/feed/public')
-        .expect(200);
+      const response = await request(app).get('/api/comments/feed/public').expect(200);
 
       expect(response.body.comments).toHaveLength(1);
       expect(response.body.comments[0].media.title).toBe('Breaking Bad');
@@ -148,18 +152,21 @@ describeDb('Comments Endpoints', () => {
 
   describe('external comments endpoints', () => {
     it('lists configured providers', async () => {
-      const response = await request(app)
-        .get('/api/external-comments/providers')
-        .expect(200);
+      const response = await request(app).get('/api/external-comments/providers').expect(200);
 
       expect(Array.isArray(response.body.providers)).toBe(true);
-      expect(response.body.providers.length).toBeGreaterThan(0);
-      expect(response.body.providers.some((provider: { name: string }) => provider.name === 'reddit')).toBe(true);
+      expect(
+        response.body.providers.every((provider: { configured: boolean }) => !provider.configured),
+      ).toBe(true);
+      expect(
+        response.body.providers.some((provider: { name: string }) => provider.name === 'reddit'),
+      ).toBe(false);
     });
 
-    it('imports an external comment through the comments route', async () => {
+    it('imports an external comment as a catalog editor', async () => {
       const user = await createTestUser();
-      const source = await seedSource('tmdb:1396', 'Breaking Bad');
+      vi.stubEnv('CATALOG_EDITOR_IDS', user.id);
+      const source = await seedSource('fixture:1396', 'Breaking Bad');
 
       const response = await request(app)
         .post('/api/comments/import-external')

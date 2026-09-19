@@ -1,8 +1,10 @@
+import { fetchPublic } from '../../../server/publicFetch.js';
+import { isProviderEnabled, PROVIDER_INFO } from '@shared/providers.js';
 import { Request, Response, NextFunction } from 'express';
 import * as consumetService from '../services/consumetService.js';
 import * as mangaplusService from '../services/mangaplusService.js';
 import { MangaProviderName } from '../services/consumet/types.js';
-import { BadRequestError, NotFoundError } from '../utils/errors.js';
+import { AppError, BadRequestError, NotFoundError } from '../utils/errors.js';
 
 // MangaDex API base URL
 const MANGADEX_API_BASE = 'https://api.mangadex.org';
@@ -34,6 +36,7 @@ function validateProvider(provider: string | undefined): ValidMangaProvider {
   if (!ALL_VALID_PROVIDERS.includes(provider as ValidMangaProvider)) {
     throw new BadRequestError(`Invalid provider. Valid options: ${ALL_VALID_PROVIDERS.join(', ')}`);
   }
+  if (!isProviderEnabled(provider)) throw new AppError(503, `Provider ${provider} is disabled`);
   return provider as ValidMangaProvider;
 }
 
@@ -42,7 +45,7 @@ function validateProvider(provider: string | undefined): ValidMangaProvider {
  * GET /api/manga/search?q=<query>&provider=mangadex&page=1
  */
 export async function searchManga(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -72,7 +75,7 @@ export async function searchManga(
  * GET /api/manga/:provider/:id
  */
 export async function getMangaInfo(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -106,7 +109,7 @@ export async function getMangaInfo(
  * GET /api/manga/:provider/chapter/:chapterId/pages
  */
 export async function getChapterPages(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -140,7 +143,7 @@ export async function getChapterPages(
  * GET /api/manga/popular?page=1&perPage=20
  */
 export async function getPopularManga(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -163,7 +166,7 @@ export async function getPopularManga(
  * GET /api/manga/latest?page=1&perPage=20
  */
 export async function getLatestManga(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -186,24 +189,16 @@ export async function getLatestManga(
  * GET /api/manga/providers
  */
 export async function getProviders(
-  _req: Request,
+  _req: Request<Record<string, string>>,
   res: Response,
   _next: NextFunction
 ): Promise<void> {
-  const providerDisplayNames: Record<string, string> = {
-    'mangadex': 'MangaDex',
-    'comick': 'ComicK',
-    'mangapill': 'MangaPill',
-    'mangahere': 'MangaHere',
-    'mangareader': 'MangaReader',
-    'asurascans': 'AsuraScans',
-    'anilist-manga': 'AniList',
-  };
-
   res.json({
-    providers: ALL_VALID_PROVIDERS.map(provider => ({
+    providers: ALL_VALID_PROVIDERS.filter(isProviderEnabled).map(provider => ({
       id: provider,
-      name: providerDisplayNames[provider] || provider.charAt(0).toUpperCase() + provider.slice(1),
+      name: PROVIDER_INFO[provider].displayName,
+      enabled: PROVIDER_INFO[provider].enabled,
+      status: PROVIDER_INFO[provider].status,
       isDefault: provider === 'mangadex',
       supportsPaginatedChapters: consumetService.supportsPaginatedChapters(provider as MangaProviderName),
     })),
@@ -215,7 +210,7 @@ export async function getProviders(
  * GET /api/manga/:provider/:id/chapters?page=1&limit=60&lang=en
  */
 export async function getChaptersPaginated(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -228,7 +223,7 @@ export async function getChaptersPaginated(
     }
 
     const validProvider = validateProvider(provider);
-    
+
     // Check if provider supports paginated chapters
     if (!consumetService.supportsPaginatedChapters(validProvider as MangaProviderName)) {
       throw new BadRequestError(
@@ -304,7 +299,7 @@ interface MangaDexAtHomeResponse {
  */
 async function getMangaDexChapterDetails(chapterId: string): Promise<MangaDexChapterResponse | null> {
   try {
-    const response = await fetch(`${MANGADEX_API_BASE}/chapter/${chapterId}`);
+    const response = await fetchPublic(`${MANGADEX_API_BASE}/chapter/${chapterId}`);
     if (!response.ok) return null;
     return await response.json() as MangaDexChapterResponse;
   } catch (error) {
@@ -318,7 +313,7 @@ async function getMangaDexChapterDetails(chapterId: string): Promise<MangaDexCha
  */
 async function getMangaDexAtHomePages(chapterId: string): Promise<MangaDexAtHomeResponse | null> {
   try {
-    const response = await fetch(`${MANGADEX_API_BASE}/at-home/server/${chapterId}`);
+    const response = await fetchPublic(`${MANGADEX_API_BASE}/at-home/server/${chapterId}`);
     if (!response.ok) return null;
     return await response.json() as MangaDexAtHomeResponse;
   } catch (error) {
@@ -330,12 +325,12 @@ async function getMangaDexAtHomePages(chapterId: string): Promise<MangaDexAtHome
 /**
  * Get external chapter page info (for MangaPlus chapters)
  * GET /api/manga/external/chapter/:chapterId/info
- * 
+ *
  * Returns page metadata including URLs and encryption keys for MangaPlus,
  * or regular MangaDex page URLs for native chapters.
  */
 export async function getExternalChapterInfo(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -348,7 +343,7 @@ export async function getExternalChapterInfo(
 
     // First, get chapter details from MangaDex
     const chapterDetails = await getMangaDexChapterDetails(chapterId);
-    
+
     if (!chapterDetails || chapterDetails.result !== 'ok') {
       throw new NotFoundError('Chapter not found');
     }
@@ -359,7 +354,7 @@ export async function getExternalChapterInfo(
     if (externalUrl && mangaplusService.isMangaPlusUrl(externalUrl)) {
       // Get MangaPlus page info
       const pages = await mangaplusService.getMangaPlusChapterPages(externalUrl);
-      
+
       res.json({
         type: 'mangaplus',
         chapterId,
@@ -391,13 +386,13 @@ export async function getExternalChapterInfo(
 
     // Regular MangaDex chapter - get pages from at-home server
     const atHomeData = await getMangaDexAtHomePages(chapterId);
-    
+
     if (!atHomeData || atHomeData.result !== 'ok') {
       throw new NotFoundError('Failed to get chapter pages');
     }
 
     const { baseUrl, chapter } = atHomeData;
-    
+
     res.json({
       type: 'mangadex',
       chapterId,
@@ -417,7 +412,7 @@ export async function getExternalChapterInfo(
  * Query params: url, key
  */
 export async function getMangaPlusImage(
-  req: Request,
+  req: Request<Record<string, string>>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -427,7 +422,7 @@ export async function getMangaPlusImage(
     if (!url || typeof url !== 'string') {
       throw new BadRequestError('Missing url parameter');
     }
-    
+
     if (!key || typeof key !== 'string') {
       throw new BadRequestError('Missing key parameter');
     }
@@ -443,8 +438,8 @@ export async function getMangaPlusImage(
     }
 
     // Fetch the encrypted image
-    const response = await fetch(url);
-    
+    const response = await fetchPublic(url);
+
     if (!response.ok) {
       res.status(response.status).json({ error: 'Failed to fetch image' });
       return;

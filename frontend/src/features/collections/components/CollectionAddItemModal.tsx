@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { addCollectionItem } from '@/features/collections/api';
-import { SearchResult, MediaType, ProviderName } from '@/types';
-import { searchMedia, SearchCategory, SearchOptions, searchWithProvider } from '@/services/mediaSearch';
-import { useToast } from '@/context/ToastContext';
+import { addCollectionItem } from '../api';
+import { SearchResult, MediaType, ProviderName } from '../../../types';
+import { searchMedia, SearchCategory, SearchOptions, searchWithProvider } from '../../../services/mediaSearch';
+import { useToast } from '../../../context/ToastContext';
 import { createRefId } from '@shared/refId';
-import { getProxiedImageUrl, getProviderBaseUrl } from '@/shared/media';
+import { getProxiedImageUrl, getProviderBaseUrl } from '../../../shared/media/index';
 
 const CATEGORIES: { value: SearchCategory; label: string }[] = [
   { value: 'all', label: 'ALL' },

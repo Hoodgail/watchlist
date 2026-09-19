@@ -185,4 +185,5 @@ export interface CollectionCommentsQuery {
 
 export interface CatalogMediaSourceRecord {
   id: string;
+  refId: string;
 }

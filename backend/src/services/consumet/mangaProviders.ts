@@ -1,3 +1,4 @@
+import * as mangadex from '../mangadexService.js';
 /**
  * Manga Providers - MangaDex, ComicK, MangaPill, MangaHere, MangaReader, AsuraScans
  * Note: MangaKakalot is not available in the current SDK version
@@ -5,10 +6,10 @@
 
 import { MANGA } from '@consumet/extensions';
 import type { IMangaResult, IMangaInfo, IMangaChapterPage, ISearch } from '@consumet/extensions';
-import { 
-  MangaProviderName, 
-  UnifiedSearchResult, 
-  UnifiedMediaInfo, 
+import {
+  MangaProviderName,
+  UnifiedSearchResult,
+  UnifiedMediaInfo,
   UnifiedChapter,
   UnifiedChapterPages,
   SearchOptions,
@@ -32,9 +33,7 @@ const providers: Partial<Record<MangaProviderName, () => MangaProvider>> = {
 function getProvider(name: MangaProviderName): MangaProvider {
   const factory = providers[name];
   if (!factory) {
-    // Default to MangaDex if provider not found
-    console.warn(`Manga provider ${name} not available, using MangaDex`);
-    return new MANGA.MangaDex();
+    throw new Error(`Unknown manga provider: ${name}`);
   }
   return factory();
 }
@@ -146,9 +145,9 @@ export async function searchManga(
   try {
     const provider = getProvider(providerName);
     const result = await provider.search(query);
-    
+
     const searchResult = result as ISearch<IMangaResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -173,6 +172,11 @@ export async function getMangaInfo(
   id: string,
   providerName: MangaProviderName = 'mangadex'
 ): Promise<UnifiedMediaInfo | null> {
+  if (providerName === 'mangadex') {
+    const info = await mangadex.getMangaById(id);
+    const chapters = await getChaptersPaginated(id, 'mangadex');
+    return { id: info.id, title: info.title, altTitles: info.altTitles, description: info.description, image: info.coverUrl, year: info.year, genres: info.tags, status: info.status, totalChapters: info.totalChapters, chapters: chapters.chapters, provider: 'mangadex' };
+  }
   try {
     const provider = getProvider(providerName);
     const info = await provider.fetchMangaInfo(id);
@@ -190,6 +194,10 @@ export async function getChapterPages(
   chapterId: string,
   providerName: MangaProviderName = 'mangadex'
 ): Promise<UnifiedChapterPages | null> {
+  if (providerName === 'mangadex') {
+    const result = await mangadex.getChapterPages(chapterId);
+    return { chapterId, pages: result.data.map((file, index) => ({ page: index + 1, img: `${result.baseUrl}/data/${result.hash}/${file}` })) };
+  }
   try {
     const provider = getProvider(providerName);
     const pages = await provider.fetchChapterPages(chapterId);
@@ -227,7 +235,7 @@ export async function getPopularManga(
     const provider = new MANGA.MangaDex();
     const result = await provider.fetchPopular(page, perPage);
     const searchResult = result as ISearch<IMangaResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -251,7 +259,7 @@ export async function getRecentlyAddedManga(
     const provider = new MANGA.MangaDex();
     const result = await provider.fetchRecentlyAdded(page, perPage);
     const searchResult = result as ISearch<IMangaResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -275,7 +283,7 @@ export async function getLatestUpdatedManga(
     const provider = new MANGA.MangaDex();
     const result = await provider.fetchLatestUpdates(page, perPage);
     const searchResult = result as ISearch<IMangaResult>;
-    
+
     return {
       currentPage: searchResult.currentPage ?? 1,
       hasNextPage: searchResult.hasNextPage ?? false,
@@ -291,7 +299,7 @@ export async function getLatestUpdatedManga(
 // ============ Paginated Chapters (Provider-Specific) ============
 
 // Providers that support paginated chapter fetching
-export const PROVIDERS_WITH_PAGINATED_CHAPTERS: MangaProviderName[] = ['comick'];
+export const PROVIDERS_WITH_PAGINATED_CHAPTERS: MangaProviderName[] = ['comick', 'mangadex'];
 
 /**
  * Check if a provider supports paginated chapter fetching
@@ -342,13 +350,13 @@ async function fetchComickChaptersPaginated(
   try {
     const url = `https://api.comick.io/comic/${mangaId}/chapters?page=${page}&limit=${limit}&lang=${lang}`;
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`ComicK API error: ${response.status}`);
     }
-    
+
     const data = await response.json() as ComickChaptersResponse;
-    
+
     const chapters: UnifiedChapter[] = data.chapters.map((ch): UnifiedChapter => ({
       id: `${mangaId}/${ch.hid}-chapter-${ch.chap}-${ch.lang}`,
       number: ch.chap,
@@ -356,11 +364,11 @@ async function fetchComickChaptersPaginated(
       releaseDate: ch.created_at,
       volume: ch.vol,
     }));
-    
+
     // Calculate if there are more pages
     const totalFetched = (page - 1) * limit + data.chapters.length;
     const hasNextPage = totalFetched < data.total;
-    
+
     return {
       currentPage: page,
       hasNextPage,
@@ -392,8 +400,12 @@ export async function getChaptersPaginated(
   if (!supportsPaginatedChapters(providerName)) {
     throw new Error(`Provider ${providerName} does not support paginated chapter fetching. Use getMangaInfo instead.`);
   }
-  
+
   switch (providerName) {
+    case 'mangadex': {
+      const result = await mangadex.getMangaChapters(mangaId, lang, limit, (page - 1) * limit);
+      return { currentPage: page, hasNextPage: page * limit < result.total, totalChapters: result.total, chapters: result.chapters.map(chapter => ({ id: chapter.id, number: chapter.chapter ?? '0', title: chapter.title ?? undefined, volume: chapter.volume ?? undefined, pages: chapter.pages, releaseDate: chapter.publishAt })) };
+    }
     case 'comick':
       return fetchComickChaptersPaginated(mangaId, page, limit, lang);
     default:

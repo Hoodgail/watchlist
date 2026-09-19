@@ -1,1 +1,1 @@
-export * from '../../../services/api/comments';
+export * from '../../features/social/api';

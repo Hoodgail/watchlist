@@ -1,12 +1,12 @@
 // VideoDownloadManager Component - Shows video download queue, progress, and storage info
 import React, { useState, useEffect } from 'react';
-import { type QualityOption } from '@/features/offline/video/hls';
+import { type QualityOption } from '../video/hls';
 import {
   formatBytes,
   requestPersistentStorage,
   type VideoStorageInfo,
-} from '@/features/offline/video/storage';
-import { useOfflineVideo } from '@/context/OfflineVideoContext';
+} from '../video/storage';
+import { useOfflineVideo } from '../../../context/OfflineVideoContext';
 
 interface VideoDownloadManagerProps {
   onMediaClick?: (mediaId: string) => void;
@@ -82,7 +82,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs uppercase tracking-wider text-neutral-600">Storage Used</span>
             <span className="text-sm font-mono">
-              {storageInfo.usage 
+              {storageInfo.usage
                 ? formatBytes(storageInfo.usage)
                 : formatBytes(storageInfo.estimatedSize)
               }
@@ -130,7 +130,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
                   storageInfo.isPersisted ? 'bg-green-500' : 'bg-yellow-500'
                 }`} />
                 <span className="text-xs text-neutral-500">
-                  {storageInfo.isPersisted 
+                  {storageInfo.isPersisted
                     ? 'Storage is persistent - data will not be evicted'
                     : 'Storage may be cleared by browser'
                   }
@@ -160,7 +160,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
             <div>
               <p className="font-bold uppercase text-xs tracking-wider mb-1">Storage Almost Full</p>
               <p className="text-yellow-400/70 text-xs">
-                You've used over 80% of your available storage ({Math.round(storagePercentage)}%). 
+                You've used over 80% of your available storage ({Math.round(storagePercentage)}%).
                 Consider deleting some downloaded content to free up space.
               </p>
             </div>
@@ -273,7 +273,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
                   style={{ width: `${activeDownload.progress}%` }}
                 />
               </div>
-              
+
               {/* Retry/Dismiss buttons for failed downloads */}
               {activeDownload.status === 'error' && (
                 <div className="flex gap-2 mt-3">
@@ -347,7 +347,7 @@ export const VideoDownloadManager: React.FC<VideoDownloadManagerProps> = ({ onMe
               </svg>
               <p className="uppercase tracking-wider text-sm">No offline videos</p>
               <p className="text-xs mt-2 text-neutral-700">
-                {isOnline 
+                {isOnline
                   ? 'Search for shows and download episodes for offline viewing'
                   : 'Go online to download videos'
                 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { UserAvatar } from '@/shared/ui';
-import { getRefIdImageUrl } from '@/shared/media/mediaUrl';
-import { getFriendsActivity, type FriendActivityEntry } from '@/features/social/api';
+import { UserAvatar } from '../../../shared/ui/index';
+import { getRefIdImageUrl } from '../../../shared/media/mediaUrl';
+import { getFriendsActivity, type FriendActivityEntry } from '../api';
 
 interface FriendsActivityStripProps {
   onFriendClick?: (friendId: string) => void;

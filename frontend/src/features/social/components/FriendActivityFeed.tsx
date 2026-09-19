@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFriendCommentsFeed, type Comment } from '@/features/social/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
+import { getFriendCommentsFeed, type Comment } from '../api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
 
 // Type alias for cleaner code
 type FeedComment = Comment;
@@ -22,7 +22,7 @@ const COMMENT_PREVIEW_LENGTH = 100;
 
 const formatMediaContext = (comment: FeedComment): string => {
   const title = comment.media?.title || 'Unknown';
-  
+
   if (comment.mediaType === 'MANGA' && comment.chapterNumber) {
     return `${title} Ch. ${comment.chapterNumber}`;
   }
@@ -57,15 +57,15 @@ const ActivitySkeleton: React.FC = () => (
     <div className="flex gap-3 items-start">
       {/* Avatar skeleton */}
       <div className="w-10 h-10 rounded-full bg-neutral-800 flex-shrink-0" />
-      
+
       <div className="flex-grow">
         {/* Header skeleton */}
         <div className="h-4 w-48 bg-neutral-800 rounded mb-3" />
-        
+
         <div className="flex gap-3">
           {/* Poster skeleton */}
           <div className="w-12 h-[72px] bg-neutral-800 flex-shrink-0" />
-          
+
           <div className="flex-grow">
             {/* Title skeleton */}
             <div className="h-4 w-32 bg-neutral-800 rounded mb-2" />
@@ -96,22 +96,22 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const [spoilerRevealed, setSpoilerRevealed] = useState(false);
-  
+
   // Handle nullable author (for external comments or edge cases)
   const authorUsername = comment.author?.username || comment.externalAuthor || 'Unknown';
   const authorDisplayName = comment.author?.displayName || comment.externalAuthor || authorUsername;
   const authorAvatarUrl = comment.author?.avatarUrl || comment.externalAuthorAvatar;
-  
+
   const imageUrl = resolveMediaImageUrl(comment.media?.imageUrl);
   const mediaContext = formatMediaContext(comment);
   const mediaTypeIcon = getMediaTypeIcon(comment.mediaType);
-  
+
   const handleMediaClick = () => {
     if (onViewMedia) {
       onViewMedia(comment.refId, comment.mediaType, comment.media?.title);
     }
   };
-  
+
   const handleProfileClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onViewProfile && comment.author?.username) {
@@ -120,7 +120,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="border border-neutral-800 bg-black hover:border-neutral-600 hover:bg-neutral-950 transition-all cursor-pointer group"
       onClick={handleMediaClick}
     >
@@ -139,7 +139,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               fallbackClassName="bg-neutral-800 text-white border border-neutral-700"
             />
           </button>
-          
+
           <div className="flex-grow min-w-0">
             {/* Header: username commented on */}
             <div className="text-sm mb-2">
@@ -151,7 +151,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               </button>
               <span className="text-neutral-500 ml-1">commented on</span>
             </div>
-            
+
             <div className="flex gap-3">
               {/* Media Poster */}
               {imageUrl && !imageError ? (
@@ -168,7 +168,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                   {mediaTypeIcon}
                 </div>
               )}
-              
+
               <div className="flex-grow min-w-0">
                 {/* Media title with type icon */}
                 <div className="flex items-center gap-2 mb-1">
@@ -177,7 +177,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     {mediaContext}
                   </h4>
                 </div>
-                
+
                 {/* Comment content */}
                 {comment.isSpoiler && !spoilerRevealed ? (
                   <button
@@ -202,7 +202,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     )}
                   </p>
                 )}
-                
+
                 {/* Timestamp */}
                 <div className="text-xs text-neutral-600 uppercase mt-2">
                   {formatRelativeTime(comment.createdAt)}
@@ -231,7 +231,7 @@ export const FriendActivityFeed: React.FC<FriendActivityFeedProps> = ({
 
   const fetchFeed = useCallback(async (cursor?: string) => {
     const isInitialLoad = !cursor;
-    
+
     if (isInitialLoad) {
       setLoading(true);
     } else {

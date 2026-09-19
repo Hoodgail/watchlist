@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, AuthUser } from '@/types';
-import { UserAvatar } from '@/shared/ui';
+import { View, AuthUser } from '../../types';
+import { UserAvatar } from '../../shared/ui/index';
 
 export interface LayoutProps {
   children: React.ReactNode;

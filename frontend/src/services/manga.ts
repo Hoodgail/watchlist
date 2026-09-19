@@ -1,1 +1,550 @@
-export * from '../../services/manga';
+import { mediaPartKey, rawMediaPartId } from '@shared/mediaIdentity';
+/**
+ * Unified Manga API Service
+ * Supports multiple manga providers through the consumet backend
+ */
+
+import { buildApiUrl } from '../shared/api/client';
+import {
+  createMangaRefId as createSharedMangaRefId,
+  getMangaProviderDisplayName,
+  getMangaPlusImageProxyUrl,
+  getProxiedImageUrl,
+  isMangaProviderRefId,
+  MANGA_PROVIDER_BASE_URLS,
+  parseMangaRefId as parseSharedMangaRefId,
+  type MangaProviderName,
+} from '../shared/media/index';
+
+// Types
+export type { MangaProviderName } from '../shared/media/index';
+export { MANGA_PROVIDER_BASE_URLS } from '../shared/media/index';
+
+export interface MangaProvider {
+  id: MangaProviderName;
+  name: string;
+  isDefault: boolean;
+  supportsPaginatedChapters?: boolean;
+}
+
+export interface MangaSearchResult {
+  id: string;
+  title: string;
+  altTitles?: string[];
+  image?: string;
+  cover?: string;
+  description?: string;
+  status?: string;
+  releaseDate?: string | number;
+  year?: number;
+  rating?: number;
+  genres?: string[];
+  totalChapters?: number | null;
+  provider: MangaProviderName;
+  url?: string;
+}
+
+export interface MangaChapter {
+  id: string;
+  number: number | string;
+  title?: string;
+  releaseDate?: string;
+  pages?: number;
+  url?: string;
+  volume?: string;
+}
+
+export interface MangaInfo {
+  id: string;
+  title: string;
+  altTitles?: string[];
+  image?: string;
+  cover?: string;
+  description?: string;
+  status?: string;
+  releaseDate?: string | number;
+  year?: number;
+  rating?: number;
+  genres?: string[];
+  totalChapters?: number | null;
+  chapters?: MangaChapter[];
+  similar?: MangaSearchResult[];
+  recommendations?: MangaSearchResult[];
+  provider: MangaProviderName;
+  url?: string;
+}
+
+export interface ChapterPage {
+  page: number;
+  img: string;
+  headerForImage?: Record<string, string>;
+}
+
+export interface ChapterPages {
+  chapterId: string;
+  pages: ChapterPage[];
+  provider: MangaProviderName;
+}
+
+export interface PaginatedResults<T> {
+  currentPage: number;
+  hasNextPage: boolean;
+  totalPages?: number;
+  totalResults?: number;
+  results: T[];
+  provider?: MangaProviderName;
+}
+
+/**
+ * Result of fetching paginated chapters
+ */
+export interface PaginatedChaptersResult {
+  currentPage: number;
+  hasNextPage: boolean;
+  totalChapters?: number;
+  chapters: MangaChapter[];
+  provider: MangaProviderName;
+  mangaId: string;
+}
+
+// Providers that support paginated chapter fetching
+export const PROVIDERS_WITH_PAGINATED_CHAPTERS: MangaProviderName[] = ['comick', 'mangadex'];
+
+/**
+ * Check if a provider supports paginated chapter fetching
+ */
+export function supportsPaginatedChapters(provider: MangaProviderName): boolean {
+  return PROVIDERS_WITH_PAGINATED_CHAPTERS.includes(provider);
+}
+
+const API_BASE = '/manga';
+
+// Rate limiting for API calls
+const REQUEST_QUEUE: { resolve: () => void; timestamp: number }[] = [];
+const RATE_LIMIT_MS = 200;
+
+async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const now = Date.now();
+    const lastRequest = REQUEST_QUEUE[REQUEST_QUEUE.length - 1]?.timestamp || 0;
+    const delay = Math.max(0, lastRequest + RATE_LIMIT_MS - now);
+
+    const entry = {
+      resolve: () => {
+        fetch(url, options).then(resolve, reject);
+      },
+      timestamp: now + delay,
+    };
+
+    REQUEST_QUEUE.push(entry);
+
+    // Clean old entries
+    while (REQUEST_QUEUE.length > 0 && REQUEST_QUEUE[0].timestamp < now - 1000) {
+      REQUEST_QUEUE.shift();
+    }
+
+    setTimeout(entry.resolve, delay);
+  });
+}
+
+// ============ API Functions ============
+
+/**
+ * Get list of available manga providers
+ */
+export async function getProviders(): Promise<MangaProvider[]> {
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/providers`));
+  if (!response.ok) {
+    throw new Error('Failed to fetch providers');
+  }
+  const json = await response.json();
+  return json.providers;
+}
+
+/**
+ * Search manga across a specific provider
+ */
+export async function searchManga(
+  query: string,
+  provider: MangaProviderName = 'mangadex',
+  page: number = 1
+): Promise<PaginatedResults<MangaSearchResult>> {
+  const params = new URLSearchParams({
+    q: query,
+    provider,
+    page: String(page),
+  });
+
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/search?${params.toString()}`));
+  if (!response.ok) {
+    throw new Error('Failed to search manga');
+  }
+  return response.json();
+}
+
+/**
+ * Get manga info from a specific provider
+ */
+export async function getMangaInfo(
+  mangaId: string,
+  provider: MangaProviderName = 'mangadex'
+): Promise<MangaInfo> {
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/${provider}/${encodeURIComponent(mangaId)}`));
+  if (!response.ok) {
+    throw new Error('Failed to fetch manga info');
+  }
+  const info: MangaInfo = await response.json();
+  return { ...info, chapters: info.chapters?.map(chapter => ({ ...chapter, id: mediaPartKey(provider, mangaId, chapter.id) })) };
+}
+
+/**
+ * Get chapter pages from a specific provider
+ */
+export async function getChapterPages(
+  chapterId: string,
+  provider: MangaProviderName = 'mangadex'
+): Promise<ChapterPages> {
+  const response = await rateLimitedFetch(
+    buildApiUrl(`${API_BASE}/${provider}/chapter/${encodeURIComponent(rawMediaPartId(provider, chapterId))}/pages`)
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch chapter pages');
+  }
+  return response.json();
+}
+
+/**
+ * Get popular manga
+ */
+export async function getPopularManga(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<MangaSearchResult>> {
+  const params = new URLSearchParams({
+    page: String(page),
+    perPage: String(perPage),
+  });
+
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/popular?${params.toString()}`));
+  if (!response.ok) {
+    throw new Error('Failed to fetch popular manga');
+  }
+  return response.json();
+}
+
+/**
+ * Get latest updated manga
+ */
+export async function getLatestManga(
+  page: number = 1,
+  perPage: number = 20
+): Promise<PaginatedResults<MangaSearchResult>> {
+  const params = new URLSearchParams({
+    page: String(page),
+    perPage: String(perPage),
+  });
+
+  const response = await rateLimitedFetch(buildApiUrl(`${API_BASE}/latest?${params.toString()}`));
+  if (!response.ok) {
+    throw new Error('Failed to fetch latest manga');
+  }
+  return response.json();
+}
+
+/**
+ * Get paginated chapters for a manga (for providers that support it, like comick)
+ * Returns null if the provider doesn't support paginated chapters
+ */
+export async function getChaptersPaginated(
+  mangaId: string,
+  provider: MangaProviderName,
+  page: number = 1,
+  limit: number = 60,
+  lang: string = 'en'
+): Promise<PaginatedChaptersResult | null> {
+  if (!supportsPaginatedChapters(provider)) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    lang,
+  });
+
+  const response = await rateLimitedFetch(
+    buildApiUrl(`${API_BASE}/${provider}/${encodeURIComponent(mangaId)}/chapters?${params.toString()}`)
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch chapters');
+  }
+
+  const result: PaginatedChaptersResult = await response.json();
+  return { ...result, chapters: result.chapters.map(chapter => ({ ...chapter, id: mediaPartKey(provider, mangaId, chapter.id) })) };
+}
+
+// ============ Utility Functions ============
+
+/**
+ * Build full image URLs for pages
+ */
+export function buildImageUrls(pages: ChapterPage[]): string[] {
+  return pages.map(p => p.img);
+}
+
+/**
+ * Fetch an image as a Blob (for offline storage)
+ */
+export async function fetchImageAsBlob(
+  url: string,
+  headers?: Record<string, string>
+): Promise<Blob> {
+  const response = await fetch(url, {
+    headers: headers || {},
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status}`);
+  }
+
+  return response.blob();
+}
+
+/**
+ * Format chapter number for display
+ */
+export function formatChapterNumber(chapter: MangaChapter): string {
+  const parts: string[] = [];
+  if (chapter.volume) {
+    parts.push(`Vol. ${chapter.volume}`);
+  }
+  if (chapter.number !== undefined) {
+    parts.push(`Ch. ${chapter.number}`);
+  }
+  if (chapter.title) {
+    parts.push(`- ${chapter.title}`);
+  }
+  return parts.join(' ') || 'Oneshot';
+}
+
+/**
+ * Get the next chapter in a list
+ */
+export function getNextChapter(
+  chapters: MangaChapter[],
+  currentChapterId: string
+): MangaChapter | null {
+  const currentIndex = chapters.findIndex((c) => c.id === currentChapterId);
+  if (currentIndex === -1 || currentIndex >= chapters.length - 1) return null;
+  return chapters[currentIndex + 1];
+}
+
+/**
+ * Get the previous chapter in a list
+ */
+export function getPreviousChapter(
+  chapters: MangaChapter[],
+  currentChapterId: string
+): MangaChapter | null {
+  const currentIndex = chapters.findIndex((c) => c.id === currentChapterId);
+  if (currentIndex <= 0) return null;
+  return chapters[currentIndex - 1];
+}
+
+/**
+ * Sort chapters by chapter number (ascending)
+ */
+export function sortChaptersAsc(chapters: MangaChapter[]): MangaChapter[] {
+  return [...chapters].sort((a, b) => {
+    const aNum = typeof a.number === 'number' ? a.number : parseFloat(String(a.number)) || 0;
+    const bNum = typeof b.number === 'number' ? b.number : parseFloat(String(b.number)) || 0;
+    return aNum - bNum;
+  });
+}
+
+/**
+ * Sort chapters by chapter number (descending)
+ */
+export function sortChaptersDesc(chapters: MangaChapter[]): MangaChapter[] {
+  return [...chapters].sort((a, b) => {
+    const aNum = typeof a.number === 'number' ? a.number : parseFloat(String(a.number)) || 0;
+    const bNum = typeof b.number === 'number' ? b.number : parseFloat(String(b.number)) || 0;
+    return bNum - aNum;
+  });
+}
+
+/**
+ * Create a reference ID for storing manga in watchlist
+ * Format: provider:mangaId
+ */
+export function createMangaRefId(mangaId: string, provider: MangaProviderName): string {
+  return createSharedMangaRefId(mangaId, provider);
+}
+
+/**
+ * Parse a reference ID to get provider and manga ID
+ */
+export function parseMangaRefId(refId: string): { provider: MangaProviderName; mangaId: string } | null {
+  return parseSharedMangaRefId(refId);
+}
+
+/**
+ * Check if a refId is for a specific provider
+ */
+export function isProviderRefId(refId: string, provider: MangaProviderName): boolean {
+  return isMangaProviderRefId(refId, provider);
+}
+
+/**
+ * Get provider display name
+ */
+export function getProviderDisplayName(provider: MangaProviderName): string {
+  return getMangaProviderDisplayName(provider);
+}
+
+// Default provider
+export const DEFAULT_PROVIDER: MangaProviderName = 'mangadex';
+
+// ============ ChapterInfo compatibility ============
+
+// Re-export ChapterInfo type compatibility function
+import { ChapterInfo } from './mangadexTypes';
+
+/**
+ * Format chapter number for display (ChapterInfo version)
+ */
+export function formatChapterInfo(chapter: ChapterInfo): string {
+  const parts: string[] = [];
+  if (chapter.volume) {
+    parts.push(`Vol. ${chapter.volume}`);
+  }
+  if (chapter.chapter) {
+    parts.push(`Ch. ${chapter.chapter}`);
+  }
+  if (chapter.title) {
+    parts.push(`- ${chapter.title}`);
+  }
+  return parts.join(' ') || 'Oneshot';
+}
+
+/**
+ * Get all chapters for a manga (fetches manga info and returns chapters)
+ */
+export async function getAllChapters(
+  mangaId: string,
+  provider: MangaProviderName = 'mangadex'
+): Promise<ChapterInfo[]> {
+  const mangaInfo = await getMangaInfo(mangaId, provider);
+  const chapters = mangaInfo.chapters || [];
+
+  // Convert MangaChapter to ChapterInfo format
+  return chapters.map(ch => ({
+    id: ch.id,
+    title: ch.title || null,
+    volume: ch.volume || null,
+    chapter: String(ch.number),
+    pages: ch.pages || 0,
+    translatedLanguage: 'en',
+    scanlationGroup: null,
+    publishedAt: ch.releaseDate || new Date().toISOString(),
+    externalUrl: ch.url || null,
+  }));
+}
+
+// ============ Chapter Page URL Resolution ============
+
+// Import mediaSearch for external chapter handling
+import * as mediaSearch from './mediaSearch';
+
+/**
+ * Result of resolving chapter page URLs
+ */
+export interface ChapterPageUrlsResult {
+  urls: string[];
+  headers: (Record<string, string> | undefined)[];
+  isMangaPlus: boolean;
+  isExternal: boolean;
+  externalMessage?: string;
+}
+
+/**
+ * Helper to proxy image URLs through our server to bypass hotlink protection
+ * @param url - The image URL to proxy
+ * @param referer - Optional referer URL (e.g., provider's baseUrl) to use for the request
+ */
+export function proxyImageUrl(url: string, referer?: string): string {
+  return getProxiedImageUrl(url, referer) || url;
+}
+
+/**
+ * Get chapter page URLs for reading or downloading.
+ * Handles MangaDex, MangaPlus, and other providers uniformly.
+ *
+ * @param chapterId - The chapter ID to fetch pages for
+ * @param provider - The manga provider (defaults to 'mangadex')
+ * @returns ChapterPageUrlsResult with URLs and metadata
+ * @throws Error if chapter cannot be loaded
+ */
+export async function getChapterPageUrls(
+  chapterId: string,
+  provider: MangaProviderName = 'mangadex'
+): Promise<ChapterPageUrlsResult> {
+  // For MangaDex provider, use the external chapter info endpoint
+  // This handles MangaPlus external URLs and regular MangaDex chapters
+  if (provider === 'mangadex') {
+    const chapterInfo = await mediaSearch.getExternalChapterInfo(rawMediaPartId(provider, chapterId));
+
+    if (!chapterInfo) {
+      throw new Error('Failed to fetch chapter info');
+    }
+
+    if (chapterInfo.type === 'external') {
+      // Non-MangaPlus external URL - not supported for in-app reading
+      return {
+        urls: [],
+        headers: [],
+        isMangaPlus: false,
+        isExternal: true,
+        externalMessage: chapterInfo.message || 'This chapter is only available on an external website',
+      };
+    }
+
+    if (chapterInfo.type === 'mangaplus') {
+      // MangaPlus chapter - build proxy URLs
+        const mangaPlusPages = chapterInfo.pages as mediaSearch.MangaPlusPageInfo[];
+        const urls = mangaPlusPages.map(p =>
+         getMangaPlusImageProxyUrl(p.url, p.encryptionKey)
+        );
+      return {
+        urls,
+        headers: mangaPlusPages.map(() => undefined),
+        isMangaPlus: true,
+        isExternal: false,
+      };
+    }
+
+    // Regular MangaDex chapter
+    const mangaDexPages = chapterInfo.pages as mediaSearch.MangaDexPageInfo[];
+    const urls = mangaDexPages.map(p => proxyImageUrl(p.img, MANGA_PROVIDER_BASE_URLS['mangadex']));
+    return {
+      urls,
+      headers: mangaDexPages.map(() => undefined),
+      isMangaPlus: false,
+      isExternal: false,
+    };
+  }
+
+  // Other providers - use unified manga service
+  const chapterPages = await getChapterPages(chapterId, provider);
+  const providerBaseUrl = MANGA_PROVIDER_BASE_URLS[provider];
+  const urls = chapterPages.pages.map(p => proxyImageUrl(p.img, providerBaseUrl));
+  const headers = chapterPages.pages.map(p => p.headerForImage);
+
+  return {
+    urls,
+    headers,
+    isMangaPlus: false,
+    isExternal: false,
+  };
+}

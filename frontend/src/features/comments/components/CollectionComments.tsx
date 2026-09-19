@@ -4,11 +4,11 @@ import {
   deleteCollectionComment,
   getCollectionComments,
   updateCollectionComment,
-} from '@/features/collections/api';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
-import { CollectionComment } from '@/types';
-import { useToast } from '@/context/ToastContext';
+} from '../../collections/api';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
+import { CollectionComment } from '../../../types';
+import { useToast } from '../../../context/ToastContext';
 
 interface CollectionCommentsProps {
   collectionId: string;

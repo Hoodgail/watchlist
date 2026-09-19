@@ -3,7 +3,7 @@ import {
   LoginCredentials,
   RegisterCredentials,
   AuthResponse,
-} from '../../../types';
+} from '../../types';
 import {
   API_BASE_URL,
   clearTokens,
@@ -11,7 +11,7 @@ import {
   getAccessToken,
   getRefreshToken,
   setTokens,
-} from '@/shared/api/client';
+} from '../../shared/api/client';
 
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -70,20 +70,14 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null;
   }
 
-  try {
-    const response = await fetchWithAuth('/auth/me');
-    if (response.ok) {
-      return await response.json();
-    }
-  } catch (error) {
-    console.error('Failed to get current user:', error);
-  }
-
-  return null;
+  const response = await fetchWithAuth('/auth/me');
+  if (response.ok) return await response.json();
+  if (response.status === 401 || response.status === 403) return null;
+  throw new TypeError('Session check temporarily unavailable');
 }
 
-export async function getOAuthUrl(provider: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/auth/oauth/${provider}`);
+export async function getOAuthUrl(provider: string, mode: 'login' | 'link' = 'login'): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/auth/oauth/${provider}?mode=${mode}`, { credentials: 'include', headers: mode === 'link' ? { Authorization: `Bearer ${getAccessToken()}` } : {} });
 
   if (!response.ok) {
     const error = await response.json();

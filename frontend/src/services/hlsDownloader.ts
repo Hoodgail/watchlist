@@ -1,1 +1,1 @@
-export * from '../../services/hlsDownloader';
+export * from '../features/offline/video/downloader';

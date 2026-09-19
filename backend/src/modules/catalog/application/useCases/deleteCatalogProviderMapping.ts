@@ -3,10 +3,11 @@ import type { CatalogProviderMappingGateway } from '../ports/CatalogProviderMapp
 export interface DeleteCatalogProviderMappingCommand {
   refId: string;
   provider: string;
+  userId?: string;
 }
 
 export function createDeleteCatalogProviderMappingUseCase(dependencies: { providerMappingGateway: CatalogProviderMappingGateway }) {
   return async function deleteCatalogProviderMapping(command: DeleteCatalogProviderMappingCommand): Promise<void> {
-    await dependencies.providerMappingGateway.deleteMapping(command.refId, command.provider);
+    await dependencies.providerMappingGateway.deleteMapping(command.refId, command.provider, command.userId);
   };
 }

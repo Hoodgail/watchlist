@@ -5,8 +5,8 @@ import {
   SortBy,
   FriendStatus,
   ActiveProgress,
-} from '../../../types';
-import { fetchWithAuth } from '@/shared/api/client';
+} from '../../types';
+import { fetchWithAuth } from '../../shared/api/client';
 
 interface ListFilters {
   type?: MediaType;
@@ -69,7 +69,7 @@ export function transformBackendItem(item: BackendMediaItem): MediaItem {
     notes: item.notes || undefined,
     rating: item.rating,
     imageUrl: item.imageUrl || undefined,
-    refId: item.refId || undefined,
+    refId: item.refId ?? `local:${item.id}`,
     friendsStatuses: item.friendsStatuses,
     activeProgress: item.activeProgress,
     aliases: item.aliases?.map((alias) => ({

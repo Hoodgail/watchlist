@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress, Collection } from '@/types';
-import { STATUS_OPTIONS } from '@/constants';
-import { SuggestToFriendModal } from '@/features/social/components/SuggestToFriendModal';
-import { FriendAvatar } from '@/features/social/components/FriendList';
-import { SpoilerBlur, SpoilerIndicator } from '@/shared/ui/SpoilerBlur';
-import { useSpoilerProtection } from '@/context/SpoilerContext';
-import { AddToCollectionModal, CollectionItemData } from '@/features/collections/components/AddToCollectionModal';
-import { getMyCollections, addCollectionItem } from '@/features/collections/api';
-import type { GroupedListResponse, StatusGroupPagination } from '@/features/library/api';
-import { ProxiedImage, ProxiedImageCompact } from '@/shared/ui/ProxiedImage';
-import { getRefIdImageUrl } from '@/shared/media';
-import { useToast } from '@/context/ToastContext';
-import { useAuth } from '@/context/AuthContext';
-import { FriendsActivityStrip } from '@/features/social/components/FriendsActivityStrip';
+import { MediaItem, MediaStatus, SortBy, FriendActivityFilter, FriendStatus, ActiveProgress, Collection } from '../../../types';
+import { STATUS_OPTIONS } from '../../../constants';
+import { SuggestToFriendModal } from '../../social/components/SuggestToFriendModal';
+import { FriendAvatar } from '../../social/components/FriendList';
+import { SpoilerBlur, SpoilerIndicator } from '../../../shared/ui/SpoilerBlur';
+import { useSpoilerProtection } from '../../../context/SpoilerContext';
+import { AddToCollectionModal, CollectionItemData } from '../../collections/components/AddToCollectionModal';
+import { getMyCollections, addCollectionItem } from '../../collections/api';
+import type { GroupedListResponse, StatusGroupPagination } from '../api';
+import { ProxiedImage, ProxiedImageCompact } from '../../../shared/ui/ProxiedImage';
+import { getRefIdImageUrl } from '../../../shared/media/index';
+import { useToast } from '../../../context/ToastContext';
+import { useAuth } from '../../../context/AuthContext';
+import { FriendsActivityStrip } from '../../social/components/FriendsActivityStrip';
 
 // ==================== Swipe Gesture Hook ====================
 
@@ -1080,7 +1080,7 @@ const MediaItemCard: React.FC<MediaItemCardProps & { onOpenSheet?: (item: MediaI
 
           {/* Poster thumbnail */}
           <div className="flex-shrink-0 relative">
-            <SpoilerBlur itemId={`poster-${item.id}`} isSpoiler={isSpoiler} type="image" showIcon={true}>
+            <SpoilerBlur itemId={`poster-${item.id}`} isSpoiler={Boolean(isSpoiler)} type="image" showIcon={true}>
               <ProxiedImage
                 src={imageUrl}
                 alt={item.title}

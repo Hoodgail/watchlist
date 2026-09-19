@@ -3,19 +3,19 @@ import {
   getPublicCollection,
   starCollection,
   unstarCollection,
-} from '@/features/collections/api';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { UserAvatar } from '@/shared/ui';
-import { formatRelativeTime } from '@/shared/utils/time';
+} from '../api';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { UserAvatar } from '../../../shared/ui/index';
+import { formatRelativeTime } from '../../../shared/utils/time';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import {
   CollectionWithDetails,
   CollectionItem,
   CollectionRole,
-} from '@/types';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/context/ToastContext';
+} from '../../../types';
+import { useAuth } from '../../../context/AuthContext';
+import { useToast } from '../../../context/ToastContext';
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://watchlist.hoodgail.me';
 

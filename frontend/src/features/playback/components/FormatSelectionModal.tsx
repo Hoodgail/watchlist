@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { resolveMediaImageUrl } from '@/shared/media';
-import { SearchResult, MediaType } from '@/types';
+import { resolveMediaImageUrl } from '../../../shared/media/index';
+import { SearchResult, MediaType } from '../../../types';
 
 interface FormatSelectionModalProps {
   /** The original search result */

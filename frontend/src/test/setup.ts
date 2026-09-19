@@ -3,12 +3,12 @@ import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach } from 'vitest';
 
 beforeEach(() => {
-  localStorage.clear();
-  sessionStorage.clear();
+  globalThis.localStorage?.clear();
+  globalThis.sessionStorage?.clear();
 });
 
 afterEach(() => {
   cleanup();
-  localStorage.clear();
-  sessionStorage.clear();
+  globalThis.localStorage?.clear();
+  globalThis.sessionStorage?.clear();
 });

@@ -17,7 +17,6 @@ import {
   createGetExternalProvidersForMediaTypeUseCase,
   createGetExternalProvidersUseCase,
   createPreviewExternalResolutionUseCase,
-  createRefreshExternalCommentsUseCase,
 } from '../application/useCases/externalComments.js';
 import type { CommentsGateway } from '../application/ports/CommentsGateway.js';
 import type { ExternalCommentsGateway } from '../application/ports/ExternalCommentsGateway.js';
@@ -31,7 +30,8 @@ export interface CommentsApplicationDependencies {
 
 export function createCommentsApplication(dependencies?: Partial<CommentsApplicationDependencies>) {
   const commentsGateway = dependencies?.commentsGateway ?? createPrismaCommentsGateway();
-  const externalCommentsGateway = dependencies?.externalCommentsGateway ?? createPrismaExternalCommentsGateway(commentsGateway);
+  const externalCommentsGateway =
+    dependencies?.externalCommentsGateway ?? createPrismaExternalCommentsGateway(commentsGateway);
 
   return {
     createComment: createCreateCommentUseCase({ commentsGateway }),
@@ -45,12 +45,17 @@ export function createCommentsApplication(dependencies?: Partial<CommentsApplica
     removeReaction: createRemoveReactionUseCase({ commentsGateway }),
     getComment: createGetCommentUseCase({ commentsGateway }),
     getExternalProviders: createGetExternalProvidersUseCase({ externalCommentsGateway }),
-    getExternalProvidersForMediaType: createGetExternalProvidersForMediaTypeUseCase({ externalCommentsGateway }),
+    getExternalProvidersForMediaType: createGetExternalProvidersForMediaTypeUseCase({
+      externalCommentsGateway,
+    }),
     fetchExternalComments: createFetchExternalCommentsUseCase({ externalCommentsGateway }),
-    fetchExternalCommentsFromProvider: createFetchExternalCommentsFromProviderUseCase({ externalCommentsGateway }),
-    fetchExternalCommentsWithResolution: createFetchExternalCommentsWithResolutionUseCase({ externalCommentsGateway }),
+    fetchExternalCommentsFromProvider: createFetchExternalCommentsFromProviderUseCase({
+      externalCommentsGateway,
+    }),
+    fetchExternalCommentsWithResolution: createFetchExternalCommentsWithResolutionUseCase({
+      externalCommentsGateway,
+    }),
     previewExternalResolution: createPreviewExternalResolutionUseCase({ externalCommentsGateway }),
-    refreshExternalComments: createRefreshExternalCommentsUseCase({ externalCommentsGateway }),
     getExternalProviderByName: externalCommentsGateway.getProvider,
   };
 }

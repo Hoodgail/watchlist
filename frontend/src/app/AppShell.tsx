@@ -1,7 +1,7 @@
 import React from 'react';
-import { AccountSecurityBanner } from '@/app/components/AccountSecurityBanner';
-import { Layout } from '@/app/layout/Layout';
-import type { AuthUser, View } from '@/types';
+import { AccountSecurityBanner } from './components/AccountSecurityBanner';
+import { Layout } from './layout/Layout';
+import type { AuthUser, View } from '../types';
 
 export interface AppShellProps {
   currentView: View;

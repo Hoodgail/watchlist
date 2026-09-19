@@ -3,16 +3,16 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppViewRouter, type AppViewRouterProps } from './AppViewRouter';
 
-vi.mock('@/features/library/components/MediaList', () => ({ MediaList: ({ title }: { title: string }) => <div>{title}</div> }));
-vi.mock('@/features/library/components/SearchMedia', () => ({ SearchMedia: () => <div>SEARCH</div> }));
-vi.mock('@/features/discovery/components/TrendingPage', () => ({ TrendingPage: () => <div>TRENDING</div>, default: () => <div>TRENDING</div> }));
-vi.mock('@/features/social/components/FriendList', () => ({ FriendList: () => <div>FRIENDS</div> }));
-vi.mock('@/features/social/components/FriendsActivityStrip', () => ({ FriendsActivityStrip: () => <div data-testid="friends-activity-strip" /> }));
-vi.mock('@/features/social/components/SuggestionList', () => ({ SuggestionList: () => <div>SUGGESTIONS</div> }));
-vi.mock('@/features/profile/components/Settings', () => ({ Settings: () => <div>SETTINGS</div> }));
-vi.mock('@/features/offline/components/UnifiedDownloadManager', () => ({ UnifiedDownloadManager: () => <div>DOWNLOADS</div> }));
-vi.mock('@/features/collections/components/Collections', () => ({ Collections: () => <div>COLLECTIONS</div>, default: () => <div>COLLECTIONS</div> }));
-vi.mock('@/features/collections/components/CollectionView', () => ({ CollectionView: () => <div>COLLECTION VIEW</div>, default: () => <div>COLLECTION VIEW</div> }));
+vi.mock('../features/library/components/MediaList', () => ({ MediaList: ({ title }: { title: string }) => <div>{title}</div> }));
+vi.mock('../features/library/components/SearchMedia', () => ({ SearchMedia: () => <div>SEARCH</div> }));
+vi.mock('../features/discovery/components/TrendingPage', () => ({ TrendingPage: () => <div>TRENDING</div>, default: () => <div>TRENDING</div> }));
+vi.mock('../features/social/components/FriendList', () => ({ FriendList: () => <div>FRIENDS</div> }));
+vi.mock('../features/social/components/FriendsActivityStrip', () => ({ FriendsActivityStrip: () => <div data-testid="friends-activity-strip" /> }));
+vi.mock('../features/social/components/SuggestionList', () => ({ SuggestionList: () => <div>SUGGESTIONS</div> }));
+vi.mock('../features/profile/components/Settings', () => ({ Settings: () => <div>SETTINGS</div> }));
+vi.mock('../features/offline/components/UnifiedDownloadManager', () => ({ UnifiedDownloadManager: () => <div>DOWNLOADS</div> }));
+vi.mock('../features/collections/components/Collections', () => ({ Collections: () => <div>COLLECTIONS</div>, default: () => <div>COLLECTIONS</div> }));
+vi.mock('../features/collections/components/CollectionView', () => ({ CollectionView: () => <div>COLLECTION VIEW</div>, default: () => <div>COLLECTION VIEW</div> }));
 
 const baseProps: AppViewRouterProps = {
   currentView: 'WATCHLIST',
@@ -95,7 +95,7 @@ const baseProps: AppViewRouterProps = {
 describe('AppViewRouter', () => {
   it('renders watchlist view', () => {
     render(<AppViewRouter {...baseProps} />);
-    expect(screen.getByText('MY LIBRARY')).toBeInTheDocument();
+    expect(screen.getByText('MY LIST')).toBeInTheDocument();
   });
 
   it('renders loading state for empty list', () => {

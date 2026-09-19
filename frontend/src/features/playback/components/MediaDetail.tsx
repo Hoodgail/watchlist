@@ -7,23 +7,23 @@ import {
   type MediaSourceWithAliases,
   unlinkMediaSource,
   type WatchProgressData,
-} from '@/features/playback/api';
-import { getAccessToken } from '@/shared/api/client';
-import { type OfflineVideoEpisode, getOfflineEpisodesForMedia } from '@/features/offline/video/storage';
-import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress, SourceAlias } from '@/types';
-import * as videoService from '@/services/video';
-import { VideoMediaInfo } from '@/services/video';
-import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider, MatchResult, resolveWithAlternatives, ResolutionWithAlternatives } from '@/services/videoResolver';
-import { useOfflineVideo } from '@/context/OfflineVideoContext';
-import { useToast } from '@/context/ToastContext';
-import ProviderMappingModal from '@/features/playback/components/ProviderMappingModal';
-import MediaSelectionModal from '@/features/playback/components/MediaSelectionModal';
-import ConfidenceCheckModal from '@/features/playback/components/ConfidenceCheckModal';
-import SourceSearchModal from '@/features/playback/components/SourceSearchModal';
-import { VIDEO_PROVIDER_BASE_URLS } from '@/services/providerConfig';
-import { SearchResult, ProviderName } from '@/types';
-import { CommentSection } from '@/features/comments/components/CommentSection';
-import { getProviderImageUrl } from '@/shared/media';
+} from '../api';
+import { getAccessToken } from '../../../shared/api/client';
+import { type OfflineVideoEpisode, getOfflineEpisodesForMedia } from '../../offline/video/storage';
+import { VideoProviderName, VideoEpisode, VideoSeason, WatchProgress, SourceAlias } from '../../../types';
+import * as videoService from '../../../services/video';
+import { VideoMediaInfo } from '../../../services/video';
+import { resolveAndGetMediaInfo, needsResolution, LOW_CONFIDENCE_THRESHOLD, checkForMultipleMatches, searchWithProvider, MatchResult, resolveWithAlternatives, ResolutionWithAlternatives } from '../../../services/videoResolver';
+import { useOfflineVideo } from '../../../context/OfflineVideoContext';
+import { useToast } from '../../../context/ToastContext';
+import ProviderMappingModal from './ProviderMappingModal';
+import MediaSelectionModal from './MediaSelectionModal';
+import ConfidenceCheckModal from './ConfidenceCheckModal';
+import SourceSearchModal from './SourceSearchModal';
+import { VIDEO_PROVIDER_BASE_URLS } from '../../../services/providerConfig';
+import { SearchResult, ProviderName } from '../../../types';
+import { CommentSection } from '../../comments/components/CommentSection';
+import { getProviderImageUrl } from '../../../shared/media/index';
 
 interface MediaDetailProps {
   /** The original reference ID (e.g., "tmdb:95479" or "hianime:abc123") */
@@ -69,20 +69,20 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const [selectedEpisodes, setSelectedEpisodes] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  
+
   // Backend watch progress (synced across devices)
   const [backendProgress, setBackendProgress] = useState<Map<string, WatchProgressData>>(new Map());
-  
+
   // Resolved provider ID - may differ from mediaId if resolution was needed
   const [resolvedProviderId, setResolvedProviderId] = useState<string>(mediaId);
   const [resolvedProvider, setResolvedProvider] = useState<VideoProviderName>(provider);
-  
+
   // Resolution confidence tracking
   const [confidence, setConfidence] = useState<number>(1.0);
   const [isVerified, setIsVerified] = useState<boolean>(true);
   const [showLinkSourceModal, setShowLinkSourceModal] = useState(false);
   const [showConfidenceWarning, setShowConfidenceWarning] = useState(false);
-  
+
   // Multi-match selection modal state
   const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [selectionModalResults, setSelectionModalResults] = useState<SearchResult[]>([]);
@@ -124,7 +124,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   useEffect(() => {
     const fetchBackendProgress = async () => {
       if (!isOnline || !getAccessToken() || !resolvedProviderId) return;
-      
+
       try {
         const progressData = await getWatchProgressForMedia(resolvedProviderId);
         const progressMap = new Map<string, WatchProgressData>();
@@ -138,7 +138,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         console.error('[MediaDetail] Failed to fetch backend progress:', err);
       }
     };
-    
+
     fetchBackendProgress();
   }, [resolvedProviderId, isOnline]);
 
@@ -146,7 +146,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   useEffect(() => {
     const fetchMediaSource = async () => {
       if (!isOnline || !getAccessToken() || !mediaId) return;
-      
+
       try {
         const source = await findMediaSourceByRefId(mediaId);
         if (source) {
@@ -159,7 +159,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         console.error('[MediaDetail] Failed to fetch media source:', err);
       }
     };
-    
+
     fetchMediaSource();
   }, [mediaId, isOnline]);
 
@@ -170,24 +170,24 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     try {
       // Try to load from offline storage first
       // Check both by ID and originalRefId (for cases where we store provider ID but query with external ID)
-      const offlineMedia = downloadedMedia.find(m => 
+      const offlineMedia = downloadedMedia.find(m =>
         m.id === mediaId || m.originalRefId === mediaId
       );
-      
+
       if (offlineMedia) {
         // We have offline metadata but need full info
         // If online, fetch fresh data; otherwise show limited info with offline episodes
         if (!isOnline) {
           // Load episodes from IndexedDB for offline playback
           const offlineEpisodes = await getOfflineEpisodesForMedia(offlineMedia.id);
-          
+
           // Convert offline episodes to VideoEpisode format
           const episodes: VideoEpisode[] = offlineEpisodes.map(ep => ({
             id: ep.id,
             number: ep.episodeNumber,
             title: ep.title || `Episode ${ep.episodeNumber}`,
           }));
-          
+
           // Create media info from offline data with episodes
           setMediaInfo({
             id: offlineMedia.id,
@@ -196,12 +196,12 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             totalEpisodes: offlineMedia.episodeCount,
             episodes: episodes.length > 0 ? episodes : undefined,
           });
-          
+
           // Expand "season 1" by default if we have episodes
           if (episodes.length > 0) {
             setExpandedSeasons(new Set([1]));
           }
-          
+
           setLoading(false);
           return;
         }
@@ -212,14 +212,14 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         // Check if the mediaId needs resolution (e.g., tmdb:12345 -> hianime ID)
         if (needsResolution(mediaId) && initialTitle) {
           console.log(`[MediaDetail] Resolving ${mediaId} via title search: "${initialTitle}"`);
-          
+
           // First, check if there are multiple matches with the same title
           const multiMatchCheck = await checkForMultipleMatches(initialTitle, provider, mediaType);
-          
+
           if (multiMatchCheck.multipleMatches) {
             // Multiple sources found with same/similar name - show selection modal
             console.log(`[MediaDetail] Multiple matches found (${multiMatchCheck.matches.length}), showing selection modal`);
-            
+
             // Convert matches to SearchResult format for the modal
             const searchResults: SearchResult[] = multiMatchCheck.matches.map(m => ({
               id: `${provider}:${m.id}`,
@@ -230,13 +230,13 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               imageUrl: m.imageUrl,
               description: m.description,
             }));
-            
+
             setSelectionModalResults(searchResults);
             setShowSelectionModal(true);
             setLoading(false);
             return;
           }
-          
+
           // Single match or no exact matches - proceed with normal resolution
           // Use resolveWithAlternatives to get alternatives for confidence checking
           const resolutionResult = await resolveWithAlternatives(
@@ -245,26 +245,26 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             initialTitle,
             mediaType
           );
-          
+
           if (resolutionResult) {
             const resolved = resolutionResult.primary;
             setResolvedProviderId(resolved.providerId);
             setResolvedProvider(resolved.provider);
             setConfidence(resolved.confidence);
             setIsVerified(resolved.isVerified);
-            
+
             // Store alternatives for confidence check modal
             setConfidenceCheckAlternatives(resolutionResult.alternatives);
-            
+
             // Show confidence warning if match quality is low
             if (resolved.confidence < LOW_CONFIDENCE_THRESHOLD && !resolved.isVerified) {
               setShowConfidenceWarning(true);
             }
-            
+
             // Fetch full media info
             const info = await videoService.getMediaInfo(provider, resolved.providerId);
             setMediaInfo(info);
-            
+
             // Expand first season by default
             if (info.seasons && info.seasons.length > 0) {
               setExpandedSeasons(new Set([info.seasons[0].season]));
@@ -281,7 +281,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             setResolvedProviderId(mediaId);
             setResolvedProvider(provider);
             setMediaInfo(info);
-            
+
             // Expand first season by default
             if (info.seasons && info.seasons.length > 0) {
               setExpandedSeasons(new Set([info.seasons[0].season]));
@@ -298,26 +298,26 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 initialTitle,
                 mediaType
               );
-              
+
               if (resolutionResult) {
                 const resolved = resolutionResult.primary;
                 setResolvedProviderId(resolved.providerId);
                 setResolvedProvider(resolved.provider);
                 setConfidence(resolved.confidence);
                 setIsVerified(resolved.isVerified);
-                
+
                 // Store alternatives for confidence check modal
                 setConfidenceCheckAlternatives(resolutionResult.alternatives);
-                
+
                 // Show confidence warning if match quality is low
                 if (resolved.confidence < LOW_CONFIDENCE_THRESHOLD && !resolved.isVerified) {
                   setShowConfidenceWarning(true);
                 }
-                
+
                 // Fetch full media info
                 const info = await videoService.getMediaInfo(provider, resolved.providerId);
                 setMediaInfo(info);
-                
+
                 if (info.seasons && info.seasons.length > 0) {
                   setExpandedSeasons(new Set([info.seasons[0].season]));
                 } else if (info.episodes && info.episodes.length > 0) {
@@ -349,12 +349,12 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
   const getSeasons = useCallback((): VideoSeason[] => {
     if (!mediaInfo) return [];
-    
+
     // If seasons are provided, use them
     if (mediaInfo.seasons && mediaInfo.seasons.length > 0) {
       return mediaInfo.seasons;
     }
-    
+
     // If only episodes are provided, group them into a single "season"
     if (mediaInfo.episodes && mediaInfo.episodes.length > 0) {
       return [{
@@ -362,7 +362,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         episodes: mediaInfo.episodes,
       }];
     }
-    
+
     return [];
   }, [mediaInfo]);
 
@@ -423,7 +423,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
 
     const allEpisodes = getAllEpisodes();
     const episodesToDownload = allEpisodes.filter(ep => selectedEpisodes.has(ep.id));
-    
+
     try {
       // Use resolved provider ID for downloads, but pass original mediaId as refId for offline lookup
       await downloadEpisodes(resolvedProviderId, mediaInfo.title, episodesToDownload, resolvedProvider, mediaId);
@@ -490,9 +490,9 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const getMergedProgress = useCallback((episodeId: string): { currentTime: number; duration: number; completed: boolean } | null => {
     const localProgress = getWatchProgress(mediaId, episodeId);
     const backendProgressItem = backendProgress.get(episodeId);
-    
+
     if (!localProgress && !backendProgressItem) return null;
-    
+
     // If only one source exists, use it
     if (!localProgress && backendProgressItem) {
       return {
@@ -508,7 +508,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         completed: localProgress.completed,
       };
     }
-    
+
     // Both exist - use the one with more progress (higher currentTime)
     // This handles the case where local might be ahead of backend sync
     if (localProgress && backendProgressItem) {
@@ -525,7 +525,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         completed: backendProgressItem.completed,
       };
     }
-    
+
     return null;
   }, [mediaId, getWatchProgress, backendProgress]);
 
@@ -544,7 +544,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const getSeasonProgress = useCallback((season: VideoSeason): { watched: number; inProgress: number; total: number } => {
     let watched = 0;
     let inProgress = 0;
-    
+
     for (const episode of season.episodes) {
       if (isEpisodeCompleted(episode.id)) {
         watched++;
@@ -555,7 +555,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         }
       }
     }
-    
+
     return { watched, inProgress, total: season.episodes.length };
   }, [isEpisodeCompleted, getEpisodeProgress]);
 
@@ -564,7 +564,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     const allEps = getAllEpisodes();
     let watched = 0;
     let inProgress = 0;
-    
+
     for (const episode of allEps) {
       if (isEpisodeCompleted(episode.id)) {
         watched++;
@@ -575,7 +575,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         }
       }
     }
-    
+
     return { watched, inProgress, total: allEps.length };
   }, [getAllEpisodes, isEpisodeCompleted, getEpisodeProgress]);
 
@@ -598,18 +598,18 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const handleMappingSaved = useCallback((providerId: string, providerTitle: string) => {
     // Update resolved state with the new mapping
     setResolvedProviderId(providerId);
-    
+
     // Clear confidence warning since this is now verified
     setShowConfidenceWarning(false);
     setConfidence(1.0);
     setIsVerified(true);
-    
+
     // Reset loaded ref to force reload with new mapping
     loadedForRef.current = null;
-    
+
     // Show success toast
     showToast(`Linked to "${providerTitle}"`, 'success');
-    
+
     // Reload media details with the new mapping
     loadMediaDetails();
   }, [showToast]);
@@ -636,7 +636,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Handle confirmation from confidence check modal
   const handleConfidenceCheckConfirm = useCallback(async (providerId: string, providerTitle: string) => {
     setShowConfidenceCheckModal(false);
-    
+
     // Update the resolved provider ID if user selected a different match
     if (providerId !== resolvedProviderId) {
       setResolvedProviderId(providerId);
@@ -648,12 +648,12 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         console.warn('[MediaDetail] Failed to reload media info after confirmation:', err);
       }
     }
-    
+
     // Mark as verified
     setConfidence(1.0);
     setIsVerified(true);
     setShowConfidenceWarning(false);
-    
+
     // Proceed with the pending watch action
     if (pendingWatchAction && mediaInfo) {
       const allEps = getAllEpisodes();
@@ -669,7 +669,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
     setShowLinkSourceModal(true);
   }, []);
 
-  // Handle cancel from confidence check modal  
+  // Handle cancel from confidence check modal
   const handleConfidenceCheckClose = useCallback(() => {
     setShowConfidenceCheckModal(false);
     setPendingWatchAction(null);
@@ -679,7 +679,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   const handleMediaSelection = useCallback(async (result: SearchResult, selectedProvider: VideoProviderName) => {
     setShowSelectionModal(false);
     setLoading(true);
-    
+
     try {
       // Extract the provider ID from the result
       let providerId = result.id;
@@ -687,23 +687,23 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
       if (colonIndex !== -1) {
         providerId = providerId.substring(colonIndex + 1);
       }
-      
+
       // Fetch media info for the selected result
       const info = await videoService.getMediaInfo(selectedProvider, providerId);
-      
+
       setResolvedProviderId(providerId);
       setResolvedProvider(selectedProvider);
       setMediaInfo(info);
       setConfidence(1.0); // User-selected = high confidence
       setIsVerified(true);
-      
+
       // Expand first season by default
       if (info.seasons && info.seasons.length > 0) {
         setExpandedSeasons(new Set([info.seasons[0].season]));
       } else if (info.episodes && info.episodes.length > 0) {
         setExpandedSeasons(new Set([1]));
       }
-      
+
       showToast(`Selected "${result.title}"`, 'success');
     } catch (err) {
       console.error('[MediaDetail] Failed to load selected media:', err);
@@ -739,7 +739,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Get icon for provider (returns JSX element)
   const getProviderIcon = useCallback((providerStr: string): React.ReactNode => {
     const key = providerStr.toLowerCase();
-    
+
     // TMDB - Film icon
     if (key === 'tmdb') {
       return (
@@ -748,7 +748,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </svg>
       );
     }
-    
+
     // AniList - TV/Monitor icon
     if (key === 'anilist') {
       return (
@@ -757,17 +757,17 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </svg>
       );
     }
-    
+
     // AniList Manga - Book icon
-    if (key === 'anilist-manga' || key === 'mangadex' || key === 'mangapill' || key === 'mangahere' || 
-        key === 'mangakakalot' || key === 'mangareader' || key === 'asurascans' || key === 'comick') {
+    if (key === 'anilist-manga' || key === 'mangadex' || key === 'mangapill' || key === 'mangahere' ||
+        key === 'mangareader' || key === 'asurascans' || key === 'comick') {
       return (
         <svg className="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
       );
     }
-    
+
     // Anime providers - Play circle icon
     if (key === 'hianime' || key === 'animepahe' || key === 'animekai' || key === 'kickassanime') {
       return (
@@ -777,7 +777,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </svg>
       );
     }
-    
+
     // Movie/TV providers - Video camera icon
     if (key === 'flixhq' || key === 'goku' || key === 'sflix' || key === 'himovies') {
       return (
@@ -786,7 +786,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </svg>
       );
     }
-    
+
     // DramaCool - Theater masks icon
     if (key === 'dramacool') {
       return (
@@ -795,7 +795,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </svg>
       );
     }
-    
+
     // MAL - Clipboard list icon
     if (key === 'mal' || key === 'myanimelist') {
       return (
@@ -804,7 +804,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         </svg>
       );
     }
-    
+
     // Default - Link icon
     return (
       <svg className="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -825,10 +825,10 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Handle adding a new linked source from search
   const handleAddLinkFromSearch = useCallback(async (result: SearchResult, selectedProvider: ProviderName) => {
     if (!mediaSource) return;
-    
+
     // Build refId from the selected result
     const newRefId = `${selectedProvider}:${result.id}`;
-    
+
     setAddingLink(true);
     try {
       await linkMediaSource(mediaSource.id, newRefId);
@@ -850,7 +850,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Handle removing a linked source
   const handleRemoveLink = useCallback(async (aliasId: string) => {
     if (!confirm('Remove this linked source?')) return;
-    
+
     try {
       await unlinkMediaSource(aliasId);
       // Refresh the media source
@@ -868,28 +868,28 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   // Handle switching active source for playback
   const handleSwitchActiveSource = useCallback(async (refId: string) => {
     setActiveSourceRefId(refId);
-    
+
     // Extract provider from the refId
     const newProvider = extractProvider(refId) as VideoProviderName;
     const providerId = refId.includes(':') ? refId.split(':')[1] : refId;
-    
+
     // Update resolved provider ID and provider
     setResolvedProviderId(providerId);
     setResolvedProvider(newProvider);
-    
+
     // Reload media info with the new provider
     try {
       setLoading(true);
       const info = await videoService.getMediaInfo(newProvider, providerId);
       setMediaInfo(info);
-      
+
       // Expand first season by default
       if (info.seasons && info.seasons.length > 0) {
         setExpandedSeasons(new Set([info.seasons[0].season]));
       } else if (info.episodes && info.episodes.length > 0) {
         setExpandedSeasons(new Set([1]));
       }
-      
+
       showToast(`Switched to ${getProviderDisplayName(newProvider)}`, 'success');
     } catch (err) {
       console.error('[MediaDetail] Failed to switch source:', err);
@@ -900,7 +900,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
   }, [extractProvider, getProviderDisplayName, showToast]);
 
   // Check if this is a movie (single content without episodes)
-  const isMovie = mediaInfo?.type === 'Movie' || 
+  const isMovie = mediaInfo?.type === 'Movie' ||
     (getAllEpisodes().length === 0 && !mediaInfo?.seasons?.length);
 
   if (loading) {
@@ -968,7 +968,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             </svg>
             <span className="text-xs uppercase tracking-wider">Back</span>
           </button>
-          
+
           {!isOnline && (
             <div className="flex items-center gap-2 text-red-500 text-xs uppercase tracking-wider">
               <div className="w-2 h-2 bg-red-500 rounded-full" />
@@ -990,7 +990,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 Low confidence match ({Math.round(confidence * 100)}%)
               </p>
               <p className="text-xs text-yellow-400/80 mt-1">
-                This title was matched automatically and may not be correct. 
+                This title was matched automatically and may not be correct.
                 If this is the wrong content, use "Link Source" below to manually select the correct one.
               </p>
             </div>
@@ -1042,10 +1042,10 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                   {mediaInfo.type}
                 </span>
               )}
-              
+
               {mediaInfo.status && (
                 <span className={`px-2 py-0.5 text-xs uppercase border ${
-                  mediaInfo.status.toLowerCase() === 'completed' || mediaInfo.status.toLowerCase() === 'ended' 
+                  mediaInfo.status.toLowerCase() === 'completed' || mediaInfo.status.toLowerCase() === 'ended'
                     ? 'border-green-700 text-green-500' :
                   mediaInfo.status.toLowerCase() === 'ongoing' || mediaInfo.status.toLowerCase() === 'returning series'
                     ? 'border-blue-700 text-blue-400' :
@@ -1054,19 +1054,19 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                   {mediaInfo.status}
                 </span>
               )}
-              
+
               {mediaInfo.releaseDate && (
                 <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500">
                   {mediaInfo.releaseDate}
                 </span>
               )}
-              
+
               {mediaInfo.duration && (
                 <span className="px-2 py-0.5 text-xs border border-neutral-800 text-neutral-500">
                   {mediaInfo.duration}
                 </span>
               )}
-              
+
               <span className="px-2 py-0.5 text-xs border border-neutral-700 text-neutral-400 uppercase">
                 {videoService.getProviderDisplayName(provider)}
               </span>
@@ -1142,7 +1142,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               Delete Offline
             </button>
           ) : null}
-          
+
           {isMovie ? (
             // Movie: Single watch button with confidence check
             <button
@@ -1173,7 +1173,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               )}
             </>
           )}
-          
+
           {/* Link Source button - allows manual mapping override */}
           {isOnline && needsResolution(mediaId) && (
             <button
@@ -1183,7 +1183,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               Link Source
             </button>
           )}
-          
+
           {/* Change Source button - switch to a different provider */}
           {isOnline && (
             <button
@@ -1357,7 +1357,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         <div className="mx-4 mb-4 bg-neutral-950 border border-neutral-800 p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs uppercase tracking-wider text-neutral-500">
-              {activeDownload.status === 'awaiting_quality' 
+              {activeDownload.status === 'awaiting_quality'
                 ? `Select Quality - Episode ${activeDownload.episode.number}`
                 : `Downloading Episode ${activeDownload.episode.number}`
               }
@@ -1368,7 +1368,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               </span>
             )}
           </div>
-          
+
           {/* Quality Selection for HLS */}
           {activeDownload.status === 'awaiting_quality' && activeDownload.availableQualities && (
             <div className="space-y-2">
@@ -1388,7 +1388,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               ))}
             </div>
           )}
-          
+
           {/* Progress bar (when downloading) */}
           {activeDownload.status !== 'awaiting_quality' && (
             <div className="w-full h-2 bg-neutral-800">
@@ -1398,7 +1398,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
               />
             </div>
           )}
-          
+
           {activeDownload.status === 'error' && (
             <p className="text-xs text-red-500 mt-2">{activeDownload.error}</p>
           )}
@@ -1421,7 +1421,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 </span>
               )}
             </div>
-            
+
             {allEpisodes.length > 0 && (
               <button
                 onClick={() => {
@@ -1458,7 +1458,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                 const allDownloaded = season.episodes.every(ep => isEpisodeDownloaded(ep.id));
                 const someDownloaded = season.episodes.some(ep => isEpisodeDownloaded(ep.id));
                 const seasonProgress = getSeasonProgress(season);
-                
+
                 return (
                   <div key={season.season} className="border border-neutral-800">
                     {/* Season Header */}
@@ -1552,7 +1552,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                             </button>
                           </div>
                         )}
-                        
+
                         {season.episodes.map(episode => {
                           const downloaded = isEpisodeDownloaded(episode.id);
                           const isSelected = selectedEpisodes.has(episode.id);
@@ -1561,7 +1561,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                           const inQueue = isEpisodeInQueue(episode.id);
                           const downloading = isEpisodeDownloading(episode.id);
                           const downloadProgress = getDownloadProgress(episode.id);
-                          
+
                           return (
                             <div
                               key={episode.id}
@@ -1578,7 +1578,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                     className="w-4 h-4 bg-neutral-800 border-neutral-700"
                                   />
                                 )}
-                                
+
                                 {/* Watched indicator (eye icon) */}
                                 {!isSelectionMode && (
                                   <div className="flex-shrink-0 w-5">
@@ -1600,7 +1600,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                     )}
                                   </div>
                                 )}
-                                
+
                                 {/* Episode thumbnail */}
                                 {episode.image && (
                                   <div className="flex-shrink-0 w-20 h-12 bg-neutral-900 border border-neutral-800 overflow-hidden relative">
@@ -1620,7 +1620,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                     )}
                                   </div>
                                 )}
-                                
+
                                 <button
                                   onClick={() => {
                                     if (isSelectionMode) {
@@ -1650,7 +1650,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                       {episode.releaseDate}
                                     </div>
                                   )}
-                                  
+
                                   {/* Watch progress bar */}
                                   {progress !== null && progress > 0 && !completed && (
                                     <div className="w-full h-1 bg-neutral-800 mt-2">
@@ -1682,7 +1682,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
                                 {inQueue && !downloading && (
                                   <span className="text-xs text-neutral-500 uppercase">Queued</span>
                                 )}
-                                
+
                                 {!isSelectionMode && (
                                   downloaded && !downloading ? (
                                     <button
@@ -1725,7 +1725,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
         <ProviderMappingModal
           refId={mediaId}
           title={initialTitle || mediaInfo?.title || ''}
-          mediaType={mediaType}
+          mediaType={mediaType ?? 'movie'}
           currentProvider={provider}
           onClose={() => setShowLinkSourceModal(false)}
           onMappingSaved={handleMappingSaved}
@@ -1742,7 +1742,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           alternatives={confidenceCheckAlternatives}
           provider={resolvedProvider}
           originalTitle={initialTitle || ''}
-          mediaType={mediaType}
+          mediaType={mediaType ?? 'movie'}
           onConfirm={handleConfidenceCheckConfirm}
           onSearchManually={handleConfidenceCheckSearchManually}
           onClose={handleConfidenceCheckClose}
@@ -1759,7 +1759,7 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
           onSourceSelected={(result: SearchResult, newProvider: ProviderName) => {
             // Build the new refId from the selected result
             const newRefId = `${newProvider}:${result.id}`;
-            
+
             // Update the resolved provider ID and provider
             setResolvedProviderId(newRefId);
             setResolvedProvider(newProvider as VideoProviderName);
@@ -1767,12 +1767,12 @@ export const MediaDetail: React.FC<MediaDetailProps> = ({
             setIsVerified(true);
             setShowConfidenceWarning(false);
             setShowSourceSearchModal(false);
-            
+
             // Reset media info to trigger a fresh load with the new provider
             setMediaInfo(null);
             setLoading(true);
             loadedForRef.current = null;
-            
+
             showToast(`Switched to ${newProvider}`, 'success');
           }}
         />

@@ -1,5 +1,5 @@
-import { PublicProfile } from '../../../types';
-import { API_BASE_URL, fetchWithAuth } from '@/shared/api/client';
+import { PublicProfile } from '../../types';
+import { API_BASE_URL, fetchWithAuth } from '../../shared/api/client';
 
 export async function getPublicProfile(username: string): Promise<PublicProfile> {
   const response = await fetchWithAuth(`/profile/${encodeURIComponent(username)}`);
@@ -51,8 +51,8 @@ export interface ProviderMapping {
 
 export async function getProviderMapping(refId: string, provider: string): Promise<ProviderMapping | null> {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/provider-mappings/${encodeURIComponent(refId)}/${encodeURIComponent(provider)}`,
+    const response = await fetchWithAuth(
+      `/provider-mappings/${encodeURIComponent(refId)}/${encodeURIComponent(provider)}`,
     );
 
     if (response.status === 404) {
@@ -73,7 +73,7 @@ export async function getProviderMapping(refId: string, provider: string): Promi
 
 export async function getProviderMappings(refId: string): Promise<ProviderMapping[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/provider-mappings/${encodeURIComponent(refId)}`);
+    const response = await fetchWithAuth(`/provider-mappings/${encodeURIComponent(refId)}`);
 
     if (!response.ok) {
       return [];
@@ -103,24 +103,6 @@ export async function saveProviderMapping(
   }
 
   return await response.json();
-}
-
-export async function saveAutoMapping(
-  refId: string,
-  provider: string,
-  providerId: string,
-  providerTitle: string,
-  confidence: number,
-): Promise<void> {
-  try {
-    await fetch(`${API_BASE_URL}/provider-mappings/auto`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refId, provider, providerId, providerTitle, confidence }),
-    });
-  } catch (error) {
-    console.error('[saveAutoMapping] Error:', error);
-  }
 }
 
 export async function deleteProviderMapping(refId: string, provider: string): Promise<void> {

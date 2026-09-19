@@ -1,29 +1,10 @@
+import { getAllProviders, isProviderEnabled } from '@shared/providers';
 import React, { useState, useEffect, useCallback } from 'react';
-import { ProviderName, SearchResult } from '@/types';
-import { searchWithProvider, searchMedia, SearchCategory } from '@/services/mediaSearch';
-import { getProviderDisplayName, getProviderImageUrl } from '@/shared/media';
+import { ProviderName, SearchResult } from '../../../types';
+import { searchWithProvider, searchMedia, SearchCategory } from '../../../services/mediaSearch';
+import { getProviderDisplayName, getProviderImageUrl } from '../../../shared/media/index';
 
-// All available providers for source switching
-const ALL_PROVIDERS: { name: ProviderName; category: 'anime' | 'manga' | 'movie' | 'tv' }[] = [
-  // Anime providers
-  { name: 'anilist', category: 'anime' },
-  { name: 'hianime', category: 'anime' },
-  { name: 'animepahe', category: 'anime' },
-  { name: 'animekai', category: 'anime' },
-  // Movie/TV providers
-  { name: 'tmdb', category: 'movie' },
-  { name: 'flixhq', category: 'movie' },
-  { name: 'goku', category: 'movie' },
-  // Manga providers
-  { name: 'anilist-manga', category: 'manga' },
-  { name: 'mangadex', category: 'manga' },
-  { name: 'comick', category: 'manga' },
-  { name: 'mangapill', category: 'manga' },
-  { name: 'mangahere', category: 'manga' },
-  { name: 'mangakakalot', category: 'manga' },
-  { name: 'mangareader', category: 'manga' },
-  { name: 'asurascans', category: 'manga' },
-];
+const ALL_PROVIDERS = getAllProviders();
 
 interface SourceSearchModalProps {
   /** Current title for pre-filling search */
@@ -56,7 +37,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Filter providers based on media type
-  const availableProviders = ALL_PROVIDERS.filter(p => {
+  const availableProviders = ALL_PROVIDERS.filter(p => isProviderEnabled(p.name)).filter(p => {
     if (mediaType === 'ANIME') return p.category === 'anime';
     if (mediaType === 'MANGA') return p.category === 'manga';
     if (mediaType === 'TV' || mediaType === 'MOVIE') return p.category === 'movie' || p.category === 'tv';
@@ -77,7 +58,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
     setIsSearching(true);
     setHasSearched(true);
     setError(null);
-    
+
     try {
       const results = await searchWithProvider(searchQuery, selectedProvider);
       setSearchResults(results.results);
@@ -138,7 +119,7 @@ export const SourceSearchModal: React.FC<SourceSearchModalProps> = ({
               {mode === 'link' ? 'LINK ANOTHER SOURCE' : 'CHANGE SOURCE'}
             </h3>
             <p className="text-xs text-neutral-500 mt-1">
-              {mode === 'link' 
+              {mode === 'link'
                 ? 'Search and add a linked source for this title'
                 : 'Search and switch to a different provider for this title'}
             </p>

@@ -8,11 +8,11 @@ export function validate(schema: ZodSchema, target: ValidationTarget = 'body') {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       const data = schema.parse(req[target]);
-      req[target] = data;
+      Object.defineProperty(req, target, { value: data, writable: true, configurable: true });
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const message = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        const message = error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
         next(new BadRequestError(message));
       } else {
         next(error);

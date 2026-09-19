@@ -1,1 +1,1 @@
-export * from '../../../services/api/providerMappings';
+export * from '../../features/profile/api';
