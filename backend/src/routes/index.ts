@@ -31,7 +31,9 @@ router.use('/collections', collectionRoutes);
 // Health check
 router.get('/health', async (_req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    // Connectivity alone can pass with an incompatible pre-upgrade database.
+    // Resolve the column used by list enrichment, even when the table is empty.
+    await prisma.$queryRaw`SELECT user_id FROM provider_mappings LIMIT 0`;
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   } catch {
     res.status(503).json({ status: 'unavailable' });
